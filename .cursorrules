@@ -1,0 +1,189 @@
+# AlgoBot Project Rules
+
+## Code Style & Best Practices
+
+### General Principles
+- Follow clean code principles: SOLID, DRY, KISS
+- Write self-documenting code with meaningful names
+- Keep functions small and focused (single responsibility)
+- Avoid deep nesting (max 3 levels)
+- Use early returns to reduce complexity
+- Prefer composition over inheritance
+
+### Security First
+- Never commit secrets, API keys, or credentials
+- Always validate and sanitize user inputs
+- Use parameterized queries for database operations
+- Implement proper authentication and authorization
+- Use HTTPS in production
+- Sanitize data before rendering to prevent XSS
+- Implement CSRF protection
+- Use secure headers (Content-Security-Policy, X-Frame-Options, etc.)
+- Never expose sensitive data in client-side code
+- Use environment variables for all configuration
+
+## CSS & Styling Rules
+
+### Priority Order (MUST FOLLOW)
+1. **First Priority**: Use Bootstrap classes and components (MAXIMUM Bootstrap, MINIMUM custom CSS)
+   - Always check if Bootstrap provides the needed functionality before writing custom CSS
+   - Use Bootstrap utility classes: `container`, `row`, `col`, `d-flex`, `justify-content-*`, `align-items-*`, `mb-*`, `mt-*`, `p-*`, `text-*`, etc.
+   - Use Bootstrap components: `btn`, `card`, `form-control`, `nav`, `navbar`, `modal`, `dropdown` `image`, etc.
+   - Use Bootstrap responsive utilities: `d-md-none`, `d-lg-block`, `col-sm-*`, etc.
+   - Only use custom CSS when Bootstrap cannot achieve the desired result
+
+2. **Second**: Use CSS custom properties (CSS variables) from `globals.css` `:root` when custom styling is needed
+   - Colors: `var(--primary)`, `var(--accent)`, `var(--danger)`, `var(--success)`
+   - Design tokens: `var(--border-radius)`, `var(--shadow-small)`, `var(--shadow-card)`
+   - Glass effects: `var(--glass-bg)`, `var(--glass-border)`, `var(--glass-shadow)`
+
+3. **Third**: Use existing utility classes from `globals.css`
+   - `.glass-card`, `.primary`, `.accent`, `.danger`, `.success`
+   - `.shadow-small`, `.shadow-card`, `.rounded`
+   - `.btn-primary`, `.btn-accent`, `.btn-danger`, `.btn-success`
+
+4. **Last Resort**: Create custom CSS only when Bootstrap, root variables, and utilities don't suffice
+   - Always add custom properties to `:root` if reusable
+   - Use scoped styles (CSS modules) for component-specific styles
+   - Avoid inline styles unless absolutely necessary
+
+### CSS Guidelines
+- **Prioritize Bootstrap**: Always use Bootstrap classes first, custom CSS only when necessary
+- Use CSS custom properties for all colors, spacing, and design tokens (when custom styling is needed)
+- Maintain consistency with existing design system
+- Use Bootstrap's mobile-first responsive utilities before custom media queries
+- Follow BEM naming convention for custom classes if needed
+- Keep CSS organized and modular
+- Minimize custom CSS - prefer Bootstrap's built-in solutions
+
+## Environment Variables
+
+### Usage Rules
+- **ALWAYS** use environment variables from `src/config/env.js` for configuration
+- Never hardcode URLs, API endpoints, or configuration values
+- Use `NEXT_PUBLIC_*` prefix only for client-side accessible variables
+- Keep sensitive variables server-side only (no `NEXT_PUBLIC_` prefix)
+- Access via: `import { env } from '@/config/env'` or `process.env.NEXT_PUBLIC_*`
+
+### Security
+- Never log environment variables
+- Never expose server-side env vars to client
+- Validate environment variables on application startup
+- Use different values for development, staging, and production
+
+## Code Organization
+
+### File Structure
+- Keep components in `src/components/`
+- Keep utilities in `src/utils/`
+- Keep config in `src/config/`
+- Keep API routes in `src/app/api/`
+- Use index files for clean imports
+
+### Naming Conventions
+- Components: PascalCase (e.g., `UserProfile.js`)
+- Utilities: camelCase (e.g., `formatDate.js`)
+- Constants: UPPER_SNAKE_CASE (e.g., `MAX_RETRIES`)
+- Files: match component/function name
+
+### Imports
+- Group imports: external libraries → internal modules → relative imports
+- Use absolute imports with `@/` alias when configured
+- Remove unused imports
+
+## React/Next.js Best Practices
+
+### Components
+- Use functional components with hooks
+- Extract reusable logic into custom hooks
+- Use `React.memo` for expensive components
+- Implement proper error boundaries
+- Handle loading and error states
+
+### Performance
+- Lazy load components when appropriate
+- Optimize images with Next.js Image component
+- Use `useMemo` and `useCallback` judiciously
+- Avoid unnecessary re-renders
+- Implement proper code splitting
+
+### Data Fetching
+- Use Next.js App Router patterns
+- Implement proper caching strategies
+- Handle errors gracefully
+- Show loading states
+- Validate API responses
+
+## Security Checklist
+
+### Input Validation
+- Validate all user inputs on both client and server
+- Sanitize data before database operations
+- Use type checking (TypeScript or PropTypes)
+- Implement rate limiting for API endpoints
+
+### Authentication & Authorization
+- Use secure session management
+- Implement proper JWT handling
+- Never store passwords in plain text
+- Use bcrypt or similar for password hashing
+- Implement proper logout functionality
+
+### API Security
+- Validate all API requests
+- Implement CORS properly
+- Use HTTPS only in production
+- Implement request signing for sensitive operations
+- Add request timeout limits
+
+## Error Handling
+
+### Best Practices
+- Always handle errors explicitly
+- Provide meaningful error messages (not stack traces to users)
+- Log errors server-side for debugging
+- Use try-catch for async operations
+- Implement global error boundaries
+
+## Testing
+
+### Guidelines
+- Write tests for critical business logic
+- Test error cases, not just happy paths
+- Keep tests simple and readable
+- Mock external dependencies
+- Test accessibility
+
+## Documentation
+
+### Code Comments
+- Comment "why", not "what"
+- Use JSDoc for functions and components
+- Keep comments up-to-date with code
+- Remove commented-out code
+
+## Git & Version Control
+
+### Commit Messages
+- Use clear, descriptive commit messages
+- Follow conventional commits format when possible
+- Never commit `.env.local` or sensitive files
+- Review changes before committing
+
+## Performance
+
+### Optimization
+- Minimize bundle size
+- Optimize images and assets
+- Use CDN for static assets
+- Implement proper caching
+- Monitor and optimize database queries
+
+## Accessibility
+
+### Requirements
+- Use semantic HTML
+- Provide alt text for images
+- Ensure keyboard navigation
+- Maintain proper color contrast
+- Use ARIA labels when needed

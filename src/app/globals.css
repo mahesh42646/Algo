@@ -1,0 +1,240 @@
+@import "bootstrap/dist/css/bootstrap.min.css";
+
+:root {
+  /* Colors */
+  --primary: #ff8c00;
+  --accent: #0066cc;
+  --danger: #dc3545;
+  --success: #28a745;
+  --light-gray: #e0e0e0;
+  --white: #ffffff;
+  --bg-light: #f8f9fa;
+  
+  /* Design Tokens */
+  --border-radius: 10px;
+  --shadow-small: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.08);
+  
+  /* Glass Effect */
+  --glass-bg: rgba(255, 255, 255, 0.95);
+  --glass-border: rgba(255, 255, 255, 0.2);
+  --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg-light);
+  color: #333;
+  line-height: 1.6;
+}
+
+/* Utility Classes */
+.primary {
+  color: var(--primary);
+}
+
+.accent {
+  color: var(--accent);
+}
+
+.danger {
+  color: var(--danger);
+}
+
+.success {
+  color: var(--success);
+}
+
+.bg-primary {
+  background-color: var(--primary);
+}
+
+.bg-accent {
+  background-color: var(--accent);
+}
+
+.bg-danger {
+  background-color: var(--danger);
+}
+
+.bg-success {
+  background-color: var(--success);
+}
+
+/* Glass Card Effect */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: var(--border-radius);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  padding: 1.5rem;
+}
+
+.card {
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-card);
+  border: none;
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+}
+
+/* Shadows */
+.shadow-small {
+  box-shadow: var(--shadow-small);
+}
+
+.shadow-card {
+  box-shadow: var(--shadow-card);
+}
+
+/* Border Radius */
+.rounded {
+  border-radius: var(--border-radius);
+}
+
+/* Buttons */
+.btn {
+  border-radius: var(--border-radius);
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  border-color: var(--primary);
+}
+
+.btn-primary:hover {
+  background-color: #e67e00;
+  border-color: #e67e00;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-card);
+}
+
+.btn-accent {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.btn-accent:hover {
+  background-color: #0052a3;
+  border-color: #0052a3;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-card);
+}
+
+.btn-danger {
+  background-color: var(--danger);
+  border-color: var(--danger);
+}
+
+.btn-success {
+  background-color: var(--success);
+  border-color: var(--success);
+}
+
+/* Form Elements */
+.form-control,
+.form-select {
+  border-radius: var(--border-radius);
+  border: 1px solid var(--light-gray);
+  transition: all 0.3s ease;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 0.2rem rgba(0, 102, 204, 0.15);
+}
+
+/* Responsive Design */
+@media (max-width: 576px) {
+  .glass-card,
+  .card {
+    padding: 1rem;
+    margin: 0.5rem;
+  }
+  
+  body {
+    font-size: 14px;
+  }
+}
+
+@media (min-width: 577px) and (max-width: 768px) {
+  .glass-card,
+  .card {
+    padding: 1.25rem;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 992px) {
+  .glass-card,
+  .card {
+    padding: 1.5rem;
+  }
+}
+
+@media (min-width: 993px) and (max-width: 1200px) {
+  .container {
+    max-width: 960px;
+  }
+}
+
+@media (min-width: 1201px) {
+  .container {
+    max-width: 1140px;
+  }
+}
+
+/* Light animations - Framer Motion compatible */
+.fade-in {
+  animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.slide-up {
+  animation: slideUp 0.5s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Smooth transitions */
+* {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
