@@ -294,33 +294,59 @@ export default function News() {
       <div className="row g-2 g-md-3 g-lg-4 mb-3 mb-md-4">
         <div className="col-6 col-md-6 col-lg-3">
           <div
-            className="card border-0 text-white h-100"
+            className="card h-100"
             style={{
-              background: 'linear-gradient(135deg, #ff8c00 0%, #ff6b00 100%)',
+              background: '#ffffff',
               borderRadius: '12px',
-              boxShadow: '0 4px 20px rgba(255, 140, 0, 0.3)',
+              border: '1px solid rgba(255, 140, 0, 0.3)',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
               transition: 'all 0.3s ease'
+            }}
+            onMouseEnter={(e) => {
+              if (window.innerWidth > 768) {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
+                e.currentTarget.style.borderColor = 'rgba(255, 140, 0, 0.5)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.04)';
+              e.currentTarget.style.borderColor = 'rgba(255, 140, 0, 0.3)';
             }}
           >
             <div className="card-body p-2 p-md-3 p-lg-4">
-              <h3 className="fw-bold mb-1" style={{ fontSize: 'clamp(1.1rem, 5vw, 2rem)', lineHeight: '1.2' }}>{stats.total}</h3>
-              <p className="mb-0 opacity-90 fw-medium" style={{ fontSize: 'clamp(0.7rem, 2vw, 0.95rem)' }}>Total News</p>
+              <h3 className="fw-bold mb-1" style={{ fontSize: 'clamp(1.1rem, 5vw, 2rem)', lineHeight: '1.2', color: '#1a202c' }}>{stats.total}</h3>
+              <p className="mb-0 fw-medium" style={{ fontSize: 'clamp(0.7rem, 2vw, 0.95rem)', color: '#718096' }}>Total News</p>
             </div>
           </div>
         </div>
         <div className="col-6 col-md-6 col-lg-3">
           <div
-            className="card border-0 text-white h-100"
+            className="card h-100"
             style={{
-              background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+              background: '#ffffff',
               borderRadius: '12px',
-              boxShadow: '0 4px 20px rgba(67, 233, 123, 0.3)',
+              border: '1px solid rgba(67, 233, 123, 0.3)',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
               transition: 'all 0.3s ease'
+            }}
+            onMouseEnter={(e) => {
+              if (window.innerWidth > 768) {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
+                e.currentTarget.style.borderColor = 'rgba(67, 233, 123, 0.5)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.04)';
+              e.currentTarget.style.borderColor = 'rgba(67, 233, 123, 0.3)';
             }}
           >
             <div className="card-body p-2 p-md-3 p-lg-4">
-              <h3 className="fw-bold mb-1" style={{ fontSize: 'clamp(1.1rem, 5vw, 2rem)', lineHeight: '1.2' }}>{stats.published}</h3>
-              <p className="mb-0 opacity-90 fw-medium" style={{ fontSize: 'clamp(0.7rem, 2vw, 0.95rem)' }}>Published</p>
+              <h3 className="fw-bold mb-1" style={{ fontSize: 'clamp(1.1rem, 5vw, 2rem)', lineHeight: '1.2', color: '#1a202c' }}>{stats.published}</h3>
+              <p className="mb-0 fw-medium" style={{ fontSize: 'clamp(0.7rem, 2vw, 0.95rem)', color: '#718096' }}>Published</p>
             </div>
           </div>
         </div>

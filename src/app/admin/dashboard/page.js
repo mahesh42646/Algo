@@ -1,4 +1,4 @@
-'use client';
+  'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -30,8 +30,9 @@ export default function Dashboard() {
           <path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1H7Zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5.784 6A2.238 2.238 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.325 6.325 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1h4.216ZM4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/>
         </svg>
       ),
-      gradient: 'linear-gradient(135deg, #ff8c00 0%, #ff6b00 100%)',
-      iconBg: 'rgba(255, 255, 255, 0.2)'
+      borderColor: 'rgba(255, 140, 0, 0.3)',
+      iconBg: 'rgba(255, 140, 0, 0.1)',
+      iconColor: '#ff8c00'
     },
     {
       title: 'Active Plans',
@@ -43,8 +44,9 @@ export default function Dashboard() {
           <path d="M5.255 5.786a.237.237 0 0 0 .241.247h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.326 0-2.786.647-2.754 2.533zm1.326 4.81c-.083 0-.125-.018-.125-.125v-.126c0-.072.015-.12.125-.12.622 0 1.005.515 1.119.86a.25.25 0 0 1-.229.292h-.844zm.696-3.554c.08 0 .123.018.123.125v.126c0 .072-.015.12-.123.12h-.59c-.082 0-.123-.018-.123-.125v-.126c0-.072.015-.12.123-.12h.59z"/>
         </svg>
       ),
-      gradient: 'linear-gradient(135deg, #ff8c00 0%, #ffa500 100%)',
-      iconBg: 'rgba(255, 255, 255, 0.2)'
+      borderColor: 'rgba(255, 165, 0, 0.3)',
+      iconBg: 'rgba(255, 165, 0, 0.1)',
+      iconColor: '#ffa500'
     },
     {
       title: 'Revenue',
@@ -56,8 +58,9 @@ export default function Dashboard() {
           <path d="M0 6a6 6 0 1 1 11.89 3.477q-.09-.25-.21-.567L11.89 6A5.99 5.99 0 0 0 6 0 6 6 0 0 0 0 6Zm8.5-1.497v1.497l2.062 2.062a7.068 7.068 0 0 1-2.062-3.56Z"/>
         </svg>
       ),
-      gradient: 'linear-gradient(135deg, #0066cc 0%, #0052a3 100%)',
-      iconBg: 'rgba(255, 255, 255, 0.2)'
+      borderColor: 'rgba(0, 102, 204, 0.3)',
+      iconBg: 'rgba(0, 102, 204, 0.1)',
+      iconColor: '#0066cc'
     },
     {
       title: 'Active Users',
@@ -69,8 +72,9 @@ export default function Dashboard() {
           <path d="M10.97 4.97a.235.235 0 0 0-.02.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.061L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05z"/>
         </svg>
       ),
-      gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-      iconBg: 'rgba(255, 255, 255, 0.2)'
+      borderColor: 'rgba(67, 233, 123, 0.3)',
+      iconBg: 'rgba(67, 233, 123, 0.1)',
+      iconColor: '#43e97b'
     },
   ];
 
@@ -123,89 +127,60 @@ export default function Dashboard() {
         {statCards.map((card, index) => (
           <div key={index} className="col-6 col-lg-3">
             <div
-              className="card border-0 text-white h-100"
+              className="card h-100"
               style={{
-                background: card.gradient,
+                background: '#ffffff',
                 borderRadius: '12px',
-                boxShadow: `0 4px 20px ${card.gradient.includes('ff8c00') ? 'rgba(255, 140, 0, 0.4)' : card.gradient.includes('0066cc') ? 'rgba(0, 102, 204, 0.4)' : 'rgba(67, 233, 123, 0.3)'}`,
-                transition: 'all 0.3s ease',
-                position: 'relative',
-                overflow: 'hidden'
+                border: `1px solid ${card.borderColor}`,
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                transition: 'all 0.3s ease'
               }}
               onMouseEnter={(e) => {
                 if (window.innerWidth > 768) {
-                  e.currentTarget.style.transform = 'translateY(-8px) scale(1.02)';
-                  e.currentTarget.style.boxShadow = `0 8px 30px ${card.gradient.includes('ff8c00') ? 'rgba(255, 140, 0, 0.5)' : card.gradient.includes('0066cc') ? 'rgba(0, 102, 204, 0.5)' : 'rgba(67, 233, 123, 0.4)'}`;
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
+                  e.currentTarget.style.borderColor = card.borderColor.replace('0.3', '0.5');
                 }
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0) scale(1)';
-                e.currentTarget.style.boxShadow = `0 4px 20px ${card.gradient.includes('ff8c00') ? 'rgba(255, 140, 0, 0.4)' : card.gradient.includes('0066cc') ? 'rgba(0, 102, 204, 0.4)' : 'rgba(67, 233, 123, 0.3)'}`;
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.04)';
+                e.currentTarget.style.borderColor = card.borderColor;
               }}
             >
-              <div
-                className="d-none d-md-block"
-                style={{
-                  position: 'absolute',
-                  top: '-30px',
-                  right: '-30px',
-                  width: '120px',
-                  height: '120px',
-                  borderRadius: '50%',
-                  background: 'rgba(255, 255, 255, 0.1)'
-                }}
-              />
-              <div className="card-body p-3 p-md-4 position-relative">
+              <div className="card-body p-3 p-md-4">
                 <div className="d-flex justify-content-between align-items-start mb-2 mb-md-3">
                   <div
                     style={{
-                      width: '40px',
-                      height: '40px',
-                      borderRadius: '10px',
+                      width: 'clamp(40px, 10vw, 56px)',
+                      height: 'clamp(40px, 10vw, 56px)',
+                      borderRadius: '12px',
                       background: card.iconBg,
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      backdropFilter: 'blur(10px)'
+                      justifyContent: 'center'
                     }}
-                    className="d-md-none"
                   >
-                    <div style={{ transform: 'scale(0.6)' }}>
+                    <div style={{ color: card.iconColor }}>
                       {card.icon}
                     </div>
-                  </div>
-                  <div
-                    className="d-none d-md-flex"
-                    style={{
-                      width: '56px',
-                      height: '56px',
-                      borderRadius: '14px',
-                      background: card.iconBg,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backdropFilter: 'blur(10px)'
-                    }}
-                  >
-                    {card.icon}
                   </div>
                   <span
                     className="badge"
                     style={{
-                      background: 'rgba(255, 255, 255, 0.25)',
-                      color: 'white',
-                      fontSize: '0.75rem',
-                      padding: '0.3rem 0.6rem',
+                      background: 'rgba(0, 0, 0, 0.05)',
+                      color: '#4a5568',
+                      fontSize: 'clamp(0.7rem, 1.8vw, 0.75rem)',
+                      padding: '0.25rem 0.5rem',
                       borderRadius: '6px',
-                      fontWeight: '600',
-                      backdropFilter: 'blur(10px)'
+                      fontWeight: '600'
                     }}
                   >
                     {card.growth}
                   </span>
                 </div>
-                <h3 className="fw-bold mb-1 mb-md-2" style={{ fontSize: 'clamp(1.25rem, 5vw, 2rem)', lineHeight: '1.2' }}>{card.value}</h3>
-                <p className="mb-0 opacity-90 fw-medium" style={{ fontSize: 'clamp(0.75rem, 2vw, 0.95rem)' }}>{card.title}</p>
+                <h3 className="fw-bold mb-1 mb-md-2" style={{ fontSize: 'clamp(1.25rem, 5vw, 2rem)', lineHeight: '1.2', color: '#1a202c' }}>{card.value}</h3>
+                <p className="mb-0 fw-medium" style={{ fontSize: 'clamp(0.75rem, 2vw, 0.95rem)', color: '#718096' }}>{card.title}</p>
               </div>
             </div>
           </div>
