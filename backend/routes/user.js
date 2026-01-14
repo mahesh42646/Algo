@@ -127,6 +127,25 @@ router.post('/', async (req, res, next) => {
   }
 });
 
+router.get('/', async (req, res, next) => {
+  try {
+    console.log(`[USERS GET ALL] Fetching all users`);
+
+    const users = await User.find({})
+      .select('-__v -activities -notifications -strategies -wallet.transactions -referrals -kyc')
+      .sort({ createdAt: -1 });
+
+    console.log(`[USERS GET ALL] ✅ Found ${users.length} users`);
+    res.json({
+      success: true,
+      data: users,
+    });
+  } catch (error) {
+    console.error(`[USERS GET ALL] ❌ Error fetching users:`, error);
+    next(error);
+  }
+});
+
 router.get('/:userId', async (req, res, next) => {
   try {
     const userId = req.params.userId;

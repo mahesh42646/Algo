@@ -1,24 +1,59 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function UserList() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const router = useRouter();
 
-  const [users] = useState([
-    { id: 1, name: 'John Doe', email: 'john@example.com', plan: 'Premium', status: 'Active', joinDate: '2024-01-15' },
-    { id: 2, name: 'Jane Smith', email: 'jane@example.com', plan: 'Pro', status: 'Active', joinDate: '2024-01-14' },
-    { id: 3, name: 'Bob Johnson', email: 'bob@example.com', plan: 'Basic', status: 'Inactive', joinDate: '2024-01-13' },
-    { id: 4, name: 'Alice Williams', email: 'alice@example.com', plan: 'Premium', status: 'Active', joinDate: '2024-01-12' },
-    { id: 5, name: 'Charlie Brown', email: 'charlie@example.com', plan: 'Pro', status: 'Active', joinDate: '2024-01-11' },
-    { id: 6, name: 'Diana Prince', email: 'diana@example.com', plan: 'Premium', status: 'Active', joinDate: '2024-01-10' },
-    { id: 7, name: 'Edward Norton', email: 'edward@example.com', plan: 'Basic', status: 'Inactive', joinDate: '2024-01-09' },
-    { id: 8, name: 'Fiona Apple', email: 'fiona@example.com', plan: 'Pro', status: 'Active', joinDate: '2024-01-08' },
-    { id: 9, name: 'George Lucas', email: 'george@example.com', plan: 'Premium', status: 'Active', joinDate: '2024-01-07' },
-    { id: 10, name: 'Helen Mirren', email: 'helen@example.com', plan: 'Basic', status: 'Active', joinDate: '2024-01-06' },
-  ]);
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/users`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch users');
+        }
+
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+          const planMap = {
+            'premium': 'Premium',
+            'enterprise': 'Pro',
+            'basic': 'Basic',
+            'free': 'Basic'
+          };
+          
+          const mappedUsers = result.data.map((user) => ({
+            id: user.id || user._id,
+            userId: user.userId,
+            name: user.nickname || `User${user.userId?.slice(-6) || ''}`,
+            email: user.email,
+            plan: planMap[user.subscription?.plan] || 'Basic',
+            status: user.isActive ? 'Active' : 'Inactive',
+            joinDate: user.createdAt ? new Date(user.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          }));
+          setUsers(mappedUsers);
+        } else {
+          throw new Error(result.error || 'Failed to fetch users');
+        }
+      } catch (err) {
+        console.error('Error fetching users:', err);
+        setError(err.message || 'Failed to load users');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, []);
 
   const filteredUsers = users.filter(
     (user) =>
@@ -30,6 +65,31 @@ export default function UserList() {
   const totalUsers = users.length;
   const activeUsers = users.filter(u => u.status === 'Active').length;
   const premiumUsers = users.filter(u => u.plan === 'Premium').length;
+
+  if (loading) {
+    return (
+      <div className="px-2 px-md-3 px-lg-4 d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
+        <div className="text-center">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="mt-3 text-muted">Loading users...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="px-2 px-md-3 px-lg-4 d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
+        <div className="text-center">
+          <div className="alert alert-danger" role="alert">
+            <strong>Error:</strong> {error}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const getInitials = (name) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -426,7 +486,7 @@ export default function UserList() {
                           }}
                           onClick={(e) => {
                             e.stopPropagation();
-                            router.push(`/admin/dashboard/users/${user.id}`);
+                            router.push(`/admin/dashboard/users/${user.userId || user.id}`);
                           }}
                           onMouseEnter={(e) => {
                             if (window.innerWidth > 768) {
