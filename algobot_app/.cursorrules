@@ -1,0 +1,158 @@
+# AlgoBot Mobile App Rules
+
+## Code Style & Best Practices
+
+### General Principles
+- Follow clean code principles: SOLID, DRY, KISS
+- Write self-documenting code with meaningful names
+- Keep functions small and focused (single responsibility)
+- Avoid deep nesting (max 3 levels)
+- Use early returns to reduce complexity
+- Prefer composition over inheritance
+
+### Security First
+- Never commit secrets, API keys, or credentials
+- Always validate and sanitize user inputs
+- Use secure storage for sensitive data (flutter_secure_storage)
+- Implement proper authentication and authorization
+- Use HTTPS in production
+- Never expose sensitive data in client-side code
+- Use environment variables for all configuration
+- Validate API responses before use
+
+## Flutter/Dart Best Practices
+
+### Widget Organization
+- Extract reusable widgets into separate files
+- Use const constructors whenever possible
+- Prefer StatelessWidget over StatefulWidget when possible
+- Use keys appropriately for widget identity
+- Keep widget build methods small and focused
+
+### State Management
+- Use Provider, Riverpod, or Bloc for state management
+- Avoid setState for complex state
+- Separate business logic from UI
+- Use immutable state objects
+
+### Performance
+- Use const widgets to avoid rebuilds
+- Implement proper list item builders (ListView.builder)
+- Optimize images and assets
+- Use lazy loading for large datasets
+- Avoid unnecessary rebuilds
+
+### Code Organization
+- Keep models in `lib/models/`
+- Keep services in `lib/services/`
+- Keep screens in `lib/screens/`
+- Keep widgets in `lib/widgets/`
+- Keep utils in `lib/utils/`
+- Keep config in `lib/config/`
+
+## Environment Variables
+
+### Usage Rules
+- **ALWAYS** use environment variables from `lib/config/env.dart` for configuration
+- Never hardcode URLs, API endpoints, or configuration values
+- Load environment variables using `flutter_dotenv`
+- Access via: `import 'package:algobot_app/config/env.dart'`
+
+### Security
+- Never log environment variables
+- Never expose sensitive data to client
+- Validate environment variables on app startup
+- Use different values for development, staging, and production
+
+## API Integration
+
+### Best Practices
+- Use Dio or http package for API calls
+- Implement proper error handling
+- Use interceptors for authentication
+- Implement request/response logging in development
+- Handle network errors gracefully
+- Show loading states
+- Validate API responses
+
+### Backend Connection
+- Connect ONLY to backend API (no direct web project connection)
+- Use backend URL from environment variables
+- Implement proper authentication tokens
+- Handle token refresh automatically
+
+## UI/UX Guidelines
+
+### Design Principles
+- Follow Material Design guidelines
+- Maintain consistency with app theme
+- Use responsive design for different screen sizes
+- Implement proper error messages
+- Show loading indicators
+- Provide feedback for user actions
+
+### Accessibility
+- Use semantic labels
+- Ensure proper color contrast
+- Support screen readers
+- Implement keyboard navigation where applicable
+
+## Error Handling
+
+### Best Practices
+- Always handle errors explicitly
+- Provide meaningful error messages to users
+- Log errors for debugging
+- Use try-catch for async operations
+- Implement global error handlers
+
+## Testing
+
+### Guidelines
+- Write unit tests for business logic
+- Write widget tests for UI components
+- Write integration tests for critical flows
+- Test error cases, not just happy paths
+- Mock external dependencies
+- Test on multiple devices/screen sizes
+
+## Documentation
+
+### Code Comments
+- Comment "why", not "what"
+- Use DartDoc for public APIs
+- Keep comments up-to-date with code
+- Remove commented-out code
+
+## Git & Version Control
+
+### Commit Messages
+- Use clear, descriptive commit messages
+- Follow conventional commits format when possible
+- Never commit `.env.local` or sensitive files
+- Review changes before committing
+
+## Performance
+
+### Optimization
+- Minimize app size
+- Optimize images and assets
+- Implement proper caching
+- Monitor and optimize API calls
+- Use lazy loading
+
+## Security Checklist
+
+### Data Protection
+- Use secure storage for tokens
+- Encrypt sensitive local data
+- Implement certificate pinning for production
+- Validate all user inputs
+- Sanitize data before display
+
+### API Security
+- Use HTTPS only
+- Implement proper authentication
+- Handle token expiration
+- Validate API responses
+- Implement request signing if required

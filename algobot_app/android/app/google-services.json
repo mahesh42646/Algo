@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "590259115352",
+    "project_id": "algo-bot-396c8",
+    "storage_bucket": "algo-bot-396c8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:590259115352:android:162b6ba2867924fbedc12d",
+        "android_client_info": {
+          "package_name": "com.algobot.algobot_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA27yzHE_MKa5SXVaS2tvR_QCMTlokLjzs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
