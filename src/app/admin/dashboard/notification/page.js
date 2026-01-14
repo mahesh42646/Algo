@@ -1,8 +1,11 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { notificationsAPI } from '@/utils/api';
 
 export default function Notifications() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [notifications, setNotifications] = useState([
     {
       id: 1,
@@ -116,6 +119,54 @@ export default function Notifications() {
       createdByAdmin: true
     },
   ]);
+
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const response = await notificationsAPI.getAll();
+        
+        if (response.success) {
+          // Transform backend notifications to match frontend format
+          const transformedNotifications = (response.data || []).map((notif, index) => ({
+            id: notif.id || index + 1,
+            type: notif.type === 'success' ? 'new_user' : notif.type === 'error' ? 'payment' : 'info',
+            title: notif.title,
+            message: notif.message,
+            user: {
+              name: notif.userName || 'User',
+              email: notif.userEmail || 'N/A',
+              plan: 'Basic'
+            },
+            timestamp: notif.createdAt ? new Date(notif.createdAt).toLocaleString('en-US', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit'
+            }).replace(',', '') : new Date().toLocaleString(),
+            status: notif.read ? 'sent' : 'processing',
+            scheduled: false,
+            createdByAdmin: false
+          }));
+          
+          setNotifications(transformedNotifications);
+        } else {
+          setError(response.error || 'Failed to load notifications');
+        }
+      } catch (err) {
+        console.error('Error fetching notifications:', err);
+        setError(err.message || 'Failed to load notifications');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNotifications();
+  }, []);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [filterType, setFilterType] = useState('all');
@@ -262,6 +313,35 @@ export default function Notifications() {
     return date.toLocaleDateString();
   };
 
+  if (loading) {
+    return (
+      <div className="px-2 px-md-3 px-lg-4 d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
+        <div className="text-center">
+          <div className="spinner-border text-primary" role="status" style={{ width: '3rem', height: '3rem' }}>
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="mt-3 text-muted">Loading notifications...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="px-2 px-md-3 px-lg-4">
+        <div className="alert alert-warning" role="alert" style={{ borderRadius: '12px' }}>
+          <strong>Warning:</strong> {error}
+          <button 
+            className="btn btn-sm btn-outline-primary ms-3" 
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <style>{`
@@ -334,11 +414,12 @@ export default function Notifications() {
       <div className="row g-2 g-md-3 g-lg-4 mb-3 mb-md-4">
         <div className="col-6 col-md-6 col-lg-3">
           <div
-            className="card border-0 text-white h-100"
+            className="card h-100"
             style={{
-              background: 'linear-gradient(135deg, #ff8c00 0%, #ff6b00 100%)',
+              background: '#ffffff',
+              border: '1px solid rgba(255, 140, 0, 0.3)',
               borderRadius: '12px',
-              boxShadow: '0 4px 20px rgba(255, 140, 0, 0.3)',
+              boxShadow: '0 4px 20px rgba(255, 140, 0, 0.1)',
               transition: 'all 0.3s ease',
               position: 'relative',
               overflow: 'hidden'
@@ -346,26 +427,14 @@ export default function Notifications() {
             onMouseEnter={(e) => {
               if (window.innerWidth > 768) {
                 e.currentTarget.style.transform = 'translateY(-4px)';
-                e.currentTarget.style.boxShadow = '0 8px 25px rgba(255, 140, 0, 0.4)';
+                e.currentTarget.style.boxShadow = '0 8px 25px rgba(255, 140, 0, 0.15)';
               }
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 20px rgba(255, 140, 0, 0.3)';
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(255, 140, 0, 0.1)';
             }}
           >
-            <div
-              className="d-none d-md-block"
-              style={{
-                position: 'absolute',
-                top: '-20px',
-                right: '-20px',
-                width: '80px',
-                height: '80px',
-                borderRadius: '50%',
-                background: 'rgba(255, 255, 255, 0.1)'
-              }}
-            />
             <div className="card-body p-2 p-md-3 p-lg-4 position-relative">
               <div className="d-flex justify-content-between align-items-start mb-2 mb-md-3">
                 <div
@@ -373,30 +442,30 @@ export default function Notifications() {
                     width: 'clamp(36px, 9vw, 48px)',
                     height: 'clamp(36px, 9vw, 48px)',
                     borderRadius: 'clamp(8px, 2vw, 12px)',
-                    background: 'rgba(255, 255, 255, 0.2)',
+                    background: 'rgba(255, 140, 0, 0.1)',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    backdropFilter: 'blur(10px)'
+                    justifyContent: 'center'
                   }}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="clamp(18px, 4.5vw, 24px)" height="clamp(18px, 4.5vw, 24px)" fill="white" viewBox="0 0 16 16">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="clamp(18px, 4.5vw, 24px)" height="clamp(18px, 4.5vw, 24px)" fill="#ff8c00" viewBox="0 0 16 16">
                     <path d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2zM8 1.918l-.797.161A4.002 4.002 0 0 0 4 6c0 .628-.134 2.197-.459 3.742-.16.767-.376 1.566-.663 2.258h10.244c-.287-.692-.502-1.49-.663-2.258C12.134 8.197 12 6.628 12 6a4.002 4.002 0 0 0-3.203-3.92L8 1.917zM14.22 12c.223.447.481.801.78 1H1c.299-.199.557-.553.78-1C2.68 10.2 3 6.88 3 6c0-2.42 1.72-4.44 4.005-4.901a1 1 0 1 1 1.99 0A5.002 5.002 0 0 1 13 6c0 .88.32 4.2 1.22 6z"/>
                   </svg>
                 </div>
               </div>
-              <h3 className="fw-bold mb-1" style={{ fontSize: 'clamp(1.1rem, 5vw, 2rem)', lineHeight: '1.2' }}>{stats.total}</h3>
-              <p className="mb-0 opacity-90 fw-medium" style={{ fontSize: 'clamp(0.7rem, 2vw, 0.95rem)' }}>Total Notifications</p>
+              <h3 className="fw-bold mb-1 text-dark" style={{ fontSize: 'clamp(1.1rem, 5vw, 2rem)', lineHeight: '1.2' }}>{stats.total}</h3>
+              <p className="mb-0 text-muted fw-medium" style={{ fontSize: 'clamp(0.7rem, 2vw, 0.95rem)' }}>Total Notifications</p>
             </div>
           </div>
         </div>
         <div className="col-6 col-md-6 col-lg-3">
           <div
-            className="card border-0 text-white h-100"
+            className="card h-100"
             style={{
-              background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+              background: '#ffffff',
+              border: '1px solid rgba(67, 233, 123, 0.3)',
               borderRadius: '12px',
-              boxShadow: '0 4px 20px rgba(67, 233, 123, 0.3)',
+              boxShadow: '0 4px 20px rgba(67, 233, 123, 0.1)',
               transition: 'all 0.3s ease',
               position: 'relative',
               overflow: 'hidden'
@@ -404,26 +473,14 @@ export default function Notifications() {
             onMouseEnter={(e) => {
               if (window.innerWidth > 768) {
                 e.currentTarget.style.transform = 'translateY(-4px)';
-                e.currentTarget.style.boxShadow = '0 8px 25px rgba(67, 233, 123, 0.4)';
+                e.currentTarget.style.boxShadow = '0 8px 25px rgba(67, 233, 123, 0.15)';
               }
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 20px rgba(67, 233, 123, 0.3)';
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(67, 233, 123, 0.1)';
             }}
           >
-            <div
-              className="d-none d-md-block"
-              style={{
-                position: 'absolute',
-                top: '-20px',
-                right: '-20px',
-                width: '80px',
-                height: '80px',
-                borderRadius: '50%',
-                background: 'rgba(255, 255, 255, 0.1)'
-              }}
-            />
             <div className="card-body p-2 p-md-3 p-lg-4 position-relative">
               <div className="d-flex justify-content-between align-items-start mb-2 mb-md-3">
                 <div
@@ -431,31 +488,31 @@ export default function Notifications() {
                     width: 'clamp(36px, 9vw, 48px)',
                     height: 'clamp(36px, 9vw, 48px)',
                     borderRadius: 'clamp(8px, 2vw, 12px)',
-                    background: 'rgba(255, 255, 255, 0.2)',
+                    background: 'rgba(67, 233, 123, 0.1)',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    backdropFilter: 'blur(10px)'
+                    justifyContent: 'center'
                   }}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="clamp(18px, 4.5vw, 24px)" height="clamp(18px, 4.5vw, 24px)" fill="white" viewBox="0 0 16 16">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="clamp(18px, 4.5vw, 24px)" height="clamp(18px, 4.5vw, 24px)" fill="#43e97b" viewBox="0 0 16 16">
                     <path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/>
                     <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
                   </svg>
                 </div>
               </div>
-              <h3 className="fw-bold mb-1" style={{ fontSize: 'clamp(1.1rem, 5vw, 2rem)', lineHeight: '1.2' }}>{stats.sent}</h3>
-              <p className="mb-0 opacity-90 fw-medium" style={{ fontSize: 'clamp(0.7rem, 2vw, 0.95rem)' }}>Sent</p>
+              <h3 className="fw-bold mb-1 text-dark" style={{ fontSize: 'clamp(1.1rem, 5vw, 2rem)', lineHeight: '1.2' }}>{stats.sent}</h3>
+              <p className="mb-0 text-muted fw-medium" style={{ fontSize: 'clamp(0.7rem, 2vw, 0.95rem)' }}>Sent</p>
             </div>
           </div>
         </div>
         <div className="col-6 col-md-6 col-lg-3">
           <div
-            className="card border-0 text-white h-100"
+            className="card h-100"
             style={{
-              background: 'linear-gradient(135deg, #ff8c00 0%, #ffa500 100%)',
+              background: '#ffffff',
+              border: '1px solid rgba(255, 140, 0, 0.3)',
               borderRadius: '12px',
-              boxShadow: '0 4px 20px rgba(255, 140, 0, 0.4)',
+              boxShadow: '0 4px 20px rgba(255, 140, 0, 0.1)',
               transition: 'all 0.3s ease',
               position: 'relative',
               overflow: 'hidden'
@@ -463,26 +520,14 @@ export default function Notifications() {
             onMouseEnter={(e) => {
               if (window.innerWidth > 768) {
                 e.currentTarget.style.transform = 'translateY(-4px)';
-                e.currentTarget.style.boxShadow = '0 8px 25px rgba(255, 140, 0, 0.5)';
+                e.currentTarget.style.boxShadow = '0 8px 25px rgba(255, 140, 0, 0.15)';
               }
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 20px rgba(255, 140, 0, 0.4)';
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(255, 140, 0, 0.1)';
             }}
           >
-            <div
-              className="d-none d-md-block"
-              style={{
-                position: 'absolute',
-                top: '-20px',
-                right: '-20px',
-                width: '80px',
-                height: '80px',
-                borderRadius: '50%',
-                background: 'rgba(255, 255, 255, 0.1)'
-              }}
-            />
             <div className="card-body p-2 p-md-3 p-lg-4 position-relative">
               <div className="d-flex justify-content-between align-items-start mb-2 mb-md-3">
                 <div
@@ -490,31 +535,31 @@ export default function Notifications() {
                     width: 'clamp(36px, 9vw, 48px)',
                     height: 'clamp(36px, 9vw, 48px)',
                     borderRadius: 'clamp(8px, 2vw, 12px)',
-                    background: 'rgba(255, 255, 255, 0.2)',
+                    background: 'rgba(255, 140, 0, 0.1)',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    backdropFilter: 'blur(10px)'
+                    justifyContent: 'center'
                   }}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="clamp(18px, 4.5vw, 24px)" height="clamp(18px, 4.5vw, 24px)" fill="white" viewBox="0 0 16 16">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="clamp(18px, 4.5vw, 24px)" height="clamp(18px, 4.5vw, 24px)" fill="#ff8c00" viewBox="0 0 16 16">
                     <path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71V3.5z"/>
                     <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z"/>
                   </svg>
                 </div>
               </div>
-              <h3 className="fw-bold mb-1" style={{ fontSize: 'clamp(1.1rem, 5vw, 2rem)', lineHeight: '1.2' }}>{stats.scheduled}</h3>
-              <p className="mb-0 opacity-90 fw-medium" style={{ fontSize: 'clamp(0.7rem, 2vw, 0.95rem)' }}>Scheduled</p>
+              <h3 className="fw-bold mb-1 text-dark" style={{ fontSize: 'clamp(1.1rem, 5vw, 2rem)', lineHeight: '1.2' }}>{stats.scheduled}</h3>
+              <p className="mb-0 text-muted fw-medium" style={{ fontSize: 'clamp(0.7rem, 2vw, 0.95rem)' }}>Scheduled</p>
             </div>
           </div>
         </div>
         <div className="col-6 col-md-6 col-lg-3">
           <div
-            className="card border-0 text-white h-100"
+            className="card h-100"
             style={{
-              background: 'linear-gradient(135deg, #0066cc 0%, #0052a3 100%)',
+              background: '#ffffff',
+              border: '1px solid rgba(0, 102, 204, 0.3)',
               borderRadius: '12px',
-              boxShadow: '0 4px 20px rgba(0, 102, 204, 0.4)',
+              boxShadow: '0 4px 20px rgba(0, 102, 204, 0.1)',
               transition: 'all 0.3s ease',
               position: 'relative',
               overflow: 'hidden'
@@ -522,26 +567,14 @@ export default function Notifications() {
             onMouseEnter={(e) => {
               if (window.innerWidth > 768) {
                 e.currentTarget.style.transform = 'translateY(-4px)';
-                e.currentTarget.style.boxShadow = '0 8px 25px rgba(0, 102, 204, 0.5)';
+                e.currentTarget.style.boxShadow = '0 8px 25px rgba(0, 102, 204, 0.15)';
               }
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 20px rgba(0, 102, 204, 0.4)';
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(0, 102, 204, 0.1)';
             }}
           >
-            <div
-              className="d-none d-md-block"
-              style={{
-                position: 'absolute',
-                top: '-20px',
-                right: '-20px',
-                width: '80px',
-                height: '80px',
-                borderRadius: '50%',
-                background: 'rgba(255, 255, 255, 0.1)'
-              }}
-            />
             <div className="card-body p-2 p-md-3 p-lg-4 position-relative">
               <div className="d-flex justify-content-between align-items-start mb-2 mb-md-3">
                 <div
@@ -549,20 +582,115 @@ export default function Notifications() {
                     width: 'clamp(36px, 9vw, 48px)',
                     height: 'clamp(36px, 9vw, 48px)',
                     borderRadius: 'clamp(8px, 2vw, 12px)',
-                    background: 'rgba(255, 255, 255, 0.2)',
+                    background: 'rgba(0, 102, 204, 0.1)',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    backdropFilter: 'blur(10px)'
+                    justifyContent: 'center'
                   }}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="clamp(18px, 4.5vw, 24px)" height="clamp(18px, 4.5vw, 24px)" fill="white" viewBox="0 0 16 16">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="clamp(18px, 4.5vw, 24px)" height="clamp(18px, 4.5vw, 24px)" fill="#0066cc" viewBox="0 0 16 16">
                     <path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1H7Zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5.784 6A2.238 2.238 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.325 6.325 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1h4.216ZM4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/>
                   </svg>
                 </div>
               </div>
-              <h3 className="fw-bold mb-1" style={{ fontSize: 'clamp(1.1rem, 5vw, 2rem)', lineHeight: '1.2' }}>{stats.adminCreated}</h3>
-              <p className="mb-0 opacity-90 fw-medium" style={{ fontSize: 'clamp(0.7rem, 2vw, 0.95rem)' }}>Admin Created</p>
+              <h3 className="fw-bold mb-1 text-dark" style={{ fontSize: 'clamp(1.1rem, 5vw, 2rem)', lineHeight: '1.2' }}>{stats.adminCreated}</h3>
+              <p className="mb-0 text-muted fw-medium" style={{ fontSize: 'clamp(0.7rem, 2vw, 0.95rem)' }}>Admin Created</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="row g-2 g-md-3 g-lg-4 mb-3 mb-md-4">
+        <div className="col-6 col-md-6 col-lg-3">
+          <div
+            className="card h-100"
+            style={{
+              background: '#ffffff',
+              border: '1px solid rgba(255, 193, 7, 0.3)',
+              borderRadius: '12px',
+              boxShadow: '0 4px 20px rgba(255, 193, 7, 0.1)',
+              transition: 'all 0.3s ease',
+              position: 'relative',
+              overflow: 'hidden'
+            }}
+            onMouseEnter={(e) => {
+              if (window.innerWidth > 768) {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.boxShadow = '0 8px 25px rgba(255, 193, 7, 0.15)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(255, 193, 7, 0.1)';
+            }}
+          >
+            <div className="card-body p-2 p-md-3 p-lg-4 position-relative">
+              <div className="d-flex justify-content-between align-items-start mb-2 mb-md-3">
+                <div
+                  style={{
+                    width: 'clamp(36px, 9vw, 48px)',
+                    height: 'clamp(36px, 9vw, 48px)',
+                    borderRadius: 'clamp(8px, 2vw, 12px)',
+                    background: 'rgba(255, 193, 7, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="clamp(18px, 4.5vw, 24px)" height="clamp(18px, 4.5vw, 24px)" fill="#ffc107" viewBox="0 0 16 16" style={{ animation: 'spin 1s linear infinite' }}>
+                    <path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71V3.5z"/>
+                    <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z"/>
+                  </svg>
+                </div>
+              </div>
+              <h3 className="fw-bold mb-1 text-dark" style={{ fontSize: 'clamp(1.1rem, 5vw, 2rem)', lineHeight: '1.2' }}>{stats.processing}</h3>
+              <p className="mb-0 text-muted fw-medium" style={{ fontSize: 'clamp(0.7rem, 2vw, 0.95rem)' }}>Processing</p>
+            </div>
+          </div>
+        </div>
+        <div className="col-6 col-md-6 col-lg-3">
+          <div
+            className="card h-100"
+            style={{
+              background: '#ffffff',
+              border: '1px solid rgba(220, 53, 69, 0.3)',
+              borderRadius: '12px',
+              boxShadow: '0 4px 20px rgba(220, 53, 69, 0.1)',
+              transition: 'all 0.3s ease',
+              position: 'relative',
+              overflow: 'hidden'
+            }}
+            onMouseEnter={(e) => {
+              if (window.innerWidth > 768) {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.boxShadow = '0 8px 25px rgba(220, 53, 69, 0.15)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(220, 53, 69, 0.1)';
+            }}
+          >
+            <div className="card-body p-2 p-md-3 p-lg-4 position-relative">
+              <div className="d-flex justify-content-between align-items-start mb-2 mb-md-3">
+                <div
+                  style={{
+                    width: 'clamp(36px, 9vw, 48px)',
+                    height: 'clamp(36px, 9vw, 48px)',
+                    borderRadius: 'clamp(8px, 2vw, 12px)',
+                    background: 'rgba(220, 53, 69, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="clamp(18px, 4.5vw, 24px)" height="clamp(18px, 4.5vw, 24px)" fill="#dc3545" viewBox="0 0 16 16">
+                    <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM5.354 4.646a.5.5 0 1 0-.708.708L7.293 8l-2.647 2.646a.5.5 0 0 0 .708.708L8 8.707l2.646 2.647a.5.5 0 0 0 .708-.708L8.707 8l2.647-2.646a.5.5 0 0 0-.708-.708L8 7.293 5.354 4.646z"/>
+                  </svg>
+                </div>
+              </div>
+              <h3 className="fw-bold mb-1 text-dark" style={{ fontSize: 'clamp(1.1rem, 5vw, 2rem)', lineHeight: '1.2' }}>{stats.failed}</h3>
+              <p className="mb-0 text-muted fw-medium" style={{ fontSize: 'clamp(0.7rem, 2vw, 0.95rem)' }}>Failed</p>
             </div>
           </div>
         </div>
@@ -571,12 +699,15 @@ export default function Notifications() {
       <div
         className="card border-0"
         style={{
-          boxShadow: '0 2px 20px rgba(0,0,0,0.08)',
+          background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 248, 240, 0.95) 100%)',
+          border: '1px solid rgba(255, 140, 0, 0.2)',
           borderRadius: '16px',
+          boxShadow: '0 8px 32px rgba(255, 140, 0, 0.1)',
+          backdropFilter: 'blur(10px)',
           overflow: 'hidden'
         }}
       >
-        <div className="card-header bg-white border-bottom px-3 px-md-4 py-2 py-md-3">
+        <div className="card-header border-bottom px-3 px-md-4 py-2 py-md-3" style={{ background: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(10px)' }}>
           <div className="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3">
             <div className="d-flex align-items-center w-100 w-md-auto">
               <div

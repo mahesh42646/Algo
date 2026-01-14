@@ -123,10 +123,38 @@ export default function DashboardLayout({ children }) {
   ];
 
   return (
-    <div className="d-flex min-vh-100" style={{ background: 'var(--bg-light)' }}>
+    <>
+      <style>{`
+        .sidebar-transition {
+          transition: transform 0.3s ease, width 0.3s ease !important;
+        }
+
+        .nav-link-hover {
+          transition: all 0.3s ease !important;
+        }
+
+        .nav-link-hover:hover {
+          transform: translateX(4px) !important;
+        }
+
+        .sidebar-overlay {
+          backdrop-filter: blur(2px);
+        }
+
+        @media (max-width: 767.98px) {
+          .sidebar-mobile {
+            transform: translateX(-100%) !important;
+          }
+
+          .sidebar-mobile.open {
+            transform: translateX(0) !important;
+          }
+        }
+      `}</style>
+      <div className="d-flex min-vh-100" style={{ background: 'var(--bg-light)' }}>
       {sidebarOpen && isMobile && (
         <div
-          className="position-fixed top-0 start-0 w-100 h-100"
+          className="position-fixed top-0 start-0 w-100 h-100 sidebar-overlay"
           style={{
             backgroundColor: 'rgba(0, 0, 0, 0.5)',
             zIndex: 999
@@ -135,15 +163,13 @@ export default function DashboardLayout({ children }) {
         />
       )}
       <aside
-        className={`bg-white shadow-sm border-end position-fixed top-0 start-0 h-100 ${
-          sidebarOpen ? 'sidebar-open' : 'sidebar-closed'
-        }`}
+        className={`bg-white shadow-sm border-end position-fixed top-0 start-0 h-100 sidebar-transition ${isMobile ? (sidebarOpen ? 'sidebar-mobile open' : 'sidebar-mobile') : ''}`}
         style={{
           width: isMobile ? '280px' : (sidebarOpen ? '280px' : '80px'),
-          transition: 'transform 0.3s ease, width 0.3s ease',
           zIndex: 1000,
           transform: isMobile && !sidebarOpen ? 'translateX(-100%)' : 'translateX(0)',
-          maxWidth: isMobile ? '85vw' : '280px'
+          maxWidth: isMobile ? '85vw' : '280px',
+          boxShadow: sidebarOpen ? '2px 0 10px rgba(0,0,0,0.1)' : 'none'
         }}
       >
         <div className="d-flex flex-column h-100">
@@ -252,25 +278,24 @@ export default function DashboardLayout({ children }) {
                 <Link
                   key={item.path}
                   href={item.path}
-                  className="d-flex align-items-center text-decoration-none mb-2 rounded"
+                  className={`d-flex align-items-center text-decoration-none mb-2 rounded ${!isActive ? 'nav-link-hover' : ''}`}
                   onClick={() => {
-                    if (isMobile) {
+                    if (isMobile && sidebarOpen) {
                       setSidebarOpen(false);
                     }
                   }}
                   style={{
-                    transition: 'all 0.3s ease',
                     padding: 'clamp(0.75rem, 2vw, 0.875rem) clamp(0.875rem, 2vw, 1rem)',
                     backgroundColor: isActive ? 'linear-gradient(135deg, #ff8c00 0%, #ff6b00 100%)' : 'transparent',
                     background: isActive ? 'linear-gradient(135deg, #ff8c00 0%, #ff6b00 100%)' : 'transparent',
                     color: isActive ? 'white' : '#4a5568',
                     borderRadius: '12px',
-                    boxShadow: isActive ? '0 4px 15px rgba(255, 140, 0, 0.4)' : 'none'
+                    boxShadow: isActive ? '0 4px 15px rgba(255, 140, 0, 0.4)' : 'none',
+                    cursor: 'pointer'
                   }}
                   onMouseEnter={(e) => {
                     if (!isActive) {
                       e.currentTarget.style.backgroundColor = 'rgba(255, 140, 0, 0.1)';
-                      e.currentTarget.style.transform = 'translateX(4px)';
                     } else {
                       e.currentTarget.style.boxShadow = '0 6px 20px rgba(255, 140, 0, 0.5)';
                     }
@@ -278,7 +303,6 @@ export default function DashboardLayout({ children }) {
                   onMouseLeave={(e) => {
                     if (!isActive) {
                       e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.transform = 'translateX(0)';
                     } else {
                       e.currentTarget.style.boxShadow = '0 4px 15px rgba(255, 140, 0, 0.4)';
                     }
@@ -344,7 +368,9 @@ export default function DashboardLayout({ children }) {
         className="flex-grow-1"
         style={{
           marginLeft: isMobile ? '0' : (sidebarOpen ? '280px' : '80px'),
-          transition: 'margin-left 0.3s ease'
+          transition: 'margin-left 0.3s ease',
+          width: '100%',
+          minHeight: '100vh'
         }}
       >
         <header
@@ -360,6 +386,7 @@ export default function DashboardLayout({ children }) {
               <button
                 className="btn btn-link p-0 text-decoration-none d-md-none me-3"
                 onClick={() => setSidebarOpen(!sidebarOpen)}
+                type="button"
                 style={{
                   color: '#ff8c00',
                   border: 'none',
@@ -443,6 +470,7 @@ export default function DashboardLayout({ children }) {
       </div>
 
     </div>
+    </>
   );
 }
 

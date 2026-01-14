@@ -156,155 +156,144 @@ export default function UserList() {
         </div>
       </div>
 
-      <div className="row g-3 g-md-4 mb-3 mb-md-4">
-        <div className="col-6 col-lg-4">
+      <div className="row g-2 g-md-3 g-lg-4 mb-3 mb-md-4">
+        <div className="col-12 col-md-4">
           <div
-            className="card border-0 text-white h-100"
+            className="card h-100"
             style={{
-              background: 'linear-gradient(135deg, #ff8c00 0%, #ff6b00 100%)',
+              background: '#ffffff',
+              border: '1px solid rgba(255, 140, 0, 0.3)',
               borderRadius: '12px',
-              boxShadow: '0 4px 20px rgba(255, 140, 0, 0.3)'
+              boxShadow: '0 4px 20px rgba(255, 140, 0, 0.1)',
+              transition: 'all 0.3s ease',
+              position: 'relative',
+              overflow: 'hidden'
+            }}
+            onMouseEnter={(e) => {
+              if (window.innerWidth > 768) {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.boxShadow = '0 8px 25px rgba(255, 140, 0, 0.15)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(255, 140, 0, 0.1)';
             }}
           >
-            <div className="card-body p-3 p-md-4">
+            <div className="card-body p-2 p-md-3 p-lg-4 position-relative">
               <div className="d-flex justify-content-between align-items-start mb-2 mb-md-3">
                 <div
                   style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '10px',
-                    background: 'rgba(255, 255, 255, 0.2)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                  className="d-md-none"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="white" viewBox="0 0 16 16">
-                    <path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1H7Zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5.784 6A2.238 2.238 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.325 6.325 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1h4.216ZM4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/>
-                  </svg>
-                </div>
-                <div
-                  className="d-none d-md-flex"
-                  style={{
-                    width: '48px',
-                    height: '48px',
-                    borderRadius: '12px',
-                    background: 'rgba(255, 255, 255, 0.2)',
+                    width: 'clamp(36px, 9vw, 48px)',
+                    height: 'clamp(36px, 9vw, 48px)',
+                    borderRadius: 'clamp(8px, 2vw, 12px)',
+                    background: 'rgba(255, 140, 0, 0.1)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center'
                   }}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="white" viewBox="0 0 16 16">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="clamp(18px, 4.5vw, 24px)" height="clamp(18px, 4.5vw, 24px)" fill="#ff8c00" viewBox="0 0 16 16">
                     <path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1H7Zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5.784 6A2.238 2.238 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.325 6.325 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1h4.216ZM4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/>
                   </svg>
                 </div>
               </div>
-              <h3 className="fw-bold mb-1" style={{ fontSize: 'clamp(1.25rem, 5vw, 2rem)' }}>{totalUsers}</h3>
-              <p className="mb-0 opacity-90" style={{ fontSize: 'clamp(0.75rem, 2vw, 0.95rem)' }}>Total Users</p>
+              <h3 className="fw-bold mb-1 text-dark" style={{ fontSize: 'clamp(1.1rem, 5vw, 2rem)', lineHeight: '1.2' }}>{totalUsers}</h3>
+              <p className="mb-0 text-muted fw-medium" style={{ fontSize: 'clamp(0.7rem, 2vw, 0.95rem)' }}>Total Users</p>
             </div>
           </div>
         </div>
-        <div className="col-6 col-lg-4">
+        <div className="col-12 col-md-4">
           <div
-            className="card border-0 text-white h-100"
+            className="card h-100"
             style={{
-              background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+              background: '#ffffff',
+              border: '1px solid rgba(67, 233, 123, 0.3)',
               borderRadius: '12px',
-              boxShadow: '0 4px 20px rgba(67, 233, 123, 0.3)'
+              boxShadow: '0 4px 20px rgba(67, 233, 123, 0.1)',
+              transition: 'all 0.3s ease',
+              position: 'relative',
+              overflow: 'hidden'
+            }}
+            onMouseEnter={(e) => {
+              if (window.innerWidth > 768) {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.boxShadow = '0 8px 25px rgba(67, 233, 123, 0.15)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(67, 233, 123, 0.1)';
             }}
           >
-            <div className="card-body p-3 p-md-4">
+            <div className="card-body p-2 p-md-3 p-lg-4 position-relative">
               <div className="d-flex justify-content-between align-items-start mb-2 mb-md-3">
                 <div
                   style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '10px',
-                    background: 'rgba(255, 255, 255, 0.2)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                  className="d-md-none"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="white" viewBox="0 0 16 16">
-                    <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
-                    <path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/>
-                  </svg>
-                </div>
-                <div
-                  className="d-none d-md-flex"
-                  style={{
-                    width: '48px',
-                    height: '48px',
-                    borderRadius: '12px',
-                    background: 'rgba(255, 255, 255, 0.2)',
+                    width: 'clamp(36px, 9vw, 48px)',
+                    height: 'clamp(36px, 9vw, 48px)',
+                    borderRadius: 'clamp(8px, 2vw, 12px)',
+                    background: 'rgba(67, 233, 123, 0.1)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center'
                   }}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="white" viewBox="0 0 16 16">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="clamp(18px, 4.5vw, 24px)" height="clamp(18px, 4.5vw, 24px)" fill="#43e97b" viewBox="0 0 16 16">
                     <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
                     <path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/>
                   </svg>
                 </div>
               </div>
-              <h3 className="fw-bold mb-1" style={{ fontSize: 'clamp(1.25rem, 5vw, 2rem)' }}>{activeUsers}</h3>
-              <p className="mb-0 opacity-90" style={{ fontSize: 'clamp(0.75rem, 2vw, 0.95rem)' }}>Active Users</p>
+              <h3 className="fw-bold mb-1 text-dark" style={{ fontSize: 'clamp(1.1rem, 5vw, 2rem)', lineHeight: '1.2' }}>{activeUsers}</h3>
+              <p className="mb-0 text-muted fw-medium" style={{ fontSize: 'clamp(0.7rem, 2vw, 0.95rem)' }}>Active Users</p>
             </div>
           </div>
         </div>
         <div className="col-12 col-lg-4">
           <div
-            className="card border-0 text-white h-100"
+            className="card h-100"
             style={{
-              background: 'linear-gradient(135deg, #ff8c00 0%, #ffa500 100%)',
+              background: '#ffffff',
+              border: '1px solid rgba(255, 140, 0, 0.3)',
               borderRadius: '12px',
-              boxShadow: '0 4px 20px rgba(245, 87, 108, 0.3)'
+              boxShadow: '0 4px 20px rgba(255, 140, 0, 0.1)',
+              transition: 'all 0.3s ease',
+              position: 'relative',
+              overflow: 'hidden'
+            }}
+            onMouseEnter={(e) => {
+              if (window.innerWidth > 768) {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.boxShadow = '0 8px 25px rgba(255, 140, 0, 0.15)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(255, 140, 0, 0.1)';
             }}
           >
-            <div className="card-body p-3 p-md-4">
+            <div className="card-body p-2 p-md-3 p-lg-4 position-relative">
               <div className="d-flex justify-content-between align-items-start mb-2 mb-md-3">
                 <div
                   style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '10px',
-                    background: 'rgba(255, 255, 255, 0.2)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                  className="d-md-none"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="white" viewBox="0 0 16 16">
-                    <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
-                    <path d="M5.255 5.786a.237.237 0 0 0 .241.247h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.326 0-2.786.647-2.754 2.533zm1.326 4.81c-.083 0-.125-.018-.125-.125v-.126c0-.072.015-.12.125-.12.622 0 1.005.515 1.119.86a.25.25 0 0 1-.229.292h-.844zm.696-3.554c.08 0 .123.018.123.125v.126c0 .072-.015.12-.123.12h-.59c-.082 0-.123-.018-.123-.125v-.126c0-.072.015-.12.123-.12h.59z"/>
-                  </svg>
-                </div>
-                <div
-                  className="d-none d-md-flex"
-                  style={{
-                    width: '48px',
-                    height: '48px',
-                    borderRadius: '12px',
-                    background: 'rgba(255, 255, 255, 0.2)',
+                    width: 'clamp(36px, 9vw, 48px)',
+                    height: 'clamp(36px, 9vw, 48px)',
+                    borderRadius: 'clamp(8px, 2vw, 12px)',
+                    background: 'rgba(255, 140, 0, 0.1)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center'
                   }}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="white" viewBox="0 0 16 16">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="clamp(18px, 4.5vw, 24px)" height="clamp(18px, 4.5vw, 24px)" fill="#ff8c00" viewBox="0 0 16 16">
                     <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
                     <path d="M5.255 5.786a.237.237 0 0 0 .241.247h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.326 0-2.786.647-2.754 2.533zm1.326 4.81c-.083 0-.125-.018-.125-.125v-.126c0-.072.015-.12.125-.12.622 0 1.005.515 1.119.86a.25.25 0 0 1-.229.292h-.844zm.696-3.554c.08 0 .123.018.123.125v.126c0 .072-.015.12-.123.12h-.59c-.082 0-.123-.018-.123-.125v-.126c0-.072.015-.12.123-.12h.59z"/>
                   </svg>
                 </div>
               </div>
-              <h3 className="fw-bold mb-1" style={{ fontSize: 'clamp(1.25rem, 5vw, 2rem)' }}>{premiumUsers}</h3>
-              <p className="mb-0 opacity-90" style={{ fontSize: 'clamp(0.75rem, 2vw, 0.95rem)' }}>Premium Users</p>
+              <h3 className="fw-bold mb-1 text-dark" style={{ fontSize: 'clamp(1.1rem, 5vw, 2rem)', lineHeight: '1.2' }}>{premiumUsers}</h3>
+              <p className="mb-0 text-muted fw-medium" style={{ fontSize: 'clamp(0.7rem, 2vw, 0.95rem)' }}>Premium Users</p>
             </div>
           </div>
         </div>
@@ -313,12 +302,15 @@ export default function UserList() {
       <div
         className="card border-0"
         style={{
-          boxShadow: '0 2px 20px rgba(0,0,0,0.08)',
+          background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 248, 240, 0.95) 100%)',
+          border: '1px solid rgba(255, 140, 0, 0.2)',
           borderRadius: '16px',
+          boxShadow: '0 8px 32px rgba(255, 140, 0, 0.1)',
+          backdropFilter: 'blur(10px)',
           overflow: 'hidden'
         }}
       >
-        <div className="card-header bg-white border-bottom px-3 px-md-4 py-2 py-md-3">
+        <div className="card-header border-bottom px-3 px-md-4 py-2 py-md-3" style={{ background: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(10px)' }}>
           <div className="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-2">
             <div className="d-flex align-items-center w-100 w-md-auto">
               <div
@@ -350,7 +342,7 @@ export default function UserList() {
             <table className="table table-hover mb-0 align-middle">
               <thead>
                 <tr style={{ background: 'rgba(255, 140, 0, 0.05)' }}>
-                  <th className="px-2 px-md-3 px-lg-4 py-2 py-md-3 fw-semibold text-muted" style={{ fontSize: 'clamp(0.75rem, 2vw, 0.875rem)', borderBottom: '2px solid rgba(0,0,0,0.1)' }}>User ID</th>
+                  <th className="px-2 px-md-3 px-lg-4 py-2 py-md-3 fw-semibold text-muted" style={{ fontSize: 'clamp(0.75rem, 2vw, 0.875rem)', borderBottom: '2px solid rgba(0,0,0,0.1)' }}>Sr No</th>
                   <th className="px-2 px-md-3 px-lg-4 py-2 py-md-3 fw-semibold text-muted" style={{ fontSize: 'clamp(0.75rem, 2vw, 0.875rem)', borderBottom: '2px solid rgba(0,0,0,0.1)' }}>User</th>
                   <th className="px-2 px-md-3 px-lg-4 py-2 py-md-3 fw-semibold text-muted d-none d-md-table-cell" style={{ fontSize: 'clamp(0.75rem, 2vw, 0.875rem)', borderBottom: '2px solid rgba(0,0,0,0.1)' }}>Email</th>
                   <th className="px-2 px-md-3 px-lg-4 py-2 py-md-3 fw-semibold text-muted" style={{ fontSize: 'clamp(0.75rem, 2vw, 0.875rem)', borderBottom: '2px solid rgba(0,0,0,0.1)' }}>Plan</th>
@@ -361,7 +353,7 @@ export default function UserList() {
               </thead>
               <tbody>
                 {filteredUsers.length > 0 ? (
-                  filteredUsers.map((user) => (
+                  filteredUsers.map((user, index) => (
                     <tr
                       key={user.id}
                       style={{
@@ -380,7 +372,7 @@ export default function UserList() {
                       }}
                     >
                       <td className="px-2 px-md-3 px-lg-4 py-2 py-md-3">
-                        <span className="fw-semibold" style={{ color: 'var(--accent)', fontSize: 'clamp(0.8rem, 2vw, 0.9rem)' }}>#{user.id}</span>
+                        <span className="fw-semibold" style={{ color: 'var(--accent)', fontSize: 'clamp(0.8rem, 2vw, 0.9rem)' }}>{index + 1}</span>
                       </td>
                       <td className="px-2 px-md-3 px-lg-4 py-2 py-md-3">
                         <div className="d-flex align-items-center">

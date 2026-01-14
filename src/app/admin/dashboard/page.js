@@ -2,29 +2,63 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { dashboardAPI } from '@/utils/api';
 
 export default function Dashboard() {
   const router = useRouter();
+  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
-    totalUsers: 1248,
-    activePlans: 892,
-    revenue: 45678,
-    activeUsers: 1024
+    totalUsers: 0,
+    activePlans: 0,
+    revenue: 0,
+    activeUsers: 0
   });
+  const [growth, setGrowth] = useState({
+    totalUsers: '+0%',
+    activePlans: '+0%',
+    revenue: '+0%',
+    activeUsers: '+0%',
+  });
+  const [recentUsers, setRecentUsers] = useState([]);
+  const [error, setError] = useState(null);
 
-  const [recentUsers] = useState([
-    { id: 1, name: 'John Doe', email: 'john@example.com', plan: 'Premium', joinDate: '2024-01-15' },
-    { id: 2, name: 'Jane Smith', email: 'jane@example.com', plan: 'Pro', joinDate: '2024-01-14' },
-    { id: 3, name: 'Bob Johnson', email: 'bob@example.com', plan: 'Basic', joinDate: '2024-01-13' },
-    { id: 4, name: 'Alice Williams', email: 'alice@example.com', plan: 'Premium', joinDate: '2024-01-12' },
-    { id: 5, name: 'Charlie Brown', email: 'charlie@example.com', plan: 'Pro', joinDate: '2024-01-11' },
-  ]);
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const [statsResponse, recentUsersResponse] = await Promise.all([
+          dashboardAPI.getStats(),
+          dashboardAPI.getRecentUsers(5),
+        ]);
+
+        if (statsResponse.success) {
+          setStats(statsResponse.data);
+          setGrowth(statsResponse.data.growth || {});
+        } else {
+          setError(statsResponse.error || 'Failed to load statistics');
+        }
+
+        if (recentUsersResponse.success) {
+          setRecentUsers(recentUsersResponse.data || []);
+        }
+      } catch (err) {
+        console.error('Error fetching dashboard data:', err);
+        setError(err.message || 'Failed to load dashboard data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
 
   const statCards = [
     {
       title: 'Total Users',
       value: stats.totalUsers,
-      growth: '+12.5%',
+      growth: growth.totalUsers || '+0%',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="currentColor" viewBox="0 0 16 16">
           <path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1H7Zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5.784 6A2.238 2.238 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.325 6.325 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1h4.216ZM4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/>
@@ -37,7 +71,7 @@ export default function Dashboard() {
     {
       title: 'Active Plans',
       value: stats.activePlans,
-      growth: '+8.2%',
+      growth: growth.activePlans || '+0%',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="currentColor" viewBox="0 0 16 16">
           <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
@@ -51,7 +85,7 @@ export default function Dashboard() {
     {
       title: 'Revenue',
       value: `$${stats.revenue.toLocaleString()}`,
-      growth: '+15.3%',
+      growth: growth.revenue || '+0%',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="currentColor" viewBox="0 0 16 16">
           <path d="M4 10.781c.148 1.667 1.857 3.219 4.219 3.219 1.472 0 2.828-.655 3.735-1.48-.653-1.154-1.622-2.03-2.735-2.53-.57-.25-1.17-.471-1.818-.708v2.194c-.376.197-.804.293-1.184.293a2.22 2.22 0 0 1-1.218-.5v-1.351c0-.98-.486-1.855-1.218-2.358a3.15 3.15 0 0 0-1.085-.54l-.52-.103a2.144 2.144 0 0 0-.434-.041 3.734 3.734 0 0 1 .23-1.841c.229-.558.56-1.007.992-1.346.434-.34-.903-.272-1.926-.272l-.84.008c-1.194.047-2.466.18-3.23.958C.956 4.766-.499 6.888.891 8.962c.232.434.533.853.95 1.222l.257.229c1.041.924 1.772 1.757 2.693 2.654 1.193.955 3.23 1.882 4.859.996.54-.294 1.018-.66 1.469-1.043l.146-.125c.585-.48 1.292-.99 1.846-1.384.277-.197.583-.4.767-.545Z"/>
@@ -65,7 +99,7 @@ export default function Dashboard() {
     {
       title: 'Active Users',
       value: stats.activeUsers,
-      growth: '+5.7%',
+      growth: growth.activeUsers || '+0%',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="currentColor" viewBox="0 0 16 16">
           <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
@@ -92,6 +126,35 @@ export default function Dashboard() {
     ];
     return colors[name.length % colors.length];
   };
+
+  if (loading) {
+    return (
+      <div className="px-2 px-md-3 px-lg-4 d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
+        <div className="text-center">
+          <div className="spinner-border text-primary" role="status" style={{ width: '3rem', height: '3rem' }}>
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="mt-3 text-muted">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="px-2 px-md-3 px-lg-4">
+        <div className="alert alert-warning" role="alert" style={{ borderRadius: '12px' }}>
+          <strong>Warning:</strong> {error}
+          <button 
+            className="btn btn-sm btn-outline-primary ms-3" 
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="px-2 px-md-3 px-lg-4" style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
@@ -125,7 +188,7 @@ export default function Dashboard() {
 
       <div className="row g-3 g-md-4 mb-3 mb-md-4">
         {statCards.map((card, index) => (
-          <div key={index} className="col-6 col-lg-3">
+          <div key={index} className="col-6 col-md-6 col-lg-3">
             <div
               className="card h-100"
               style={{
@@ -190,12 +253,15 @@ export default function Dashboard() {
       <div
         className="card border-0"
         style={{
-          boxShadow: '0 2px 20px rgba(0,0,0,0.08)',
+          background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 248, 240, 0.95) 100%)',
+          border: '1px solid rgba(255, 140, 0, 0.2)',
           borderRadius: '16px',
+          boxShadow: '0 8px 32px rgba(255, 140, 0, 0.1)',
+          backdropFilter: 'blur(10px)',
           overflow: 'hidden'
         }}
       >
-        <div className="card-header bg-white border-bottom px-3 px-md-4 py-2 py-md-3">
+        <div className="card-header border-bottom px-3 px-md-4 py-2 py-md-3" style={{ background: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(10px)' }}>
           <div className="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-2">
             <div className="d-flex align-items-center w-100 w-md-auto">
               <div
@@ -239,7 +305,7 @@ export default function Dashboard() {
             <table className="table table-hover mb-0 align-middle">
               <thead>
                 <tr style={{ background: 'rgba(255, 140, 0, 0.05)' }}>
-                  <th className="px-2 px-md-3 px-lg-4 py-2 py-md-3 fw-semibold text-muted" style={{ fontSize: 'clamp(0.75rem, 2vw, 0.875rem)', borderBottom: '2px solid rgba(0,0,0,0.1)' }}>ID</th>
+                  <th className="px-2 px-md-3 px-lg-4 py-2 py-md-3 fw-semibold text-muted" style={{ fontSize: 'clamp(0.75rem, 2vw, 0.875rem)', borderBottom: '2px solid rgba(0,0,0,0.1)' }}>Sr No</th>
                   <th className="px-2 px-md-3 px-lg-4 py-2 py-md-3 fw-semibold text-muted" style={{ fontSize: 'clamp(0.75rem, 2vw, 0.875rem)', borderBottom: '2px solid rgba(0,0,0,0.1)' }}>User</th>
                   <th className="px-2 px-md-3 px-lg-4 py-2 py-md-3 fw-semibold text-muted d-none d-md-table-cell" style={{ fontSize: 'clamp(0.75rem, 2vw, 0.875rem)', borderBottom: '2px solid rgba(0,0,0,0.1)' }}>Email</th>
                   <th className="px-2 px-md-3 px-lg-4 py-2 py-md-3 fw-semibold text-muted" style={{ fontSize: 'clamp(0.75rem, 2vw, 0.875rem)', borderBottom: '2px solid rgba(0,0,0,0.1)' }}>Plan</th>
@@ -248,7 +314,14 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {recentUsers.map((user) => (
+                {recentUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="text-center py-4 text-muted">
+                      No recent users found
+                    </td>
+                  </tr>
+                ) : (
+                  recentUsers.map((user, index) => (
                   <tr
                     key={user.id}
                     style={{
@@ -265,7 +338,7 @@ export default function Dashboard() {
                     onClick={() => router.push(`/admin/dashboard/users/${user.id}`)}
                   >
                     <td className="px-2 px-md-3 px-lg-4 py-2 py-md-3">
-                      <span className="fw-semibold" style={{ color: 'var(--accent)', fontSize: 'clamp(0.8rem, 2vw, 0.9rem)' }}>#{user.id}</span>
+                      <span className="fw-semibold" style={{ color: 'var(--accent)', fontSize: 'clamp(0.8rem, 2vw, 0.9rem)' }}>{index + 1}</span>
                     </td>
                     <td className="px-2 px-md-3 px-lg-4 py-2 py-md-3">
                       <div className="d-flex align-items-center">
@@ -368,7 +441,8 @@ export default function Dashboard() {
                       </button>
                     </td>
                   </tr>
-                ))}
+                  ))
+                )}
               </tbody>
             </table>
           </div>

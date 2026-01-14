@@ -1,61 +1,71 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { referralsAPI } from '@/utils/api';
 
 export default function Referrals() {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [referralsData, setReferralsData] = useState([]);
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    pending: 0,
+    totalReferrers: 0,
+  });
 
-  const referralsData = [
-    {
-      referrer: { id: 1, name: 'John Doe', email: 'john@example.com', plan: 'Premium' },
-      referred: [
-        { id: 2, name: 'Jane Smith', email: 'jane@example.com', plan: 'Pro', joinDate: '2024-01-14', status: 'Active', income: 50 },
-        { id: 3, name: 'Bob Johnson', email: 'bob@example.com', plan: 'Basic', joinDate: '2024-01-13', status: 'Active', income: 30 },
-        { id: 4, name: 'Alice Williams', email: 'alice@example.com', plan: 'Premium', joinDate: '2024-01-12', status: 'Active', income: 70 },
-      ],
-    },
-    {
-      referrer: { id: 5, name: 'Charlie Brown', email: 'charlie@example.com', plan: 'Pro' },
-      referred: [
-        { id: 6, name: 'Diana Prince', email: 'diana@example.com', plan: 'Premium', joinDate: '2024-01-10', status: 'Active', income: 70 },
-        { id: 7, name: 'Edward Norton', email: 'edward@example.com', plan: 'Basic', joinDate: '2024-01-09', status: 'Inactive', income: 30 },
-      ],
-    },
-    {
-      referrer: { id: 8, name: 'Fiona Apple', email: 'fiona@example.com', plan: 'Pro' },
-      referred: [
-        { id: 9, name: 'George Lucas', email: 'george@example.com', plan: 'Premium', joinDate: '2024-01-07', status: 'Active', income: 70 },
-        { id: 10, name: 'Helen Mirren', email: 'helen@example.com', plan: 'Basic', joinDate: '2024-01-06', status: 'Active', income: 30 },
-      ],
-    },
-    {
-      referrer: { id: 2, name: 'Jane Smith', email: 'jane@example.com', plan: 'Pro' },
-      referred: [
-        { id: 11, name: 'Michael Jordan', email: 'michael@example.com', plan: 'Premium', joinDate: '2024-01-05', status: 'Active', income: 50 },
-      ],
-    },
-  ];
+  useEffect(() => {
+    const fetchReferralsData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const [referralsResponse, statsResponse] = await Promise.all([
+          referralsAPI.getAll(),
+          referralsAPI.getStats(),
+        ]);
+
+        if (referralsResponse.success) {
+          setReferralsData(referralsResponse.data || []);
+        } else {
+          setError(referralsResponse.error || 'Failed to load referrals');
+        }
+
+        if (statsResponse.success) {
+          setStats(statsResponse.data);
+        }
+      } catch (err) {
+        console.error('Error fetching referrals:', err);
+        setError(err.message || 'Failed to load referrals data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchReferralsData();
+  }, []);
 
   const tableData = useMemo(() => {
-    const flattened = [];
-    referralsData.forEach(ref => {
-      ref.referred.forEach(user => {
-        flattened.push({
-          id: user.id,
-          referrer: ref.referrer,
-          referredName: user.name,
-          referredEmail: user.email,
-          referredPlan: user.plan,
-          status: user.status,
-          joinDate: user.joinDate,
-          income: user.income,
-        });
-      });
-    });
-    return flattened;
-  }, []);
+    return referralsData.map(ref => ({
+      id: ref.id,
+      referrer: {
+        id: ref.referrerId,
+        name: ref.referrerName,
+        email: ref.referrerEmail,
+        plan: 'Pro', // You can map this from user data if needed
+      },
+      referredName: ref.referredUserName,
+      referredEmail: ref.referredUserEmail,
+      referredPlan: 'Basic', // You can map this from user data if needed
+      status: ref.status,
+      joinDate: ref.referredAt ? new Date(ref.referredAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      income: 0, // Calculate based on your business logic
+      referralCode: ref.referralCode,
+    }));
+  }, [referralsData]);
 
   const filteredData = useMemo(() => {
     if (!searchTerm) return tableData;
@@ -64,14 +74,15 @@ export default function Referrals() {
       row.referrer.name.toLowerCase().includes(term) ||
       row.referrer.email.toLowerCase().includes(term) ||
       row.referredName.toLowerCase().includes(term) ||
-      row.referredEmail.toLowerCase().includes(term)
+      row.referredEmail.toLowerCase().includes(term) ||
+      row.referralCode?.toLowerCase().includes(term)
     );
   }, [tableData, searchTerm]);
 
-  const totalReferrals = tableData.length;
-  const totalEarnings = tableData.reduce((sum, row) => sum + row.income, 0);
-  const activeReferrals = tableData.filter(row => row.status === 'Active').length;
-  const uniqueReferrers = new Set(tableData.map(row => row.referrer.id)).size;
+  const totalReferrals = stats.total || tableData.length;
+  const totalEarnings = tableData.reduce((sum, row) => sum + (row.income || 0), 0);
+  const activeReferrals = stats.active || tableData.filter(row => row.status === 'Active').length;
+  const uniqueReferrers = stats.totalReferrers || new Set(tableData.map(row => row.referrer.id)).size;
 
   const getInitials = (name) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -87,6 +98,35 @@ export default function Referrals() {
     ];
     return colors[name.length % colors.length];
   };
+
+  if (loading) {
+    return (
+      <div className="px-2 px-md-3 px-lg-4 d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
+        <div className="text-center">
+          <div className="spinner-border text-primary" role="status" style={{ width: '3rem', height: '3rem' }}>
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="mt-3 text-muted">Loading referrals...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="px-2 px-md-3 px-lg-4">
+        <div className="alert alert-warning" role="alert" style={{ borderRadius: '12px' }}>
+          <strong>Warning:</strong> {error}
+          <button 
+            className="btn btn-sm btn-outline-primary ms-3" 
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="px-2 px-md-3 px-lg-4" style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
@@ -143,59 +183,47 @@ export default function Referrals() {
       <div className="row g-2 g-md-3 g-lg-4 mb-3 mb-md-4">
         <div className="col-6 col-md-6 col-lg-3">
           <div
-            className="card border-0 text-white h-100"
+            className="card h-100"
             style={{
-              background: 'linear-gradient(135deg, #ff8c00 0%, #ff6b00 100%)',
+              background: '#ffffff',
               borderRadius: '12px',
-              boxShadow: '0 4px 20px rgba(255, 140, 0, 0.3)',
-              transition: 'all 0.3s ease',
-              position: 'relative',
-              overflow: 'hidden'
+              border: '1px solid rgba(255, 140, 0, 0.3)',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+              transition: 'all 0.3s ease'
             }}
             onMouseEnter={(e) => {
               if (window.innerWidth > 768) {
                 e.currentTarget.style.transform = 'translateY(-4px)';
-                e.currentTarget.style.boxShadow = '0 8px 25px rgba(255, 140, 0, 0.4)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
+                e.currentTarget.style.borderColor = 'rgba(255, 140, 0, 0.5)';
               }
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 20px rgba(255, 140, 0, 0.3)';
+              e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.04)';
+              e.currentTarget.style.borderColor = 'rgba(255, 140, 0, 0.3)';
             }}
           >
-            <div
-              className="d-none d-md-block"
-              style={{
-                position: 'absolute',
-                top: '-20px',
-                right: '-20px',
-                width: '80px',
-                height: '80px',
-                borderRadius: '50%',
-                background: 'rgba(255, 255, 255, 0.1)'
-              }}
-            />
-            <div className="card-body p-2 p-md-3 p-lg-4 position-relative">
+            <div className="card-body p-2 p-md-3 p-lg-4">
               <div className="d-flex justify-content-between align-items-start mb-2 mb-md-3">
                 <div
                   style={{
                     width: 'clamp(36px, 9vw, 48px)',
                     height: 'clamp(36px, 9vw, 48px)',
                     borderRadius: 'clamp(8px, 2vw, 12px)',
-                    background: 'rgba(255, 255, 255, 0.2)',
+                    background: 'rgba(255, 140, 0, 0.1)',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    backdropFilter: 'blur(10px)'
+                    justifyContent: 'center'
                   }}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="clamp(18px, 4.5vw, 24px)" height="clamp(18px, 4.5vw, 24px)" fill="white" viewBox="0 0 16 16">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="clamp(18px, 4.5vw, 24px)" height="clamp(18px, 4.5vw, 24px)" fill="#ff8c00" viewBox="0 0 16 16">
                     <path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1H7Zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5.784 6A2.238 2.238 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.325 6.325 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1h4.216ZM4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/>
                   </svg>
                 </div>
               </div>
-              <h3 className="fw-bold mb-1" style={{ fontSize: 'clamp(1.1rem, 5vw, 2rem)', lineHeight: '1.2' }}>{totalReferrals}</h3>
-              <p className="mb-0 opacity-90 fw-medium" style={{ fontSize: 'clamp(0.7rem, 2vw, 0.95rem)' }}>Total Referrals</p>
+              <h3 className="fw-bold mb-1" style={{ fontSize: 'clamp(1.1rem, 5vw, 2rem)', lineHeight: '1.2', color: '#1a202c' }}>{totalReferrals}</h3>
+              <p className="mb-0 fw-medium" style={{ fontSize: 'clamp(0.7rem, 2vw, 0.95rem)', color: '#718096' }}>Total Referrals</p>
             </div>
           </div>
         </div>
