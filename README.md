@@ -1,37 +1,223 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AlgoBot - Trading Platform
 
-## Getting Started
+AlgoBot is a comprehensive cryptocurrency trading platform with web and mobile applications, featuring exchange API integration, real-time trading, and advanced analytics.
 
-First, run the development server:
+## 🏗️ Architecture
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Frontend**: Next.js web application (Port 3006)
+- **Backend**: Node.js/Express API server (Port 4006)
+- **Mobile**: Flutter application
+- **Database**: MongoDB
+- **Authentication**: Firebase Auth
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Node.js 18+
+- MongoDB
+- Flutter SDK (for mobile development)
+
+### Development Setup
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/mahesh42646/Algo.git
+   cd algobot
+   ```
+
+2. **Install dependencies**
+   ```bash
+   # Install all dependencies
+   npm install
+
+   # Install backend dependencies
+   cd backend && npm install && cd ..
+   ```
+
+3. **Environment Setup**
+   ```bash
+   # Copy environment files
+   cp .env.local.example .env.local
+   cp backend/.env.local.example backend/.env.local
+   cp algobot_app/.env.local.example algobot_app/.env.local
+   ```
+
+4. **Start development servers**
+   ```bash
+   # Start both frontend and backend
+   npm run dev:full
+
+   # Or start individually:
+   # Backend (port 4006)
+   npm run server:dev
+
+   # Frontend (port 3006)
+   npm run dev
+   ```
+
+5. **Start mobile app**
+   ```bash
+   cd algobot_app
+   flutter pub get
+   flutter run
+   ```
+
+## 🌐 Production Deployment
+
+### VPS Deployment (Recommended)
+
+1. **Server Prerequisites**
+   ```bash
+   # Ubuntu/Debian server with:
+   - Node.js 18+
+   - MongoDB
+   - Nginx
+   - PM2
+   - SSL certificate (Let's Encrypt)
+   ```
+
+2. **Deploy using script**
+   ```bash
+   # Upload project to your VPS
+   scp -r . user@your-server:/path/to/project/
+
+   # Run deployment script
+   ./deploy.sh
+   ```
+
+3. **Manual deployment**
+   ```bash
+   # Install dependencies
+   npm install --production
+   cd backend && npm install --production && cd ..
+
+   # Build frontend
+   npm run build:prod
+
+   # Start with PM2
+   pm2 start backend/server.js --name "algobot-backend" --env production
+   pm2 start npm --name "algobot-frontend" -- start:prod
+   pm2 save
+   ```
+
+### Environment URLs
+- **Frontend**: https://algo.skylith.cloud (Port 3006)
+- **Backend API**: https://algo.skylith.cloud/api (Port 4006)
+- **Mobile App**: Uses live API endpoints automatically
+
+## 🔧 Configuration
+
+### Environment Files
+
+#### Frontend (.env.local / .env.production)
+```env
+NEXT_PUBLIC_API_URL=https://algo.skylith.cloud/api
+NEXT_PUBLIC_APP_URL=https://algo.skylith.cloud
+NEXTAUTH_SECRET=your-secret-here
+NODE_ENV=production
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+#### Backend (backend/.env.local / backend/.env.production)
+```env
+NODE_ENV=production
+BACKEND_PORT=4006
+MONGODB_URI=mongodb://localhost:27017/algobot_prod
+JWT_SECRET=your-jwt-secret
+CORS_ORIGIN=https://algo.skylith.cloud
+```
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+#### Mobile App (algobot_app/.env.local / algobot_app/.env.production)
+```env
+ENVIRONMENT=production
+BACKEND_URL=https://algo.skylith.cloud/api
+FIREBASE_API_KEY=your-firebase-key
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 📱 Mobile App
 
-## Learn More
+The Flutter app automatically detects the environment and uses the appropriate API endpoints:
 
-To learn more about Next.js, take a look at the following resources:
+- **Development**: `http://localhost:4006/api`
+- **Production**: `https://algo.skylith.cloud/api`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🔒 Security
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- CORS configured for specific origins
+- Helmet.js security headers
+- JWT authentication
+- Input validation and sanitization
+- HTTPS enforcement in production
 
-## Deploy on Vercel
+## 🛠️ Available Scripts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+# Development
+npm run dev              # Start frontend (port 3006)
+npm run server:dev       # Start backend (port 4006)
+npm run dev:full         # Start both frontend and backend
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# Algo
+# Production
+npm run build:prod       # Build for production
+npm run start:prod       # Start production frontend
+npm run server:prod      # Start production backend
+npm run prod:full        # Build and start both services
+
+# Utilities
+npm run lint             # Run ESLint
+```
+
+## 🚀 Deployment Checklist
+
+- [ ] Environment variables configured
+- [ ] SSL certificate installed
+- [ ] Domain DNS configured
+- [ ] MongoDB database created
+- [ ] Firebase project configured
+- [ ] PM2 processes running
+- [ ] Nginx configured and running
+- [ ] Firewall configured
+- [ ] Backup strategy implemented
+
+## 📊 Monitoring
+
+```bash
+# PM2 commands
+pm2 status          # Check process status
+pm2 logs            # View logs
+pm2 restart all     # Restart all processes
+pm2 monit          # Monitor processes
+
+# Nginx commands
+sudo nginx -t      # Test configuration
+sudo nginx -s reload  # Reload configuration
+```
+
+## 🆘 Troubleshooting
+
+### Common Issues
+
+1. **Port conflicts**: Ensure ports 3006 and 4006 are available
+2. **MongoDB connection**: Check MongoDB is running and credentials are correct
+3. **CORS errors**: Verify allowed origins in backend configuration
+4. **SSL issues**: Ensure certificates are properly installed
+
+### Logs
+- **PM2 logs**: `pm2 logs`
+- **Nginx logs**: `/var/log/nginx/`
+- **Application logs**: Check PM2 logs for detailed errors
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## 📄 License
+
+This project is private and proprietary.
+
+---
+
+For support or questions, contact the development team.

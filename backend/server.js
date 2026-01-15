@@ -8,16 +8,52 @@ const logger = require('./middleware/logger');
 require('dotenv').config({ path: path.join(__dirname, '.env.local') });
 
 const app = express();
-// Use 3001 to avoid conflict with ngrok web interface (4040)
-const PORT = process.env.BACKEND_PORT || 3001;
+// Use 4006 for production backend
+const PORT = process.env.BACKEND_PORT || 4006;
 
 // Middleware
 app.use(helmet({
-  contentSecurityPolicy: false, // Allow ngrok
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https://algo.skylith.cloud"],
+    },
+  },
 }));
+
+// CORS Configuration for production and development
+const corsOrigins = process.env.NODE_ENV === 'production'
+  ? [
+      'https://algo.skylith.cloud', // Production frontend
+      'http://localhost:3006', // Local frontend
+      'http://localhost:3000', // Local development
+      'http://127.0.0.1:3006', // Alternative localhost
+      'http://127.0.0.1:3000', // Alternative localhost
+      'capacitor://localhost', // Capacitor mobile app
+      'ionic://localhost', // Ionic mobile app
+    ]
+  : [
+      process.env.CORS_ORIGIN || '*', // Allow all in development
+    ];
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*', // Allow all origins for ngrok
-  credentials: true
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+
+    if (corsOrigins.includes('*') || corsOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log(`[CORS] Blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -79,26 +115,33 @@ app.use((err, req, res, next) => {
 
 // Start server - listen on all interfaces (0.0.0.0) to allow network access
 const server = app.listen(PORT, '0.0.0.0', () => {
-  const os = require('os');
-  const networkInterfaces = os.networkInterfaces();
-  let localIP = 'localhost';
-  
-  // Find local network IP address
-  for (const interfaceName in networkInterfaces) {
-    const interfaces = networkInterfaces[interfaceName];
-    for (const iface of interfaces) {
-      if (iface.family === 'IPv4' && !iface.internal) {
-        localIP = iface.address;
-        break;
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  if (isProduction) {
+    console.log(`🚀 Production server running on port ${PORT}`);
+    console.log(`📡 API available at https://algo.skylith.cloud/api`);
+  } else {
+    const os = require('os');
+    const networkInterfaces = os.networkInterfaces();
+    let localIP = 'localhost';
+
+    // Find local network IP address
+    for (const interfaceName in networkInterfaces) {
+      const interfaces = networkInterfaces[interfaceName];
+      for (const iface of interfaces) {
+        if (iface.family === 'IPv4' && !iface.internal) {
+          localIP = iface.address;
+          break;
+        }
       }
+      if (localIP !== 'localhost') break;
     }
-    if (localIP !== 'localhost') break;
+
+    console.log(`🚀 Development server running on http://localhost:${PORT}`);
+    console.log(`📡 API available at http://localhost:${PORT}/api`);
+    console.log(`🌐 Network access: http://${localIP}:${PORT}/api`);
+    console.log(`   Use this IP in mobile app .env.local: ${localIP}`);
   }
-  
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📡 API available at http://localhost:${PORT}/api`);
-  console.log(`🌐 Network access: http://${localIP}:${PORT}/api`);
-  console.log(`   Use this IP in mobile app .env.local: ${localIP}`);
 });
 
 module.exports = app;

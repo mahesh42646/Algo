@@ -2,13 +2,18 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class Env {
   // Backend API Configuration
-  // Note: Using ngrok URL for development (update .env.local when ngrok URL changes)
+  // Production: https://algo.skylith.cloud/api
+  // Development: localhost:4006 or custom URL from .env.local
   static String get backendUrl {
-    final url = dotenv.env['BACKEND_URL']?.trim() ?? 'https://annalisa-wispy-vania.ngrok-free.dev/api';
+    final isProduction = environment == 'production';
+    final url = dotenv.env['BACKEND_URL']?.trim() ??
+               (isProduction ? 'https://algo.skylith.cloud/api' : 'http://localhost:4006/api');
     return url.endsWith('/api') ? url : '$url/api';
   }
   static String get backendBaseUrl {
-    final url = dotenv.env['BACKEND_BASE_URL']?.trim() ?? 'https://annalisa-wispy-vania.ngrok-free.dev';
+    final isProduction = environment == 'production';
+    final url = dotenv.env['BACKEND_BASE_URL']?.trim() ??
+               (isProduction ? 'https://algo.skylith.cloud' : 'http://localhost:4006');
     return url.replaceAll(RegExp(r'/+$'), ''); // Remove trailing slashes
   }
 
