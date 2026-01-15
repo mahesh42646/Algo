@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { env } from '@/config/env';
 
 export default function UserList() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -15,7 +16,7 @@ export default function UserList() {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/users`);
+        const response = await fetch(`${env.BACKEND_URL}/users`);
         
         if (!response.ok) {
           throw new Error('Failed to fetch users');

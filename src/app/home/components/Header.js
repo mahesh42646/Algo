@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
+import { env } from '@/config/env';
 
 const NAV_ITEMS = [
   { name: "Community", href: "/community" },
@@ -64,7 +65,7 @@ export default function Header() {
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text'
               }}></i>
-              AlgoBot
+{env.APP_NAME}
             </span>
           </a>
 

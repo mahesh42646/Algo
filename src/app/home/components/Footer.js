@@ -1,5 +1,7 @@
 'use client';
 
+import { env } from '@/config/env';
+
 export default function Footer() {
   const currentYear = new Date().getFullYear();
 
@@ -19,7 +21,7 @@ export default function Footer() {
 
   const footerLinks = {
     product: [
-      { label: 'What is AlgoBot?', href: '#what-is', icon: 'bi-puzzle', isHashLink: true },
+      { label: `What is ${env.APP_NAME}?`, href: '#what-is', icon: 'bi-puzzle', isHashLink: true },
       { label: 'How It Works', href: '#how-it-works', icon: 'bi-gear', isHashLink: true },
       { label: 'Pricing', href: '/pricing', icon: 'bi-currency-dollar' },
       { label: 'Reviews', href: '#testimonials', icon: 'bi-star', isHashLink: true },
@@ -95,7 +97,7 @@ export default function Footer() {
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text'
               }}>
-                AlgoBot</h4>
+                {env.APP_NAME}</h4>
             </div>
             <p className="text-muted mb-3 small">
               The World's First 100% Crypto Quantitative Trading Bot! AI Powered.<br />
@@ -208,7 +210,7 @@ export default function Footer() {
         <div className="row align-items-center">
           <div className="col-md-6 small">
             <p className="text-muted mb-0">
-              © {currentYear} | <span className="primary fw-bold">AlgoBot Quantitative Trading</span>. All Rights Reserved.
+              © {currentYear} | <span className="primary fw-bold">{env.APP_NAME} Quantitative Trading</span>. All Rights Reserved.
             </p>
           </div>
           <div className="col-md-6 text-md-end small">
