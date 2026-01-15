@@ -57,6 +57,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Routes
 app.use('/api/test', require('./routes/test'));
 app.use('/api/users', require('./routes/user'));
+app.use('/api/exchange', require('./routes/exchange'));
 
 // 404 handler (must be last)
 app.use((req, res) => {

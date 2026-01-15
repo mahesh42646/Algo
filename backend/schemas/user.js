@@ -258,6 +258,40 @@ const userSchema = new mongoose.Schema({
       type: String,
     },
   }],
+  exchangeApis: [{
+    platform: {
+      type: String,
+      required: true,
+      enum: ['binance', 'kucoin', 'bybit', 'okx', 'gate.io', 'huobi'],
+    },
+    apiKey: {
+      type: String,
+      required: true,
+    },
+    apiSecret: {
+      type: String,
+      required: true,
+    },
+    label: {
+      type: String,
+      default: 'Default',
+    },
+    permissions: [{
+      type: String,
+      enum: ['read', 'spot_trade', 'futures_trade', 'withdraw'],
+    }],
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    lastUsed: {
+      type: Date,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+  }],
   isActive: {
     type: Boolean,
     default: true,

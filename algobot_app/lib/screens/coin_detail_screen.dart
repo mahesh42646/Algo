@@ -6,6 +6,7 @@ import '../services/chart_service.dart';
 import '../services/technical_indicators.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/tradingview_chart.dart';
+import '../widgets/trading_widget.dart';
 
 class CoinDetailScreen extends StatefulWidget {
   final CryptoCoin coin;
@@ -169,11 +170,15 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildTabSelector(),
-            _buildPriceSection(),
-            _build24hStats(),
-            // _buildIntervalSelector(),
-            _buildTradingViewChart(),
-            _buildTechnicalIndicatorSection(),
+            if (_selectedTab == 'Market') ...[
+              _buildPriceSection(),
+              _build24hStats(),
+              _buildTradingViewChart(),
+              _buildTechnicalIndicatorSection(),
+            ] else ...[
+              _buildPriceSection(),
+              _buildTradingSection(),
+            ],
             const SizedBox(height: 80),
           ],
         ),
@@ -181,14 +186,18 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(16),
         child: ElevatedButton(
-          onPressed: () {},
+          onPressed: () {
+            setState(() {
+              _selectedTab = 'Bots';
+            });
+          },
           style: ElevatedButton.styleFrom(
             backgroundColor: Theme.of(context).colorScheme.primary,
             padding: const EdgeInsets.symmetric(vertical: 16),
           ),
-          child: const Text(
-            'Create',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          child: Text(
+            _selectedTab == 'Market' ? 'Trade' : 'Create Bot',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
         ),
       ),
@@ -244,20 +253,33 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
     );
   }
 
+  Widget _buildTradingSection() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: TradingWidget(
+        symbol: '${widget.coin.symbol}${widget.quoteCurrency}',
+        baseAsset: widget.coin.symbol,
+        quoteAsset: widget.quoteCurrency,
+        currentPrice: widget.coin.currentPrice,
+      ),
+    );
+  }
+
   Widget _buildTabSelector() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          _buildTabButton('Market', true),
+          _buildTabButton('Market'),
           const SizedBox(width: 8),
-          _buildTabButton('Bots', false),
+          _buildTabButton('Bots'),
         ],
       ),
     );
   }
 
-  Widget _buildTabButton(String label, bool isSelected) {
+  Widget _buildTabButton(String label) {
+    final isSelected = _selectedTab == label;
     return Expanded(
       child: GestureDetector(
         onTap: () {

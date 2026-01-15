@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/crypto_list_widget.dart';
+import 'api_binding_screen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -78,6 +79,38 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _pageController.dispose();
     super.dispose();
+  }
+
+  void _handlePlatformOptionTap(String title) {
+    switch (title) {
+      case 'API Binding':
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ApiBindingScreen()),
+        );
+        break;
+      case 'Profit Details':
+        // TODO: Navigate to profit details
+        break;
+      case 'Reward Details':
+        // TODO: Navigate to reward details
+        break;
+      case 'Assets':
+        // TODO: Navigate to assets
+        break;
+      case 'Invite Friends':
+        // TODO: Navigate to invite friends
+        break;
+      case 'User Guide':
+        // TODO: Navigate to user guide
+        break;
+      case 'Mentor':
+        // TODO: Navigate to mentor
+        break;
+      case 'More':
+        // TODO: Show more options
+        break;
+    }
   }
 
   @override
@@ -225,7 +258,7 @@ class _HomePageState extends State<HomePage> {
           final colors = option['color'] as List<Color>;
           
           return GestureDetector(
-            onTap: () {},
+            onTap: () => _handlePlatformOptionTap(option['title'] as String),
             child: Column(
               children: [
                 Container(

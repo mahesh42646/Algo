@@ -14,6 +14,7 @@ import 'screens/auth/forgot_password_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/main_navigation_screen.dart';
 import 'screens/coin_detail_screen.dart';
+import 'screens/api_binding_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -104,6 +105,7 @@ class AlgoBotApp extends StatelessWidget {
                   quoteCurrency: args['quoteCurrency'],
                 );
               },
+              '/api-binding': (context) => const ApiBindingScreen(),
             },
           );
         },
