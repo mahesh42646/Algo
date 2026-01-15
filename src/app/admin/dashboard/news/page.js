@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import Image from 'next/image';
 
 export default function News() {
   const [news, setNews] = useState([
@@ -499,7 +500,7 @@ export default function News() {
                             }}
                             onClick={() => window.open(item.image, '_blank')}
                           >
-                            <img
+                            <Image
                               src={item.image}
                               alt={item.title}
                               style={{
@@ -913,7 +914,7 @@ export default function News() {
                           position: 'relative'
                         }}
                       >
-                        <img
+                        <Image
                           src={imagePreview}
                           alt="Preview"
                           style={{

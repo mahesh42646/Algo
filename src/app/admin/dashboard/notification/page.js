@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import Image from 'next/image';
 import { notificationsAPI } from '@/utils/api';
 
 export default function Notifications() {
@@ -901,7 +902,7 @@ export default function Notifications() {
                                     justifyContent: 'center'
                                   }}
                                 >
-                                  <img
+                                  <Image
                                     src={notification.image}
                                     alt="Notification"
                                     style={{
@@ -1206,7 +1207,7 @@ export default function Notifications() {
                   }}>
                     {formData.imagePreview ? (
                       <div className="text-center w-100">
-                        <img
+                        <Image
                           src={formData.imagePreview}
                           alt="Preview"
                           style={{

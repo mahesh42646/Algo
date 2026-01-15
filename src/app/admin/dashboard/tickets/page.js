@@ -2,6 +2,8 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
+
 
 export default function Tickets() {
   const [tickets, setTickets] = useState([
@@ -762,7 +764,7 @@ export default function Tickets() {
                                 justifyContent: 'center'
                               }}
                             >
-                              <img
+                              <Image
                                 src={ticket.image}
                                 alt="Ticket"
                                 style={{
@@ -1064,7 +1066,7 @@ export default function Tickets() {
                                 justifyContent: 'center'
                               }}
                             >
-                              <img
+                              <Image
                                 src={ticket.image}
                                 alt="Ticket"
                                 style={{
@@ -1417,7 +1419,7 @@ export default function Tickets() {
                           justifyContent: 'center'
                         }}
                       >
-                        <img
+                        <Image
                           src={selectedTicket.image}
                           alt="Ticket attachment"
                           style={{
