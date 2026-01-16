@@ -69,8 +69,8 @@ flutter:
   uses-material-design: true
 
   # Assets
-  assets:
-    - .env.local
+  # assets:
+  #   - .env.local  # Not needed - flutter_dotenv loads from project root
 
   # To add assets to your application, add an assets section, like this:
   # assets:

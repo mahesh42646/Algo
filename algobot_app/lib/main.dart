@@ -24,8 +24,13 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   
-  // Load environment variables
-  await dotenv.load(fileName: '.env.local');
+  // Load environment variables (optional - uses defaults if file doesn't exist)
+  try {
+    await dotenv.load(fileName: '.env.local');
+  } catch (e) {
+    // .env.local file doesn't exist, will use defaults from env.dart
+    print('Warning: .env.local file not found, using default environment variables');
+  }
   
   // Validate environment variables
   Env.validate();
