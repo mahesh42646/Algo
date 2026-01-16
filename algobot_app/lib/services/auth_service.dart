@@ -1,38 +1,15 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'user_service.dart';
 import 'api_handler.dart';
 
 class AuthService {
-  FirebaseAuth? _auth;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  FirebaseAuth get _authInstance {
-    _auth ??= FirebaseAuth.instance;
-    return _auth!;
-  }
+  // Get current user
+  User? get currentUser => _auth.currentUser;
 
-  // Get current user - handle case where Firebase might not be initialized
-  User? get currentUser {
-    try {
-      return _authInstance.currentUser;
-    } catch (e) {
-      print('Firebase not initialized yet: $e');
-      return null;
-    }
-  }
-
-  // Auth state stream - handle case where Firebase might not be initialized
-  Stream<User?> get authStateChanges {
-    try {
-      // Check if Firebase is initialized
-      Firebase.apps; // This will throw if Firebase is not initialized
-      return _authInstance.authStateChanges();
-    } catch (e) {
-      print('Firebase not initialized yet, returning empty stream: $e');
-      // Return a stream that never emits anything as fallback
-      return Stream.empty();
-    }
-  }
+  // Auth state stream
+  Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   // Send email verification code (Firebase sends email with verification link)
   Future<void> sendEmailVerificationCode(String email) async {
@@ -40,13 +17,13 @@ class AuthService {
       // Create user with email (unverified) using a temporary password
       // Note: Firebase requires a password, but we'll let user set it after verification
       final randomPassword = 'Temp${DateTime.now().millisecondsSinceEpoch}';
-      await _authInstance.createUserWithEmailAndPassword(
+      await _auth.createUserWithEmailAndPassword(
         email: email,
         password: randomPassword,
       );
 
       // Send email verification link
-      await _authInstance.currentUser?.sendEmailVerification();
+      await _auth.currentUser?.sendEmailVerification();
       
       // Note: User will be created in MongoDB after password is set
     } on FirebaseAuthException catch (e) {
@@ -72,8 +49,8 @@ class AuthService {
   // For OTP verification, we'll check if email is verified
   Future<bool> verifyEmail(String email) async {
     try {
-      await _authInstance.currentUser?.reload();
-      final user = _authInstance.currentUser;
+      await _auth.currentUser?.reload();
+      final user = _auth.currentUser;
       return user?.emailVerified ?? false;
     } catch (e) {
       throw Exception('Failed to verify email: $e');
@@ -83,7 +60,7 @@ class AuthService {
   // Set password after email verification
   Future<void> setPassword(String password) async {
     try {
-      final user = _authInstance.currentUser;
+      final user = _auth.currentUser;
       if (user == null) {
         throw Exception('No user found. Please verify your email first.');
       }
@@ -96,7 +73,7 @@ class AuthService {
       await user.updatePassword(password);
       
       // Re-authenticate to ensure session is valid
-      await _authInstance.signInWithEmailAndPassword(
+      await _auth.signInWithEmailAndPassword(
         email: user.email!,
         password: password,
       );
@@ -178,7 +155,7 @@ class AuthService {
   }
 
   Future<void> ensureUserInDatabase() async {
-    final user = _authInstance.currentUser;
+    final user = _auth.currentUser;
     if (user != null && user.emailVerified) {
       await _createUserInDatabase(user);
     }
@@ -187,14 +164,14 @@ class AuthService {
   // Login with email and password
   Future<UserCredential> login(String email, String password) async {
     try {
-      final credential = await _authInstance.signInWithEmailAndPassword(
+      final credential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
       final user = credential.user;
       if (user != null && !(user.emailVerified)) {
-        await _authInstance.signOut();
+        await _auth.signOut();
         throw Exception('Email not verified. Please verify your email first.');
       }
 
@@ -229,7 +206,7 @@ class AuthService {
   // Send password reset email (OTP)
   Future<void> sendPasswordResetCode(String email) async {
     try {
-      await _authInstance.sendPasswordResetEmail(email: email);
+      await _auth.sendPasswordResetEmail(email: email);
     } on FirebaseAuthException catch (e) {
       String message;
       switch (e.code) {
@@ -251,7 +228,7 @@ class AuthService {
     try {
       // Firebase handles password reset via email link
       // This method is called after user clicks the link in email
-      final user = _authInstance.currentUser;
+      final user = _auth.currentUser;
       if (user != null) {
         await user.updatePassword(newPassword);
       } else {
@@ -264,18 +241,18 @@ class AuthService {
 
   // Logout
   Future<void> logout() async {
-    await _authInstance.signOut();
+    await _auth.signOut();
   }
 
   // Check if email is verified
   Future<bool> checkEmailVerified() async {
-    await _authInstance.currentUser?.reload();
-    return _authInstance.currentUser?.emailVerified ?? false;
+    await _auth.currentUser?.reload();
+    return _auth.currentUser?.emailVerified ?? false;
   }
 
   // Resend verification email
   Future<void> resendVerificationEmail() async {
-    final user = _authInstance.currentUser;
+    final user = _auth.currentUser;
     if (user != null) {
       await user.sendEmailVerification();
     } else {

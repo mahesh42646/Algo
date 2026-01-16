@@ -23,10 +23,27 @@ class UserService {
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         print('✅ API Success: User created/verified - Status: ${response.statusCode}');
-        return response.data['data'] as Map<String, dynamic>;
+        // Safely extract data from response
+        if (response.data is Map<String, dynamic>) {
+          final data = response.data as Map<String, dynamic>;
+          if (data.containsKey('data') && data['data'] is Map) {
+            return data['data'] as Map<String, dynamic>;
+          }
+          // If response.data is the user object directly
+          return data;
+        }
+        throw Exception('Invalid response format from API');
       } else {
         print('❌ API Error: Failed to create user - Status: ${response.statusCode}');
-        throw Exception(response.data['error'] ?? 'Failed to create user');
+        String errorMessage = 'Failed to create user';
+        if (response.data is Map<String, dynamic>) {
+          errorMessage = (response.data as Map<String, dynamic>)['error'] ?? 
+                        (response.data as Map<String, dynamic>)['message'] ?? 
+                        errorMessage;
+        } else if (response.data is String) {
+          errorMessage = response.data as String;
+        }
+        throw Exception(errorMessage);
       }
     } on DioException catch (e) {
       print('❌ API Exception: ${e.message}');
@@ -37,16 +54,25 @@ class UserService {
         
         // If user already exists (409 or 200), return the existing user data
         if (statusCode == 409 || statusCode == 200) {
-          if (errorData != null && errorData['data'] != null) {
+          if (errorData is Map<String, dynamic> && errorData.containsKey('data') && errorData['data'] is Map) {
             return errorData['data'] as Map<String, dynamic>;
           }
           // Try to get the user
           return await getUser(userId);
         }
         
-        throw Exception(errorData?['error'] ?? 'Failed to create user');
+        String errorMessage = 'Failed to create user';
+        if (errorData is Map<String, dynamic>) {
+          errorMessage = errorData['error'] ?? errorData['message'] ?? errorMessage;
+        } else if (errorData is String) {
+          errorMessage = errorData;
+        }
+        throw Exception(errorMessage);
       }
       throw Exception('Network error: ${e.message}');
+    } catch (e) {
+      print('❌ Unexpected error: $e');
+      throw Exception('Failed to create user: $e');
     }
   }
 
@@ -57,10 +83,25 @@ class UserService {
 
       if (response.statusCode == 200) {
         print('✅ API Success: User fetched - Status: ${response.statusCode}');
-        return response.data['data'] as Map<String, dynamic>;
+        // Safely extract data from response
+        if (response.data is Map<String, dynamic>) {
+          final data = response.data as Map<String, dynamic>;
+          if (data.containsKey('data') && data['data'] is Map) {
+            return data['data'] as Map<String, dynamic>;
+          }
+          // If response.data is the user object directly
+          return data;
+        }
+        throw Exception('Invalid response format from API');
       } else {
         print('❌ API Error: Failed to get user - Status: ${response.statusCode}');
-        throw Exception(response.data['error'] ?? 'Failed to get user');
+        String errorMessage = 'Failed to get user';
+        if (response.data is Map<String, dynamic>) {
+          errorMessage = (response.data as Map<String, dynamic>)['error'] ?? errorMessage;
+        } else if (response.data is String) {
+          errorMessage = response.data as String;
+        }
+        throw Exception(errorMessage);
       }
     } on DioException catch (e) {
       print('❌ API Exception: ${e.message}');
@@ -68,9 +109,19 @@ class UserService {
         final statusCode = e.response?.statusCode;
         final errorData = e.response?.data;
         print('   Status: $statusCode, Error: $errorData');
-        throw Exception(errorData?['error'] ?? 'Failed to get user');
+        
+        String errorMessage = 'Failed to get user';
+        if (errorData is Map<String, dynamic>) {
+          errorMessage = errorData['error'] ?? errorData['message'] ?? errorMessage;
+        } else if (errorData is String) {
+          errorMessage = errorData;
+        }
+        throw Exception(errorMessage);
       }
       throw Exception('Network error: ${e.message}');
+    } catch (e) {
+      print('❌ Unexpected error: $e');
+      throw Exception('Failed to get user: $e');
     }
   }
 

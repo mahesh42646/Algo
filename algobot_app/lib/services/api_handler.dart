@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../config/env.dart';
@@ -55,60 +56,48 @@ class ApiHandler {
   String get baseUrlWithoutApi => _baseUrl.replaceAll('/api', '');
 
   void initialize() {
-    try {
-      // Clean base URL (remove trailing slashes and ensure proper format)
-      final cleanBaseUrl = _baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
+    // Clean base URL (remove trailing slashes and ensure proper format)
+    final cleanBaseUrl = _baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
+    
+    _dio = Dio(BaseOptions(
+      baseUrl: cleanBaseUrl,
+      connectTimeout: Duration(milliseconds: Env.apiTimeout),
+      receiveTimeout: Duration(milliseconds: Env.apiTimeout),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      validateStatus: (status) {
+        // Allow all status codes so we can handle errors properly
+        return status! < 600; // Allow all status codes (including 500) to be handled
+      },
+    ));
 
-      _dio = Dio(BaseOptions(
-        baseUrl: cleanBaseUrl,
-        connectTimeout: Duration(milliseconds: Env.apiTimeout),
-        receiveTimeout: Duration(milliseconds: Env.apiTimeout),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'ngrok-skip-browser-warning': 'true', // Bypass ngrok browser warning
-        },
-        validateStatus: (status) {
-          return status! < 500; // Don't throw for 4xx errors, let us handle them
-        },
-      ));
+    _dio.interceptors.add(LogInterceptor(
+      requestBody: true,
+      responseBody: true,
+      error: true,
+      logPrint: (object) {
+        if (kDebugMode) {
+          print(object);
+        }
+      },
+    ));
 
-      _dio.interceptors.add(LogInterceptor(
-        requestBody: true,
-        responseBody: true,
-        error: true,
-        logPrint: (object) {
-          if (kDebugMode) {
-            print(object);
-          }
-        },
-      ));
-
-      _dio.interceptors.add(InterceptorsWrapper(
-        onRequest: (options, handler) {
-          _logRequest(options);
-          handler.next(options);
-        },
-        onResponse: (response, handler) {
-          _logResponse(response);
-          handler.next(response);
-        },
-        onError: (error, handler) {
-          _logError(error);
-          handler.next(error);
-        },
-      ));
-
-      print('API Handler initialized with base URL: $cleanBaseUrl');
-    } catch (e) {
-      print('Failed to initialize API Handler: $e');
-      // Create a basic Dio instance as fallback
-      _dio = Dio(BaseOptions(
-        baseUrl: 'https://algo.skylith.cloud/api',
-        connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 30),
-      ));
-    }
+    _dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) {
+        _logRequest(options);
+        handler.next(options);
+      },
+      onResponse: (response, handler) {
+        _logResponse(response);
+        handler.next(response);
+      },
+      onError: (error, handler) {
+        _logError(error);
+        handler.next(error);
+      },
+    ));
   }
 
   void updateBaseUrl(String newUrl) {

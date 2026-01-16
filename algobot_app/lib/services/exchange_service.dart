@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'api_handler.dart';
 import 'auth_service.dart';
 
@@ -247,13 +248,48 @@ class ExchangeService {
       final response = await _apiHandler.post('/exchange/$_userId/$platform/verify');
       
       if (response.statusCode == 200) {
-        return response.data['data'] ?? {};
+        // Safely extract data from response
+        if (response.data is Map<String, dynamic>) {
+          final data = response.data as Map<String, dynamic>;
+          if (data.containsKey('data') && data['data'] is Map) {
+            return data['data'] as Map<String, dynamic>;
+          }
+          return data;
+        }
+        return {};
       } else {
-        throw Exception(response.data['error'] ?? 'API verification failed');
+        String errorMessage = 'API verification failed';
+        if (response.data is Map<String, dynamic>) {
+          errorMessage = (response.data as Map<String, dynamic>)['error'] ?? 
+                        (response.data as Map<String, dynamic>)['details'] ?? 
+                        errorMessage;
+        } else if (response.data is String) {
+          errorMessage = response.data as String;
+        }
+        throw Exception(errorMessage);
       }
+    } on DioException catch (e) {
+      print('Error verifying API: $e');
+      String errorMessage = 'API verification failed';
+      
+      if (e.response != null) {
+        final errorData = e.response?.data;
+        if (errorData is Map<String, dynamic>) {
+          errorMessage = errorData['error'] ?? 
+                        errorData['details'] ?? 
+                        errorData['message'] ?? 
+                        errorMessage;
+        } else if (errorData is String) {
+          errorMessage = errorData;
+        }
+      } else {
+        errorMessage = e.message ?? 'Network error occurred';
+      }
+      
+      throw Exception(errorMessage);
     } catch (e) {
       print('Error verifying API: $e');
-      rethrow;
+      throw Exception('API verification failed: $e');
     }
   }
 
@@ -267,14 +303,51 @@ class ExchangeService {
       final response = await _apiHandler.get('/exchange/$_userId/$platform/balance');
       
       if (response.statusCode == 200) {
-        final balances = response.data['data']['balances'] as List;
-        return balances.map((b) => ExchangeBalance.fromJson(b)).toList();
+        // Safely extract balances from response
+        if (response.data is Map<String, dynamic>) {
+          final data = response.data as Map<String, dynamic>;
+          if (data.containsKey('data') && data['data'] is Map) {
+            final responseData = data['data'] as Map<String, dynamic>;
+            if (responseData.containsKey('balances') && responseData['balances'] is List) {
+              final balances = responseData['balances'] as List;
+              return balances.map((b) => ExchangeBalance.fromJson(b as Map<String, dynamic>)).toList();
+            }
+          }
+        }
+        return [];
       } else {
-        throw Exception(response.data['error'] ?? 'Failed to get balance');
+        String errorMessage = 'Failed to get balance';
+        if (response.data is Map<String, dynamic>) {
+          errorMessage = (response.data as Map<String, dynamic>)['error'] ?? 
+                        (response.data as Map<String, dynamic>)['details'] ?? 
+                        errorMessage;
+        } else if (response.data is String) {
+          errorMessage = response.data as String;
+        }
+        throw Exception(errorMessage);
       }
+    } on DioException catch (e) {
+      print('Error getting balance: $e');
+      String errorMessage = 'Failed to get balance';
+      
+      if (e.response != null) {
+        final errorData = e.response?.data;
+        if (errorData is Map<String, dynamic>) {
+          errorMessage = errorData['error'] ?? 
+                        errorData['details'] ?? 
+                        errorData['message'] ?? 
+                        errorMessage;
+        } else if (errorData is String) {
+          errorMessage = errorData;
+        }
+      } else {
+        errorMessage = e.message ?? 'Network error occurred';
+      }
+      
+      throw Exception(errorMessage);
     } catch (e) {
       print('Error getting balance: $e');
-      rethrow;
+      throw Exception('Failed to get balance: $e');
     }
   }
 
@@ -326,129 +399,6 @@ class ExchangeService {
       return apis.any((api) => api.platform == platform && api.isActive);
     } catch (e) {
       return false;
-    }
-  }
-
-  // Get open orders
-  Future<List<Map<String, dynamic>>> getOpenOrders({
-    required String platform,
-    String? symbol,
-  }) async {
-    if (_userId == null) {
-      throw Exception('User not logged in');
-    }
-
-    try {
-      String url = '/exchange/$_userId/$platform/orders/open';
-      if (symbol != null) {
-        url += '?symbol=$symbol';
-      }
-
-      final response = await _apiHandler.get(url);
-      
-      if (response.statusCode == 200) {
-        return List<Map<String, dynamic>>.from(response.data['data'] ?? []);
-      } else {
-        throw Exception(response.data['error'] ?? 'Failed to get open orders');
-      }
-    } catch (e) {
-      print('Error getting open orders: $e');
-      rethrow;
-    }
-  }
-
-  // Cancel order
-  Future<void> cancelOrder({
-    required String platform,
-    required String symbol,
-    required String orderId,
-  }) async {
-    if (_userId == null) {
-      throw Exception('User not logged in');
-    }
-
-    try {
-      final response = await _apiHandler.delete(
-        '/exchange/$_userId/$platform/order',
-        data: {
-          'symbol': symbol,
-          'orderId': orderId,
-        },
-      );
-      
-      if (response.statusCode != 200) {
-        throw Exception(response.data['error'] ?? 'Failed to cancel order');
-      }
-    } catch (e) {
-      print('Error canceling order: $e');
-      rethrow;
-    }
-  }
-
-  // Get order history
-  Future<List<Map<String, dynamic>>> getOrderHistory({
-    required String platform,
-    required String symbol,
-    int limit = 50,
-  }) async {
-    if (_userId == null) {
-      throw Exception('User not logged in');
-    }
-
-    try {
-      final response = await _apiHandler.get(
-        '/exchange/$_userId/$platform/orders/history?symbol=$symbol&limit=$limit',
-      );
-      
-      if (response.statusCode == 200) {
-        return List<Map<String, dynamic>>.from(response.data['data'] ?? []);
-      } else {
-        throw Exception(response.data['error'] ?? 'Failed to get order history');
-      }
-    } catch (e) {
-      print('Error getting order history: $e');
-      rethrow;
-    }
-  }
-
-  // Test order (validate without placing)
-  Future<Map<String, dynamic>> testOrder({
-    required String platform,
-    required String symbol,
-    required String side,
-    required String type,
-    required double quantity,
-    double? price,
-  }) async {
-    if (_userId == null) {
-      throw Exception('User not logged in');
-    }
-
-    try {
-      final data = {
-        'symbol': symbol,
-        'side': side,
-        'type': type,
-        'quantity': quantity,
-      };
-      
-      if (type == 'LIMIT' && price != null) {
-        data['price'] = price;
-      }
-
-      final response = await _apiHandler.post(
-        '/exchange/$_userId/$platform/order/test',
-        data: data,
-      );
-      
-      if (response.statusCode == 200) {
-        return response.data['data'] ?? {};
-      } else {
-        throw Exception(response.data['error'] ?? 'Order validation failed');
-      }
-    } catch (e) {
-      print('Error testing order: $e');
-      rethrow;
     }
   }
 }

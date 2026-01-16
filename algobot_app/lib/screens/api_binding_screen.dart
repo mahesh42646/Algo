@@ -269,10 +269,25 @@ class _ApiBindingScreenState extends State<ApiBindingScreen> {
     } catch (e) {
       if (mounted) Navigator.pop(context);
       if (mounted) {
+        String errorMessage = 'Verification failed';
+        final errorString = e.toString();
+        
+        // Extract user-friendly error message
+        if (errorString.contains('API verification failed')) {
+          errorMessage = errorString.replaceAll('Exception: ', '');
+        } else if (errorString.contains('Network error')) {
+          errorMessage = 'Network error. Please check your internet connection.';
+        } else if (errorString.contains('500')) {
+          errorMessage = 'Server error. Please try again later or contact support.';
+        } else {
+          errorMessage = errorString.replaceAll('Exception: ', '');
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Verification failed: $e'),
+            content: Text(errorMessage),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -328,10 +343,25 @@ class _ApiBindingScreenState extends State<ApiBindingScreen> {
     } catch (e) {
       if (mounted) Navigator.pop(context);
       if (mounted) {
+        String errorMessage = 'Failed to get balance';
+        final errorString = e.toString();
+        
+        // Extract user-friendly error message
+        if (errorString.contains('Failed to get balance')) {
+          errorMessage = errorString.replaceAll('Exception: ', '');
+        } else if (errorString.contains('Network error')) {
+          errorMessage = 'Network error. Please check your internet connection.';
+        } else if (errorString.contains('500')) {
+          errorMessage = 'Server error. Please try again later or contact support.';
+        } else {
+          errorMessage = errorString.replaceAll('Exception: ', '');
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to get balance: $e'),
+            content: Text(errorMessage),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -479,7 +509,7 @@ class _ApiBindingScreenState extends State<ApiBindingScreen> {
               children: [
                 Text(
                   'Enter your API credentials from ${platform['name']}. Make sure to enable Spot Trading permission.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
                 const SizedBox(height: 16),
                 TextField(
