@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'api_handler.dart';
 import 'auth_service.dart';
 
@@ -248,48 +247,13 @@ class ExchangeService {
       final response = await _apiHandler.post('/exchange/$_userId/$platform/verify');
       
       if (response.statusCode == 200) {
-        // Safely extract data from response
-        if (response.data is Map<String, dynamic>) {
-          final data = response.data as Map<String, dynamic>;
-          if (data.containsKey('data') && data['data'] is Map) {
-            return data['data'] as Map<String, dynamic>;
-          }
-          return data;
-        }
-        return {};
+        return response.data['data'] ?? {};
       } else {
-        String errorMessage = 'API verification failed';
-        if (response.data is Map<String, dynamic>) {
-          errorMessage = (response.data as Map<String, dynamic>)['error'] ?? 
-                        (response.data as Map<String, dynamic>)['details'] ?? 
-                        errorMessage;
-        } else if (response.data is String) {
-          errorMessage = response.data as String;
-        }
-        throw Exception(errorMessage);
+        throw Exception(response.data['error'] ?? 'API verification failed');
       }
-    } on DioException catch (e) {
-      print('Error verifying API: $e');
-      String errorMessage = 'API verification failed';
-      
-      if (e.response != null) {
-        final errorData = e.response?.data;
-        if (errorData is Map<String, dynamic>) {
-          errorMessage = errorData['error'] ?? 
-                        errorData['details'] ?? 
-                        errorData['message'] ?? 
-                        errorMessage;
-        } else if (errorData is String) {
-          errorMessage = errorData;
-        }
-      } else {
-        errorMessage = e.message ?? 'Network error occurred';
-      }
-      
-      throw Exception(errorMessage);
     } catch (e) {
       print('Error verifying API: $e');
-      throw Exception('API verification failed: $e');
+      rethrow;
     }
   }
 
@@ -303,51 +267,14 @@ class ExchangeService {
       final response = await _apiHandler.get('/exchange/$_userId/$platform/balance');
       
       if (response.statusCode == 200) {
-        // Safely extract balances from response
-        if (response.data is Map<String, dynamic>) {
-          final data = response.data as Map<String, dynamic>;
-          if (data.containsKey('data') && data['data'] is Map) {
-            final responseData = data['data'] as Map<String, dynamic>;
-            if (responseData.containsKey('balances') && responseData['balances'] is List) {
-              final balances = responseData['balances'] as List;
-              return balances.map((b) => ExchangeBalance.fromJson(b as Map<String, dynamic>)).toList();
-            }
-          }
-        }
-        return [];
+        final balances = response.data['data']['balances'] as List;
+        return balances.map((b) => ExchangeBalance.fromJson(b)).toList();
       } else {
-        String errorMessage = 'Failed to get balance';
-        if (response.data is Map<String, dynamic>) {
-          errorMessage = (response.data as Map<String, dynamic>)['error'] ?? 
-                        (response.data as Map<String, dynamic>)['details'] ?? 
-                        errorMessage;
-        } else if (response.data is String) {
-          errorMessage = response.data as String;
-        }
-        throw Exception(errorMessage);
+        throw Exception(response.data['error'] ?? 'Failed to get balance');
       }
-    } on DioException catch (e) {
-      print('Error getting balance: $e');
-      String errorMessage = 'Failed to get balance';
-      
-      if (e.response != null) {
-        final errorData = e.response?.data;
-        if (errorData is Map<String, dynamic>) {
-          errorMessage = errorData['error'] ?? 
-                        errorData['details'] ?? 
-                        errorData['message'] ?? 
-                        errorMessage;
-        } else if (errorData is String) {
-          errorMessage = errorData;
-        }
-      } else {
-        errorMessage = e.message ?? 'Network error occurred';
-      }
-      
-      throw Exception(errorMessage);
     } catch (e) {
       print('Error getting balance: $e');
-      throw Exception('Failed to get balance: $e');
+      rethrow;
     }
   }
 

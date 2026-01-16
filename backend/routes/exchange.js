@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
-const axios = require('axios');
 const User = require('../schemas/user');
 
 // Encryption key from environment (32 bytes for AES-256)
@@ -344,6 +343,7 @@ router.post('/:userId/:platform/verify', async (req, res, next) => {
 
     // Verify with Binance API
     if (platform === 'binance') {
+      const axios = require('axios');
       const timestamp = Date.now();
       const queryString = `timestamp=${timestamp}`;
       
@@ -432,6 +432,7 @@ router.get('/:userId/:platform/balance', async (req, res, next) => {
     const apiSecret = decrypt(api.apiSecret);
 
     if (platform === 'binance') {
+      const axios = require('axios');
       const timestamp = Date.now();
       const queryString = `timestamp=${timestamp}`;
       

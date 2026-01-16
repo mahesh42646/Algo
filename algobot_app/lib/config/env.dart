@@ -14,9 +14,9 @@ class Env {
     if (url == null || url.isEmpty) {
       throw Exception('BACKEND_URL is required in .env file');
     }
-    // Remove /api suffix if present to get base URL
+    // Remove /api suffix if present, then remove trailing slashes
     final baseUrl = url.replaceAll(RegExp(r'/api/?$'), '');
-    return baseUrl.replaceAll(RegExp(r'/+$'), ''); // Remove trailing slashes
+    return baseUrl.replaceAll(RegExp(r'/+$'), '');
   }
 
   // App Configuration

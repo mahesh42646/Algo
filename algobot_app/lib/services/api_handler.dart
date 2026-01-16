@@ -66,10 +66,10 @@ class ApiHandler {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        'ngrok-skip-browser-warning': 'true', // Bypass ngrok browser warning
       },
       validateStatus: (status) {
-        // Allow all status codes so we can handle errors properly
-        return status! < 600; // Allow all status codes (including 500) to be handled
+        return status! < 500; // Don't throw for 4xx errors, let us handle them
       },
     ));
 

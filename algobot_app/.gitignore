@@ -46,9 +46,10 @@ app.*.map.json
 /android/app/release
 
 # Environment files
-.env
+# .env is now committed to the repository
 .env.local
 .env.*
+!algobot_app/.env
 
 # iOS related
 **/ios/**/*.mode1v3

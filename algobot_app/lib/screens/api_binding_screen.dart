@@ -269,25 +269,10 @@ class _ApiBindingScreenState extends State<ApiBindingScreen> {
     } catch (e) {
       if (mounted) Navigator.pop(context);
       if (mounted) {
-        String errorMessage = 'Verification failed';
-        final errorString = e.toString();
-        
-        // Extract user-friendly error message
-        if (errorString.contains('API verification failed')) {
-          errorMessage = errorString.replaceAll('Exception: ', '');
-        } else if (errorString.contains('Network error')) {
-          errorMessage = 'Network error. Please check your internet connection.';
-        } else if (errorString.contains('500')) {
-          errorMessage = 'Server error. Please try again later or contact support.';
-        } else {
-          errorMessage = errorString.replaceAll('Exception: ', '');
-        }
-        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(errorMessage),
+            content: Text('Verification failed: $e'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -343,25 +328,10 @@ class _ApiBindingScreenState extends State<ApiBindingScreen> {
     } catch (e) {
       if (mounted) Navigator.pop(context);
       if (mounted) {
-        String errorMessage = 'Failed to get balance';
-        final errorString = e.toString();
-        
-        // Extract user-friendly error message
-        if (errorString.contains('Failed to get balance')) {
-          errorMessage = errorString.replaceAll('Exception: ', '');
-        } else if (errorString.contains('Network error')) {
-          errorMessage = 'Network error. Please check your internet connection.';
-        } else if (errorString.contains('500')) {
-          errorMessage = 'Server error. Please try again later or contact support.';
-        } else {
-          errorMessage = errorString.replaceAll('Exception: ', '');
-        }
-        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(errorMessage),
+            content: Text('Failed to get balance: $e'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
           ),
         );
       }
