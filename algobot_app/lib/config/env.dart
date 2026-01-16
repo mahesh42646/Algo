@@ -5,10 +5,15 @@ class Env {
   // Production: https://algo.skylith.cloud/api
   // Development: localhost:4006 or custom URL from .env.local
   static String get backendUrl {
-    final isProduction = environment == 'production';
-    final url = dotenv.env['BACKEND_URL']?.trim() ??
-               (isProduction ? 'https://algo.skylith.cloud/api' : 'http://localhost:4006/api');
-    return url.endsWith('/api') ? url : '$url/api';
+    try {
+      final isProduction = environment == 'production';
+      final url = dotenv.env['BACKEND_URL']?.trim() ??
+                 (isProduction ? 'https://algo.skylith.cloud/api' : 'http://localhost:4006/api');
+      return url.endsWith('/api') ? url : '$url/api';
+    } catch (e) {
+      // Fallback if dotenv is not initialized
+      return 'https://algo.skylith.cloud/api';
+    }
   }
   static String get backendBaseUrl {
     final isProduction = environment == 'production';
@@ -41,10 +46,16 @@ class Env {
       }
     }
 
-    if (missingVars.isNotEmpty && isProduction) {
-      throw Exception(
-        'Missing required environment variables: ${missingVars.join(', ')}',
-      );
+    if (missingVars.isNotEmpty) {
+      if (isProduction) {
+        throw Exception(
+          'Missing required environment variables: ${missingVars.join(', ')}',
+        );
+      } else {
+        // In development, just print warnings
+        print('Warning: Missing environment variables: ${missingVars.join(', ')}');
+        print('Using default values for missing variables');
+      }
     }
   }
 }
