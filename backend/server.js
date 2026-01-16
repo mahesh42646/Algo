@@ -5,11 +5,11 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
 const logger = require('./middleware/logger');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+require('dotenv').config({ path: path.join(__dirname, '.env.local') });
 
 const app = express();
-// Use 3001 to avoid conflict with ngrok web interface (4040)
-const PORT = process.env.BACKEND_PORT || 3001;
+
+const PORT = process.env.BACKEND_PORT || 4006;
 
 // Middleware
 app.use(helmet({
@@ -32,46 +32,21 @@ if (process.env.ENABLE_REQUEST_LOGGING === 'true') {
 // MongoDB Connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/algobot';
 
-// MongoDB connection options for better reliability
-const mongooseOptions = {
-  serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
-  socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
-  family: 4 // Use IPv4, skip trying IPv6
-};
-
-mongoose.connect(MONGODB_URI, mongooseOptions)
+mongoose.connect(MONGODB_URI)
   .then(() => {
     console.log('✅ MongoDB connected successfully');
   })
   .catch((error) => {
-    console.error('❌ MongoDB connection error:', error.message);
-    console.error('⚠️  Server will continue but database operations will fail');
-    console.error('   Please check your MONGODB_URI:', MONGODB_URI);
-    // Don't exit - allow server to start even if DB is down
-    // This prevents 502 errors when DB is temporarily unavailable
+    console.error('❌ MongoDB connection error:', error);
+    process.exit(1);
   });
-
-// Handle MongoDB connection events
-mongoose.connection.on('disconnected', () => {
-  console.warn('⚠️  MongoDB disconnected. Attempting to reconnect...');
-});
-
-mongoose.connection.on('reconnected', () => {
-  console.log('✅ MongoDB reconnected successfully');
-});
-
-mongoose.connection.on('error', (error) => {
-  console.error('❌ MongoDB connection error:', error);
-});
 
 // Health check endpoint (before other routes)
 app.get('/api/health', (req, res) => {
   console.log('[HEALTH CHECK] ✅ Health check requested from:', req.ip, req.path);
-  const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
   res.json({
     status: 'ok',
     message: 'Server is running',
-    database: dbStatus,
     timestamp: new Date().toISOString()
   });
 });
@@ -123,7 +98,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📡 API available at http://localhost:${PORT}/api`);
   console.log(`🌐 Network access: http://${localIP}:${PORT}/api`);
-  console.log(`   Use this IP in mobile app .env: ${localIP}`);
+  console.log(`   Use this IP in mobile app .env.local: ${localIP}`);
 });
 
 module.exports = app;
