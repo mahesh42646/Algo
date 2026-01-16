@@ -5,7 +5,23 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
 const logger = require('./middleware/logger');
-require('dotenv').config({ path: path.join(__dirname, '.env.local') });
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+
+// Validate encryption key on startup
+try {
+  const { validateEncryptionKey } = require('./utils/encryption');
+  if (process.env.ENCRYPTION_KEY) {
+    validateEncryptionKey(process.env.ENCRYPTION_KEY);
+    console.log('✅ Encryption key validated (256-bit)');
+  } else {
+    console.error('❌ ENCRYPTION_KEY is required in .env file');
+    console.error('   Generate with: openssl rand -hex 32');
+    process.exit(1);
+  }
+} catch (error) {
+  console.error('❌ Encryption key validation failed:', error.message);
+  process.exit(1);
+}
 
 const app = express();
 
@@ -14,13 +30,27 @@ const PORT = process.env.BACKEND_PORT || 4006;
 // Middleware
 app.use(helmet({
   contentSecurityPolicy: false, // Allow ngrok
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  },
+  noSniff: true,
+  xssFilter: true,
+  hidePoweredBy: true,
 }));
 app.use(cors({
   origin: process.env.CORS_ORIGIN || '*', // Allow all origins for ngrok
   credentials: true
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Rate limiting for API routes
+const rateLimiter = require('./middleware/rateLimiter');
+const RATE_LIMIT_WINDOW = (parseInt(process.env.RATE_LIMIT_WINDOW) || 15) * 60 * 1000; // Convert minutes to ms
+const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100;
+app.use('/api', rateLimiter(RATE_LIMIT_WINDOW, RATE_LIMIT_MAX));
 
 // Custom logger middleware (always enabled for API routes)
 app.use('/api', logger);
@@ -70,10 +100,22 @@ app.use((req, res) => {
 
 // Error handler
 app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal Server Error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  // Don't log sensitive error details
+  const errorMessage = err.message || 'Internal Server Error';
+  
+  // Only log error message, not full stack or sensitive data
+  console.error(`[ERROR] ${req.method} ${req.path}:`, errorMessage);
+  
+  // Don't expose internal errors to client
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  const statusCode = err.status || 500;
+  
+  res.status(statusCode).json({
+    success: false,
+    error: statusCode === 500 && !isDevelopment 
+      ? 'Internal Server Error' 
+      : errorMessage,
+    ...(isDevelopment && { stack: err.stack })
   });
 });
 

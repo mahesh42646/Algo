@@ -1,7 +1,7 @@
 # Backend Environment Setup
 
 ## Environment File Location
-Backend uses `backend/.env.local` for all configuration.
+Backend uses `backend/.env` for all configuration.
 
 ## Required Environment Variables
 
@@ -40,7 +40,9 @@ openssl rand -base64 32
 ```
 
 ## Security Notes
-- Never commit `.env.local` to version control
+- Never commit `.env` to version control
 - Use different secrets for development and production
 - Rotate secrets regularly in production
 - Keep secrets at least 32 characters long
+- **ENCRYPTION_KEY is REQUIRED** - Must be exactly 32 bytes (64 hex characters)
+- Generate ENCRYPTION_KEY with: `openssl rand -hex 32`
