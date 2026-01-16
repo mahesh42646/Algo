@@ -117,24 +117,15 @@ npm run build:prod
 print_status "Setting up environment files..."
 
 # Backend production environment
-# Generate encryption key for production
-ENCRYPTION_KEY=$(openssl rand -base64 32)
-
 cat > backend/.env.production << EOL
 NODE_ENV=production
 BACKEND_PORT=4006
 MONGODB_URI=mongodb://localhost:27017/algobot_prod
 JWT_SECRET=your-production-jwt-secret-change-this-$(openssl rand -hex 32)
 SESSION_SECRET=your-production-session-secret-change-this-$(openssl rand -hex 32)
-ENCRYPTION_KEY=${ENCRYPTION_KEY}
-CORS_ORIGIN=https://algo.skylith.cloud
 ENABLE_REQUEST_LOGGING=false
 API_BASE_URL=https://algo.skylith.cloud/api
-RATE_LIMIT_WINDOW_MS=15
-RATE_LIMIT_MAX_REQUESTS=100
 EOL
-
-print_status "Generated ENCRYPTION_KEY for production (saved to backend/.env.production)"
 
 # Frontend production environment
 cat > .env.production << EOL

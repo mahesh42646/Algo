@@ -5,92 +5,22 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
 const logger = require('./middleware/logger');
-const { apiLimiter } = require('./middleware/rateLimiter');
-
-// Load environment variables - check for production first, then fallback to .env.local
-const envFile = process.env.NODE_ENV === 'production' 
-  ? path.join(__dirname, '.env.production')
-  : path.join(__dirname, '.env.local');
-
-// Try to load the appropriate env file, but don't fail if it doesn't exist
-// Environment variables can also be set directly (e.g., via PM2 ecosystem file)
-if (require('fs').existsSync(envFile)) {
-  require('dotenv').config({ path: envFile });
-} else {
-  // Fallback: try to load .env.local if .env.production doesn't exist
-  const fallbackEnv = path.join(__dirname, '.env.local');
-  if (require('fs').existsSync(fallbackEnv)) {
-    require('dotenv').config({ path: fallbackEnv });
-  } else {
-    // If no env file exists, dotenv will use process.env (useful for PM2 with env vars)
-    require('dotenv').config();
-  }
-}
+require('dotenv').config({ path: path.join(__dirname, '.env.local') });
 
 const app = express();
 
 const PORT = process.env.BACKEND_PORT || 4006;
 
-// Security: Validate required environment variables
-if (!process.env.ENCRYPTION_KEY) {
-  console.error('❌ CRITICAL: ENCRYPTION_KEY environment variable is required!');
-  console.error('   Generate one with: openssl rand -base64 32');
-  process.exit(1);
-}
-
 // Middleware
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
-    },
-  },
-  crossOriginEmbedderPolicy: false, // Allow ngrok if needed
+  contentSecurityPolicy: false, // Allow ngrok
 }));
-
-// CORS Configuration - more secure
-const corsOptions = {
-  origin: function (origin, callback) {
-    const allowedOrigins = process.env.CORS_ORIGIN 
-      ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
-      : [];
-    
-    // In development, allow localhost and ngrok
-    if (process.env.NODE_ENV === 'development') {
-      if (!origin || 
-          origin.includes('localhost') || 
-          origin.includes('127.0.0.1') || 
-          origin.includes('ngrok') ||
-          allowedOrigins.includes('*') ||
-          allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    } else {
-      // In production, only allow specified origins
-      if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    }
-  },
-  credentials: true,
-  optionsSuccessStatus: 200,
-};
-
-app.use(cors(corsOptions));
-
-// Body parsing with size limits
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Apply rate limiting to all API routes
-app.use('/api', apiLimiter);
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*', // Allow all origins for ngrok
+  credentials: true
+}));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Custom logger middleware (always enabled for API routes)
 app.use('/api', logger);
@@ -138,26 +68,12 @@ app.use((req, res) => {
   });
 });
 
-// Error handler - sanitize error messages to prevent information leakage
+// Error handler
 app.use((err, req, res, next) => {
-  // Log full error for debugging (server-side only)
-  console.error('[ERROR]', {
-    message: err.message,
-    path: req.path,
-    method: req.method,
+  console.error('Error:', err);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal Server Error',
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-  });
-
-  // Don't expose sensitive error details to client
-  const statusCode = err.status || 500;
-  const isDevelopment = process.env.NODE_ENV === 'development';
-  
-  res.status(statusCode).json({
-    success: false,
-    error: statusCode === 500 && !isDevelopment 
-      ? 'Internal Server Error' 
-      : err.message || 'Internal Server Error',
-    ...(isDevelopment && { stack: err.stack })
   });
 });
 
