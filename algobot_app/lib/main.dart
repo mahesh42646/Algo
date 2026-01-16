@@ -38,7 +38,21 @@ class _AuthStateHandlerState extends State<AuthStateHandler> {
   @override
   void initState() {
     super.initState();
+    _initializeAuth();
+  }
+
+  Future<void> _initializeAuth() async {
     _checkConnectivity();
+
+    // Wait for Firebase to be initialized
+    try {
+      Firebase.app(); // Check if Firebase is initialized
+    } catch (e) {
+      print('Firebase not ready yet: $e');
+      // Wait a bit and try again
+      await Future.delayed(const Duration(seconds: 1));
+    }
+
     // Set a 10-second timeout for auth state determination
     _timeoutTimer = Timer(const Duration(seconds: 10), () {
       if (mounted) {
@@ -203,6 +217,8 @@ Future<void> main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    // Wait a bit to ensure Firebase is fully initialized
+    await Future.delayed(const Duration(milliseconds: 500));
     print('Firebase initialized successfully');
   } catch (e) {
     print('Failed to initialize Firebase: $e');
@@ -236,51 +252,21 @@ Future<void> main() async {
     // Continue with app
   }
 
-  // Initialize AppStateProvider singleton
-  try {
-    // Create the singleton instance first (this initializes synchronously)
-    final appStateProvider = AppStateProvider();
-    // Then initialize it asynchronously
-    await appStateProvider.init();
-    print('AppStateProvider initialized successfully');
-  } catch (e) {
-    print('Failed to initialize AppStateProvider: $e');
-    // Continue with app - the singleton exists with default values
-  }
-
   runApp(const AlgoBotApp());
 }
 
-class AlgoBotApp extends StatefulWidget {
+class AlgoBotApp extends StatelessWidget {
   const AlgoBotApp({super.key});
 
   @override
-  State<AlgoBotApp> createState() => _AlgoBotAppState();
-}
-
-class _AlgoBotAppState extends State<AlgoBotApp> {
-  late final AuthService authService;
-  late final AppStateProvider appStateProvider;
-
-  @override
-  void initState() {
-    super.initState();
-    authService = AuthService();
-    // Use the already initialized singleton instance
-    appStateProvider = AppStateProvider();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider.value(
-      value: appStateProvider,
+    final authService = AuthService();
+    
+    return ChangeNotifierProvider(
+      create: (_) => AppStateProvider(),
       child: Consumer<AppStateProvider>(
         builder: (context, appState, _) {
-          try {
-            // Ensure we have a valid theme mode, defaulting to system if not initialized
-            final themeMode = appState.isInitialized ? appState.themeMode : ThemeMode.system;
-
-            return MaterialApp(
+          return MaterialApp(
             title: Env.appName,
             debugShowCheckedModeBanner: false,
             theme: ThemeData(
@@ -297,7 +283,7 @@ class _AlgoBotAppState extends State<AlgoBotApp> {
               ),
               useMaterial3: true,
             ),
-            themeMode: themeMode,
+            themeMode: appState.themeMode,
             // Show splash screen on every launch
             home: SplashScreen(
               child: AuthStateHandler(authService: authService),
@@ -321,49 +307,6 @@ class _AlgoBotAppState extends State<AlgoBotApp> {
               '/api-binding': (context) => const ApiBindingScreen(),
             },
           );
-          } catch (e) {
-            // Fallback UI in case of initialization errors
-            return MaterialApp(
-              title: 'AlgoBot - Error',
-              debugShowCheckedModeBanner: false,
-              home: Scaffold(
-                body: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.error,
-                        size: 64,
-                        color: Colors.red,
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Initialization Error',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Failed to initialize app: $e',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                      const SizedBox(height: 24),
-                      ElevatedButton(
-                        onPressed: () {
-                          // Force restart the app
-                          setState(() {});
-                        },
-                        child: const Text('Retry'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }
         },
       ),
     );
