@@ -6,19 +6,32 @@ const crypto = require('crypto');
  */
 
 // Validate encryption key - must be exactly 32 bytes (256 bits)
+// Key should be provided as hex string (64 hex characters = 32 bytes)
 function validateEncryptionKey(key) {
   if (!key) {
     throw new Error('ENCRYPTION_KEY is required in environment variables');
   }
   
-  // Convert to buffer to check actual byte length
-  const keyBuffer = Buffer.from(key, 'utf8');
+  // Remove any whitespace
+  const trimmedKey = key.trim();
   
-  if (keyBuffer.length !== 32) {
-    throw new Error(`ENCRYPTION_KEY must be exactly 32 bytes (256 bits). Current length: ${keyBuffer.length} bytes. Generate with: openssl rand -hex 32`);
+  // Check if it's a valid hex string (64 hex characters = 32 bytes)
+  if (!/^[0-9a-fA-F]{64}$/.test(trimmedKey)) {
+    throw new Error(`ENCRYPTION_KEY must be a 64-character hex string (32 bytes). Current length: ${trimmedKey.length} characters. Generate with: openssl rand -hex 32`);
   }
   
-  return keyBuffer;
+  // Convert hex string to buffer to verify byte length
+  try {
+    const keyBuffer = Buffer.from(trimmedKey, 'hex');
+    
+    if (keyBuffer.length !== 32) {
+      throw new Error(`ENCRYPTION_KEY must be exactly 32 bytes (256 bits). Current length: ${keyBuffer.length} bytes. Generate with: openssl rand -hex 32`);
+    }
+    
+    return keyBuffer;
+  } catch (error) {
+    throw new Error(`ENCRYPTION_KEY must be a valid hex string. Generate with: openssl rand -hex 32`);
+  }
 }
 
 // Get encryption key from environment
