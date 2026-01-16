@@ -31,7 +31,7 @@ export default function HomePage() {
           <div className="py-2 py-md-3">
             <div className="row align-items-center">
               <div className="col-12 col-lg-6 mb-4 mb-lg-0">
-                <h1 className="fw-bold mb-3 mb-md-5" style={{ color: 'var(--text-dark)', fontSize: 'clamp(2rem, 5vw, 4.1rem)', lineHeight: '1.2' }}>
+                <h1 className="fw-bold py-2" style={{ color: 'var(--text-dark)', fontSize: 'clamp(2rem, 5vw, 4.1rem)', lineHeight: '1.2' }}>
                   Trade with a global crypto bot to achieve your investment goals.
                 </h1>
                 
@@ -1148,7 +1148,7 @@ export default function HomePage() {
               Find quick answers to the most common AlgoBot questions below.
             </p>
             <div className="row justify-content-center">
-              <div className="col-lg-10" b>
+              <div className="col-lg-10">
                 <div className="accordion" id="faqAccordion">
                   {/* 1 */}
                   <div className="accordion-item shadow-sm mb-3 rounded ">
