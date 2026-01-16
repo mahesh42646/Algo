@@ -236,14 +236,16 @@ Future<void> main() async {
     // Continue with app
   }
 
-  // Initialize AppStateProvider
+  // Initialize AppStateProvider singleton
   try {
+    // Create the singleton instance first (this initializes synchronously)
     final appStateProvider = AppStateProvider();
+    // Then initialize it asynchronously
     await appStateProvider.init();
     print('AppStateProvider initialized successfully');
   } catch (e) {
     print('Failed to initialize AppStateProvider: $e');
-    // Continue with app - it will use default values
+    // Continue with app - the singleton exists with default values
   }
 
   runApp(const AlgoBotApp());
@@ -264,6 +266,7 @@ class _AlgoBotAppState extends State<AlgoBotApp> {
   void initState() {
     super.initState();
     authService = AuthService();
+    // Use the already initialized singleton instance
     appStateProvider = AppStateProvider();
   }
 
@@ -274,6 +277,9 @@ class _AlgoBotAppState extends State<AlgoBotApp> {
       child: Consumer<AppStateProvider>(
         builder: (context, appState, _) {
           try {
+            // Ensure we have a valid theme mode, defaulting to system if not initialized
+            final themeMode = appState.isInitialized ? appState.themeMode : ThemeMode.system;
+
             return MaterialApp(
             title: Env.appName,
             debugShowCheckedModeBanner: false,
@@ -291,7 +297,7 @@ class _AlgoBotAppState extends State<AlgoBotApp> {
               ),
               useMaterial3: true,
             ),
-            themeMode: appState.themeMode,
+            themeMode: themeMode,
             // Show splash screen on every launch
             home: SplashScreen(
               child: AuthStateHandler(authService: authService),

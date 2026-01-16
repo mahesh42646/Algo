@@ -6,9 +6,15 @@ import 'dart:async';
 enum AppTheme { light, dark, system }
 
 class AppStateProvider extends ChangeNotifier {
-  static final AppStateProvider _instance = AppStateProvider._internal();
-  factory AppStateProvider() => _instance;
-  AppStateProvider._internal();
+  static AppStateProvider? _instance;
+  factory AppStateProvider() {
+    _instance ??= AppStateProvider._internal();
+    return _instance!;
+  }
+  AppStateProvider._internal() {
+    // Initialize synchronously with default values first
+    _initConnectivitySync();
+  }
 
   AppTheme _theme = AppTheme.system;
   String _language = 'en';
@@ -35,6 +41,12 @@ class AppStateProvider extends ChangeNotifier {
     }
   }
 
+  void _initConnectivitySync() {
+    // Initialize connectivity synchronously with default values
+    // The async connectivity check will happen later
+    _isOnline = true; // Assume online by default
+  }
+
   Future<void> init() async {
     if (_isInitialized) return;
 
@@ -42,6 +54,7 @@ class AppStateProvider extends ChangeNotifier {
       await _loadPreferences();
       _initConnectivity();
       _isInitialized = true;
+      print('AppStateProvider fully initialized');
       notifyListeners();
     } catch (e) {
       print('Error initializing AppStateProvider: $e');
@@ -53,15 +66,20 @@ class AppStateProvider extends ChangeNotifier {
 
 
   Future<void> _loadPreferences() async {
-    final prefs = await SharedPreferences.getInstance();
-    final themeString = prefs.getString('app_theme') ?? 'AppTheme.system';
-    _theme = AppTheme.values.firstWhere(
-      (e) => e.toString() == themeString,
-      orElse: () => AppTheme.system,
-    );
-    _language = prefs.getString('app_language') ?? 'en';
-    _notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
-    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final themeString = prefs.getString('app_theme') ?? 'AppTheme.system';
+      _theme = AppTheme.values.firstWhere(
+        (e) => e.toString() == themeString,
+        orElse: () => AppTheme.system,
+      );
+      _language = prefs.getString('app_language') ?? 'en';
+      _notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
+      print('Preferences loaded successfully');
+    } catch (e) {
+      print('Error loading preferences: $e');
+      // Keep default values
+    }
   }
 
   Future<void> _savePreferences() async {
