@@ -767,6 +767,8 @@ export default function Tickets() {
                               <Image
                                 src={ticket.image}
                                 alt="Ticket"
+                                width={400}
+                                height={300}
                                 style={{
                                   width: '100%',
                                   height: '100%',
@@ -1068,6 +1070,8 @@ export default function Tickets() {
                             >
                               <Image
                                 src={ticket.image}
+                                width={100}
+                                height={70}
                                 alt="Ticket"
                                 style={{
                                   width: '100%',
@@ -1422,6 +1426,8 @@ export default function Tickets() {
                         <Image
                           src={selectedTicket.image}
                           alt="Ticket attachment"
+                          width={100}
+                          height={70}
                           style={{
                             width: '100%',
                             height: 'auto',

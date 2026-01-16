@@ -502,6 +502,8 @@ export default function News() {
                           >
                             <Image
                               src={item.image}
+                              width={100}
+                              height={70}
                               alt={item.title}
                               style={{
                                 width: '100%',
@@ -916,6 +918,8 @@ export default function News() {
                       >
                         <Image
                           src={imagePreview}
+                          width={100}
+                          height={70}
                           alt="Preview"
                           style={{
                             width: '100%',
