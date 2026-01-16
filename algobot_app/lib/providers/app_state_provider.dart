@@ -6,14 +6,10 @@ import 'dart:async';
 enum AppTheme { light, dark, system }
 
 class AppStateProvider extends ChangeNotifier {
-  static AppStateProvider? _instance;
-  factory AppStateProvider() {
-    _instance ??= AppStateProvider._internal();
-    return _instance!;
-  }
+  static final AppStateProvider _instance = AppStateProvider._internal();
+  factory AppStateProvider() => _instance;
   AppStateProvider._internal() {
-    // Initialize synchronously with default values first
-    _initConnectivitySync();
+    _init();
   }
 
   AppTheme _theme = AppTheme.system;
@@ -21,16 +17,13 @@ class AppStateProvider extends ChangeNotifier {
   bool _notificationsEnabled = true;
   bool _isOnline = true;
   StreamSubscription<ConnectivityResult>? _connectivitySubscription;
-  bool _isInitialized = false;
 
   AppTheme get theme => _theme;
   String get language => _language;
   bool get notificationsEnabled => _notificationsEnabled;
   bool get isOnline => _isOnline;
-  bool get isInitialized => _isInitialized;
 
   ThemeMode get themeMode {
-    // Always return a valid ThemeMode, even during initialization
     switch (_theme) {
       case AppTheme.light:
         return ThemeMode.light;
@@ -41,45 +34,21 @@ class AppStateProvider extends ChangeNotifier {
     }
   }
 
-  void _initConnectivitySync() {
-    // Initialize connectivity synchronously with default values
-    // The async connectivity check will happen later
-    _isOnline = true; // Assume online by default
+  Future<void> _init() async {
+    await _loadPreferences();
+    _initConnectivity();
   }
-
-  Future<void> init() async {
-    if (_isInitialized) return;
-
-    try {
-      await _loadPreferences();
-      _initConnectivity();
-      _isInitialized = true;
-      print('AppStateProvider fully initialized');
-      notifyListeners();
-    } catch (e) {
-      print('Error initializing AppStateProvider: $e');
-      // Continue with default values
-      _isInitialized = true;
-      notifyListeners();
-    }
-  }
-
 
   Future<void> _loadPreferences() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final themeString = prefs.getString('app_theme') ?? 'AppTheme.system';
-      _theme = AppTheme.values.firstWhere(
-        (e) => e.toString() == themeString,
-        orElse: () => AppTheme.system,
-      );
-      _language = prefs.getString('app_language') ?? 'en';
-      _notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
-      print('Preferences loaded successfully');
-    } catch (e) {
-      print('Error loading preferences: $e');
-      // Keep default values
-    }
+    final prefs = await SharedPreferences.getInstance();
+    final themeString = prefs.getString('app_theme') ?? 'AppTheme.system';
+    _theme = AppTheme.values.firstWhere(
+      (e) => e.toString() == themeString,
+      orElse: () => AppTheme.system,
+    );
+    _language = prefs.getString('app_language') ?? 'en';
+    _notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
+    notifyListeners();
   }
 
   Future<void> _savePreferences() async {
