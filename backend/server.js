@@ -6,7 +6,26 @@ const morgan = require('morgan');
 const path = require('path');
 const logger = require('./middleware/logger');
 const { apiLimiter } = require('./middleware/rateLimiter');
-require('dotenv').config({ path: path.join(__dirname, '.env.local') });
+
+// Load environment variables - check for production first, then fallback to .env.local
+const envFile = process.env.NODE_ENV === 'production' 
+  ? path.join(__dirname, '.env.production')
+  : path.join(__dirname, '.env.local');
+
+// Try to load the appropriate env file, but don't fail if it doesn't exist
+// Environment variables can also be set directly (e.g., via PM2 ecosystem file)
+if (require('fs').existsSync(envFile)) {
+  require('dotenv').config({ path: envFile });
+} else {
+  // Fallback: try to load .env.local if .env.production doesn't exist
+  const fallbackEnv = path.join(__dirname, '.env.local');
+  if (require('fs').existsSync(fallbackEnv)) {
+    require('dotenv').config({ path: fallbackEnv });
+  } else {
+    // If no env file exists, dotenv will use process.env (useful for PM2 with env vars)
+    require('dotenv').config();
+  }
+}
 
 const app = express();
 
