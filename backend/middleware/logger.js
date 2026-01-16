@@ -1,16 +1,31 @@
+const { sanitizeObject } = require('../utils/encryption');
+
 const logger = (req, res, next) => {
   const startTime = Date.now();
   const timestamp = new Date().toISOString();
 
   console.log(`\n[${timestamp}] ${req.method} ${req.path}`);
-  console.log(`Headers:`, JSON.stringify(req.headers, null, 2));
   
+  // Sanitize headers (remove authorization tokens)
+  const sanitizedHeaders = { ...req.headers };
+  if (sanitizedHeaders.authorization) {
+    sanitizedHeaders.authorization = '****';
+  }
+  if (sanitizedHeaders['x-api-key']) {
+    sanitizedHeaders['x-api-key'] = '****';
+  }
+  console.log(`Headers:`, JSON.stringify(sanitizedHeaders, null, 2));
+  
+  // Sanitize request body to remove sensitive data
   if (Object.keys(req.body || {}).length > 0) {
-    console.log(`Body:`, JSON.stringify(req.body, null, 2));
+    const sanitizedBody = sanitizeObject(req.body);
+    console.log(`Body:`, JSON.stringify(sanitizedBody, null, 2));
   }
   
+  // Sanitize query parameters
   if (Object.keys(req.query || {}).length > 0) {
-    console.log(`Query:`, JSON.stringify(req.query, null, 2));
+    const sanitizedQuery = sanitizeObject(req.query);
+    console.log(`Query:`, JSON.stringify(sanitizedQuery, null, 2));
   }
 
   const originalSend = res.json;
@@ -20,7 +35,10 @@ const logger = (req, res, next) => {
     const status = statusCode >= 200 && statusCode < 300 ? '✅ SUCCESS' : '❌ ERROR';
     
     console.log(`[${timestamp}] ${status} ${req.method} ${req.path} - ${statusCode} (${duration}ms)`);
-    console.log(`Response:`, JSON.stringify(data, null, 2));
+    
+    // Sanitize response data to prevent logging sensitive information
+    const sanitizedResponse = sanitizeObject(data);
+    console.log(`Response:`, JSON.stringify(sanitizedResponse, null, 2));
     console.log('─'.repeat(80));
     
     return originalSend.call(this, data);
