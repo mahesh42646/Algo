@@ -8,22 +8,23 @@ enum AppTheme { light, dark, system }
 class AppStateProvider extends ChangeNotifier {
   static final AppStateProvider _instance = AppStateProvider._internal();
   factory AppStateProvider() => _instance;
-  AppStateProvider._internal() {
-    _init();
-  }
+  AppStateProvider._internal();
 
   AppTheme _theme = AppTheme.system;
   String _language = 'en';
   bool _notificationsEnabled = true;
   bool _isOnline = true;
   StreamSubscription<ConnectivityResult>? _connectivitySubscription;
+  bool _isInitialized = false;
 
   AppTheme get theme => _theme;
   String get language => _language;
   bool get notificationsEnabled => _notificationsEnabled;
   bool get isOnline => _isOnline;
+  bool get isInitialized => _isInitialized;
 
   ThemeMode get themeMode {
+    // Always return a valid ThemeMode, even during initialization
     switch (_theme) {
       case AppTheme.light:
         return ThemeMode.light;
@@ -34,10 +35,22 @@ class AppStateProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _init() async {
-    await _loadPreferences();
-    _initConnectivity();
+  Future<void> init() async {
+    if (_isInitialized) return;
+
+    try {
+      await _loadPreferences();
+      _initConnectivity();
+      _isInitialized = true;
+      notifyListeners();
+    } catch (e) {
+      print('Error initializing AppStateProvider: $e');
+      // Continue with default values
+      _isInitialized = true;
+      notifyListeners();
+    }
   }
+
 
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();

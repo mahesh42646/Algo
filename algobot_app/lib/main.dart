@@ -236,21 +236,45 @@ Future<void> main() async {
     // Continue with app
   }
 
+  // Initialize AppStateProvider
+  try {
+    final appStateProvider = AppStateProvider();
+    await appStateProvider.init();
+    print('AppStateProvider initialized successfully');
+  } catch (e) {
+    print('Failed to initialize AppStateProvider: $e');
+    // Continue with app - it will use default values
+  }
+
   runApp(const AlgoBotApp());
 }
 
-class AlgoBotApp extends StatelessWidget {
+class AlgoBotApp extends StatefulWidget {
   const AlgoBotApp({super.key});
 
   @override
+  State<AlgoBotApp> createState() => _AlgoBotAppState();
+}
+
+class _AlgoBotAppState extends State<AlgoBotApp> {
+  late final AuthService authService;
+  late final AppStateProvider appStateProvider;
+
+  @override
+  void initState() {
+    super.initState();
+    authService = AuthService();
+    appStateProvider = AppStateProvider();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final authService = AuthService();
-    
-    return ChangeNotifierProvider(
-      create: (_) => AppStateProvider(),
+    return ChangeNotifierProvider.value(
+      value: appStateProvider,
       child: Consumer<AppStateProvider>(
         builder: (context, appState, _) {
-          return MaterialApp(
+          try {
+            return MaterialApp(
             title: Env.appName,
             debugShowCheckedModeBanner: false,
             theme: ThemeData(
@@ -291,6 +315,49 @@ class AlgoBotApp extends StatelessWidget {
               '/api-binding': (context) => const ApiBindingScreen(),
             },
           );
+          } catch (e) {
+            // Fallback UI in case of initialization errors
+            return MaterialApp(
+              title: 'AlgoBot - Error',
+              debugShowCheckedModeBanner: false,
+              home: Scaffold(
+                body: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.error,
+                        size: 64,
+                        color: Colors.red,
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Initialization Error',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Failed to initialize app: $e',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton(
+                        onPressed: () {
+                          // Force restart the app
+                          setState(() {});
+                        },
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
         },
       ),
     );
