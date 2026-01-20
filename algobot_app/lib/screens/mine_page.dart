@@ -492,8 +492,8 @@ class _MinePageState extends State<MinePage> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Minimum deposit: 100 USDT',
-                style: TextStyle(fontSize: 12),
+                'Note: Deposits under 100 USDT will be credited but not auto-swept',
+                style: TextStyle(fontSize: 11, color: Colors.grey),
               ),
               const SizedBox(height: 8),
               Text(

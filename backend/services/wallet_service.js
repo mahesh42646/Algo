@@ -109,8 +109,13 @@ const processDeposit = async ({ address, txHash, amount, chain, token, contractA
     return { ignored: true, reason: 'Address not found' };
   }
 
-  if (amount < MIN_DEPOSIT_USDT) {
-    return { ignored: true, reason: 'Below minimum deposit' };
+  // In test mode, accept any deposit amount
+  // In production mode, enforce minimum deposit
+  const mode = getTatumMode();
+  const minDeposit = mode === 'production' ? MIN_DEPOSIT_USDT : 0.01;
+  
+  if (amount < minDeposit) {
+    return { ignored: true, reason: `Below minimum deposit (${minDeposit} USDT)` };
   }
 
   let deposit = await Deposit.findOne({ txHash });
@@ -140,45 +145,54 @@ const processDeposit = async ({ address, txHash, amount, chain, token, contractA
       throw new Error('Master wallet not configured');
     }
 
-    // Step 1: Fund user wallet with TRX for gas
-    await sendTrx({
-      fromPrivateKey: masterWallet.privateKey,
-      to: address,
-      amount: TRX_GAS_AMOUNT,
-    });
-    deposit.status = 'gas_funded';
-    await deposit.save();
+    const shouldSweep = amount >= MIN_DEPOSIT_USDT;
 
-    // Step 2: Sweep USDT to master wallet
-    const userPrivateKey = getUserPrivateKey(user);
-    deposit.status = 'sweeping';
-    await deposit.save();
-    await sendUsdtTrc20({
-      fromPrivateKey: userPrivateKey,
-      to: masterWallet.address,
-      amount,
-    });
-
-    // Step 3: Reclaim TRX (leave dust)
-    const account = await getTronAccount(address);
-    const trxBalance = parseFloat(account?.balance || 0);
-    const reclaimAmount = trxBalance - TRX_DUST_AMOUNT;
-    if (reclaimAmount > 0) {
+    if (shouldSweep) {
+      // Step 1: Fund user wallet with TRX for gas (only if sweeping)
       await sendTrx({
+        fromPrivateKey: masterWallet.privateKey,
+        to: address,
+        amount: TRX_GAS_AMOUNT,
+      });
+      deposit.status = 'gas_funded';
+      await deposit.save();
+
+      // Step 2: Sweep USDT to master wallet
+      const userPrivateKey = getUserPrivateKey(user);
+      deposit.status = 'sweeping';
+      await deposit.save();
+      await sendUsdtTrc20({
         fromPrivateKey: userPrivateKey,
         to: masterWallet.address,
-        amount: reclaimAmount,
+        amount,
       });
+
+      // Step 3: Reclaim TRX (leave dust)
+      const account = await getTronAccount(address);
+      const trxBalance = parseFloat(account?.balance || 0);
+      const reclaimAmount = trxBalance - TRX_DUST_AMOUNT;
+      if (reclaimAmount > 0) {
+        await sendTrx({
+          fromPrivateKey: userPrivateKey,
+          to: masterWallet.address,
+          amount: reclaimAmount,
+        });
+      }
+      deposit.status = 'swept';
+    } else {
+      // Small deposits: don't sweep, just hold in user address
+      deposit.status = 'held';
+      console.log(`[DEPOSIT] Amount ${amount} USDT < ${MIN_DEPOSIT_USDT} USDT - holding in user address without sweeping`);
     }
 
-    // Step 4: Update ledger and transaction
+    // Step 4: Update ledger and transaction (always credit user's internal balance)
     await updateLedgerBalance({ user, amount });
     await addWalletTransaction({ user, amount, txHash });
 
     deposit.status = 'completed';
     await deposit.save();
 
-    return { success: true };
+    return { success: true, swept: shouldSweep };
   } catch (error) {
     deposit.status = 'failed';
     deposit.error = error.message;
