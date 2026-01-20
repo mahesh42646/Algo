@@ -65,15 +65,10 @@ router.post('/', async (req, res, next) => {
 
     if (existingUser) {
       console.log(`[USER CREATE] ✅ User already exists: ${existingUser.userId}`);
-      try {
-        await ensureUserTronWallet(existingUser.userId);
-        const refreshedUser = await User.findOne({ userId: existingUser.userId });
-        if (refreshedUser) {
-          existingUser.wallet = refreshedUser.wallet;
-        }
-      } catch (walletError) {
+      // Try to ensure wallet (non-blocking)
+      ensureUserTronWallet(existingUser.userId).catch((walletError) => {
         console.error('[USER CREATE] ❌ Failed to ensure TRON wallet:', walletError.message);
-      }
+      });
       // Return existing user without creating notification
       return res.status(200).json({
         success: true,
@@ -173,15 +168,11 @@ router.get('/:userId', async (req, res, next) => {
       .select('-__v');
 
     if (user) {
-      // Ensure wallet exists for existing users
-      try {
-        await ensureUserTronWallet(user.userId);
-        user = await User.findOne({ userId: userId })
-          .populate('counselor', 'userId nickname email avatar')
-          .select('-__v');
-      } catch (walletError) {
+      // Ensure wallet exists for existing users (non-blocking)
+      ensureUserTronWallet(user.userId).catch((walletError) => {
         console.error('[USER GET] ❌ Failed to ensure TRON wallet:', walletError.message);
-      }
+        // Don't throw - allow user fetch to continue
+      });
     }
 
     if (!user) {
