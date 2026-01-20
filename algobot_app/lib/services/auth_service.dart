@@ -1,9 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import '../config/env.dart';
 import 'user_service.dart';
 import 'api_handler.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  static final Set<String> _ensuredUserIds = <String>{};
 
   // Get current user
   User? get currentUser => _auth.currentUser;
@@ -90,24 +92,32 @@ class AuthService {
       final apiHandler = ApiHandler();
       // Health endpoint is at /api/health, but baseUrl already includes /api
       final response = await apiHandler.get('/health');
-      print('✅ Backend health check passed: ${response.statusCode}');
+      if (Env.enableApiLogs) {
+        print('✅ Backend health check passed: ${response.statusCode}');
+      }
       return response.statusCode == 200;
     } catch (e) {
-      print('⚠️ Backend health check failed: $e');
+      if (Env.enableApiLogs) {
+        print('⚠️ Backend health check failed: $e');
+      }
       return false;
     }
   }
 
   Future<void> _createUserInDatabase(User firebaseUser) async {
     if (firebaseUser.uid.isEmpty || firebaseUser.email == null || firebaseUser.email!.isEmpty) {
-      print('❌ Cannot create user in database: Invalid user data');
+      if (Env.enableApiLogs) {
+        print('❌ Cannot create user in database: Invalid user data');
+      }
       return;
     }
 
     // Check backend connection first
     final isBackendAvailable = await _checkBackendConnection();
     if (!isBackendAvailable) {
-      print('⚠️ Backend server is not reachable. User will be created on next successful connection.');
+      if (Env.enableApiLogs) {
+        print('⚠️ Backend server is not reachable. User will be created on next successful connection.');
+      }
       return;
     }
 
@@ -117,12 +127,16 @@ class AuthService {
     
     while (retryCount < maxRetries) {
       try {
-        print('🔄 Attempting to create user in database (attempt ${retryCount + 1}/$maxRetries): ${firebaseUser.uid}');
+        if (Env.enableApiLogs) {
+          print('🔄 Attempting to create user in database (attempt ${retryCount + 1}/$maxRetries): ${firebaseUser.uid}');
+        }
         await userService.createUser(
           userId: firebaseUser.uid,
           email: firebaseUser.email ?? '',
         );
-        print('✅ User created successfully in database: ${firebaseUser.uid}');
+        if (Env.enableApiLogs) {
+          print('✅ User created successfully in database: ${firebaseUser.uid}');
+        }
         return;
       } catch (e) {
         final errorString = e.toString();
@@ -130,7 +144,9 @@ class AuthService {
             errorString.contains('User already exists') ||
             errorString.contains('409') ||
             errorString.contains('200')) {
-          print('✅ User already exists in database: ${firebaseUser.uid}');
+          if (Env.enableApiLogs) {
+            print('✅ User already exists in database: ${firebaseUser.uid}');
+          }
           return;
         }
         
@@ -138,16 +154,22 @@ class AuthService {
         if (errorString.contains('connection timeout') || 
             errorString.contains('timeout') ||
             errorString.contains('Network error')) {
-          print('⚠️ Backend connection timeout. User will be created when backend is available.');
+          if (Env.enableApiLogs) {
+            print('⚠️ Backend connection timeout. User will be created when backend is available.');
+          }
           return;
         }
         
         retryCount++;
         if (retryCount < maxRetries) {
-          print('⚠️ Failed to create user (attempt $retryCount/$maxRetries), retrying in ${retryCount * 2} seconds...');
+          if (Env.enableApiLogs) {
+            print('⚠️ Failed to create user (attempt $retryCount/$maxRetries), retrying in ${retryCount * 2} seconds...');
+          }
           await Future.delayed(Duration(seconds: retryCount * 2));
         } else {
-          print('❌ Failed to create user in database after $maxRetries attempts: $e');
+          if (Env.enableApiLogs) {
+            print('❌ Failed to create user in database after $maxRetries attempts: $e');
+          }
           // Don't throw - allow user to continue even if DB creation fails
         }
       }
@@ -157,6 +179,10 @@ class AuthService {
   Future<void> ensureUserInDatabase() async {
     final user = _auth.currentUser;
     if (user != null && user.emailVerified) {
+      if (_ensuredUserIds.contains(user.uid)) {
+        return;
+      }
+      _ensuredUserIds.add(user.uid);
       await _createUserInDatabase(user);
     }
   }

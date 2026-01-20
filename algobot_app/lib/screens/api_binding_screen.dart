@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/exchange_service.dart';
+import '../widgets/skeleton.dart';
 
 class ApiBindingScreen extends StatefulWidget {
   const ApiBindingScreen({super.key});
@@ -49,7 +50,17 @@ class _ApiBindingScreenState extends State<ApiBindingScreen> {
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? SingleChildScrollView(
+              physics: const NeverScrollableScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(),
+                  _buildLinkedApisSkeleton(),
+                  _buildPlatformList(),
+                ],
+              ),
+            )
           : RefreshIndicator(
               onRefresh: _loadLinkedApis,
               child: SingleChildScrollView(
@@ -123,6 +134,45 @@ class _ApiBindingScreenState extends State<ApiBindingScreen> {
           ),
         ),
         ..._linkedApis.map((api) => _buildLinkedApiCard(api)),
+        const Divider(height: 32),
+      ],
+    );
+  }
+
+  Widget _buildLinkedApisSkeleton() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.all(16),
+          child: SkeletonBox(width: 160, height: 18),
+        ),
+        ...List.generate(3, (index) {
+          return Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: const [
+                  SkeletonBox(width: 50, height: 50),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SkeletonBox(width: 140, height: 14),
+                        SizedBox(height: 8),
+                        SkeletonBox(width: 200, height: 12),
+                        SizedBox(height: 6),
+                        SkeletonBox(width: 120, height: 12),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
         const Divider(height: 32),
       ],
     );

@@ -1,3 +1,4 @@
+import '../config/env.dart';
 import 'api_handler.dart';
 import 'auth_service.dart';
 
@@ -150,7 +151,9 @@ class ExchangeService {
         throw Exception(response.data['error'] ?? 'Failed to get linked APIs');
       }
     } catch (e) {
-      print('Error getting linked APIs: $e');
+      if (Env.enableApiLogs) {
+        print('Error getting linked APIs: $e');
+      }
       rethrow;
     }
   }
@@ -182,7 +185,9 @@ class ExchangeService {
         throw Exception(response.data['error'] ?? 'Failed to add API');
       }
     } catch (e) {
-      print('Error adding API: $e');
+      if (Env.enableApiLogs) {
+        print('Error adding API: $e');
+      }
       rethrow;
     }
   }
@@ -214,7 +219,9 @@ class ExchangeService {
         throw Exception(response.data['error'] ?? 'Failed to update API');
       }
     } catch (e) {
-      print('Error updating API: $e');
+      if (Env.enableApiLogs) {
+        print('Error updating API: $e');
+      }
       rethrow;
     }
   }
@@ -232,7 +239,9 @@ class ExchangeService {
         throw Exception(response.data['error'] ?? 'Failed to delete API');
       }
     } catch (e) {
-      print('Error deleting API: $e');
+      if (Env.enableApiLogs) {
+        print('Error deleting API: $e');
+      }
       rethrow;
     }
   }
@@ -252,7 +261,9 @@ class ExchangeService {
         throw Exception(response.data['error'] ?? 'API verification failed');
       }
     } catch (e) {
-      print('Error verifying API: $e');
+      if (Env.enableApiLogs) {
+        print('Error verifying API: $e');
+      }
       rethrow;
     }
   }
@@ -273,7 +284,9 @@ class ExchangeService {
         throw Exception(response.data['error'] ?? 'Failed to get balance');
       }
     } catch (e) {
-      print('Error getting balance: $e');
+      if (Env.enableApiLogs) {
+        print('Error getting balance: $e');
+      }
       rethrow;
     }
   }
@@ -314,7 +327,9 @@ class ExchangeService {
         throw Exception(response.data['error'] ?? 'Failed to place order');
       }
     } catch (e) {
-      print('Error placing order: $e');
+      if (Env.enableApiLogs) {
+        print('Error placing order: $e');
+      }
       rethrow;
     }
   }

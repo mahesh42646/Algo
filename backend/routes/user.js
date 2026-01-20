@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
 const User = require('../schemas/user');
+const { ensureUserTronWallet } = require('../services/wallet_service');
 
 const uploadsDir = path.join(__dirname, '../uploads');
 if (!fs.existsSync(uploadsDir)) {
@@ -64,6 +65,15 @@ router.post('/', async (req, res, next) => {
 
     if (existingUser) {
       console.log(`[USER CREATE] ✅ User already exists: ${existingUser.userId}`);
+      try {
+        await ensureUserTronWallet(existingUser.userId);
+        const refreshedUser = await User.findOne({ userId: existingUser.userId });
+        if (refreshedUser) {
+          existingUser.wallet = refreshedUser.wallet;
+        }
+      } catch (walletError) {
+        console.error('[USER CREATE] ❌ Failed to ensure TRON wallet:', walletError.message);
+      }
       // Return existing user without creating notification
       return res.status(200).json({
         success: true,
@@ -84,6 +94,13 @@ router.post('/', async (req, res, next) => {
     console.log(`[USER CREATE] Creating new user with data:`, userData);
     const user = new User(userData);
     const savedUser = await user.save();
+
+    // Create permanent TRON wallet address for USDT deposits
+    try {
+      await ensureUserTronWallet(savedUser.userId);
+    } catch (walletError) {
+      console.error('[USER CREATE] ❌ Failed to create TRON wallet:', walletError.message);
+    }
 
     // Add welcome notification for new user
     savedUser.notifications.push({
@@ -151,9 +168,21 @@ router.get('/:userId', async (req, res, next) => {
     const userId = req.params.userId;
     console.log(`[USER GET] Fetching user: ${userId}`);
 
-    const user = await User.findOne({ userId: userId })
+    let user = await User.findOne({ userId: userId })
       .populate('counselor', 'userId nickname email avatar')
       .select('-__v');
+
+    if (user) {
+      // Ensure wallet exists for existing users
+      try {
+        await ensureUserTronWallet(user.userId);
+        user = await User.findOne({ userId: userId })
+          .populate('counselor', 'userId nickname email avatar')
+          .select('-__v');
+      } catch (walletError) {
+        console.error('[USER GET] ❌ Failed to ensure TRON wallet:', walletError.message);
+      }
+    }
 
     if (!user) {
       console.log(`[USER GET] ❌ User not found: ${userId}`);

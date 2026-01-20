@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
+import '../config/env.dart';
 import 'api_handler.dart';
 
 class UserService {
@@ -11,7 +12,9 @@ class UserService {
     String? nickname,
   }) async {
     try {
-      print('📤 API Call: POST /users - Creating user: $userId');
+      if (Env.enableApiLogs) {
+        print('📤 API Call: POST /users - Creating user: $userId');
+      }
       final response = await _apiHandler.post(
         '/users',
         data: {
@@ -22,7 +25,9 @@ class UserService {
       );
 
       if (response.statusCode == 201 || response.statusCode == 200) {
-        print('✅ API Success: User created/verified - Status: ${response.statusCode}');
+        if (Env.enableApiLogs) {
+          print('✅ API Success: User created/verified - Status: ${response.statusCode}');
+        }
         // Safely handle response data
         if (response.data is Map<String, dynamic>) {
           final data = response.data as Map<String, dynamic>;
@@ -34,7 +39,9 @@ class UserService {
         }
         throw Exception('Invalid response format from API');
       } else {
-        print('❌ API Error: Failed to create user - Status: ${response.statusCode}');
+        if (Env.enableApiLogs) {
+          print('❌ API Error: Failed to create user - Status: ${response.statusCode}');
+        }
         // Safely extract error message
         String errorMessage = 'Failed to create user';
         if (response.data is Map<String, dynamic>) {
@@ -45,11 +52,15 @@ class UserService {
         throw Exception(errorMessage);
       }
     } on DioException catch (e) {
-      print('❌ API Exception: ${e.message}');
+      if (Env.enableApiLogs) {
+        print('❌ API Exception: ${e.message}');
+      }
       if (e.response != null) {
         final statusCode = e.response?.statusCode;
         final errorData = e.response?.data;
-        print('   Status: $statusCode, Error: $errorData');
+        if (Env.enableApiLogs) {
+          print('   Status: $statusCode, Error: $errorData');
+        }
         
         // If user already exists (409 or 200), return the existing user data
         if (statusCode == 409 || statusCode == 200) {
@@ -75,11 +86,15 @@ class UserService {
 
   Future<Map<String, dynamic>> getUser(String userId) async {
     try {
-      print('📤 API Call: GET /users/$userId - Fetching user');
+      if (Env.enableApiLogs) {
+        print('📤 API Call: GET /users/$userId - Fetching user');
+      }
       final response = await _apiHandler.get('/users/$userId');
 
       if (response.statusCode == 200) {
-        print('✅ API Success: User fetched - Status: ${response.statusCode}');
+        if (Env.enableApiLogs) {
+          print('✅ API Success: User fetched - Status: ${response.statusCode}');
+        }
         // Safely handle response data
         if (response.data is Map<String, dynamic>) {
           final data = response.data as Map<String, dynamic>;
@@ -91,7 +106,9 @@ class UserService {
         }
         throw Exception('Invalid response format from API');
       } else {
-        print('❌ API Error: Failed to get user - Status: ${response.statusCode}');
+        if (Env.enableApiLogs) {
+          print('❌ API Error: Failed to get user - Status: ${response.statusCode}');
+        }
         // Safely extract error message
         String errorMessage = 'Failed to get user';
         if (response.data is Map<String, dynamic>) {
@@ -102,11 +119,15 @@ class UserService {
         throw Exception(errorMessage);
       }
     } on DioException catch (e) {
-      print('❌ API Exception: ${e.message}');
+      if (Env.enableApiLogs) {
+        print('❌ API Exception: ${e.message}');
+      }
       if (e.response != null) {
         final statusCode = e.response?.statusCode;
         final errorData = e.response?.data;
-        print('   Status: $statusCode, Error: $errorData');
+        if (Env.enableApiLogs) {
+          print('   Status: $statusCode, Error: $errorData');
+        }
         
         // Handle 404 specifically - user doesn't exist
         if (statusCode == 404) {

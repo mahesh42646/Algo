@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../config/env.dart';
 import '../models/crypto_coin.dart';
 import '../services/crypto_service.dart';
+import 'skeleton.dart';
 
 enum SortType { currency, price, change }
 enum SortOrder { ascending, descending }
@@ -46,7 +48,9 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
     }
     
     try {
-      print('[CRYPTO WIDGET] Loading data for quote: $_selectedQuote');
+      if (Env.enableApiLogs) {
+        print('[CRYPTO WIDGET] Loading data for quote: $_selectedQuote');
+      }
       final coins = await _cryptoService.getCoinsByQuoteCurrency(_selectedQuote);
       if (mounted) {
         setState(() {
@@ -56,10 +60,14 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
           _isLoadingData = false;
         });
         _applySort();
-        print('[CRYPTO WIDGET] ✅ Successfully loaded ${coins.length} coins');
+        if (Env.enableApiLogs) {
+          print('[CRYPTO WIDGET] ✅ Successfully loaded ${coins.length} coins');
+        }
       }
     } catch (e) {
-      print('[CRYPTO WIDGET] ❌ Error loading data: $e');
+      if (Env.enableApiLogs) {
+        print('[CRYPTO WIDGET] ❌ Error loading data: $e');
+      }
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -360,10 +368,7 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
 
   Widget _buildCryptoList() {
     if (_isLoading) {
-      return const SizedBox(
-        height: 200,
-        child: Center(child: CircularProgressIndicator()),
-      );
+      return _buildSkeletonList();
     }
 
     if (_filteredCoins.isEmpty) {
@@ -497,6 +502,47 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
               ],
             ),
           ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSkeletonList() {
+    return SizedBox(
+      height: 400,
+      child: ListView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: 8,
+        itemBuilder: (context, index) {
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: Colors.grey[100]!,
+                  width: 0.5,
+                ),
+              ),
+            ),
+            child: Row(
+              children: const [
+                Expanded(
+                  flex: 2,
+                  child: SkeletonBox(width: double.infinity, height: 14),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: SkeletonBox(width: double.infinity, height: 14),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: SkeletonBox(width: double.infinity, height: 14),
+                ),
+              ],
+            ),
           );
         },
       ),

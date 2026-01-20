@@ -26,6 +26,7 @@ class Env {
   // API Configuration
   static int get apiTimeout => int.tryParse(dotenv.env['API_TIMEOUT'] ?? '30000') ?? 30000;
   static int get apiRetryCount => int.tryParse(dotenv.env['API_RETRY_COUNT'] ?? '3') ?? 3;
+  static bool get enableApiLogs => (dotenv.env['ENABLE_API_LOGS'] ?? 'false').toLowerCase() == 'true';
 
   // Environment
   static String get environment => dotenv.env['ENVIRONMENT'] ?? 'development';

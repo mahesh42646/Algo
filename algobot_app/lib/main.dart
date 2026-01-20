@@ -17,31 +17,77 @@ import 'screens/coin_detail_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize Firebase with platform-specific options
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  
-  // Load environment variables
-  await dotenv.load(fileName: '.env');
-  
-  // Validate environment variables
-  Env.validate();
-  
-  // Initialize API handler
-  ApiHandler().initialize();
-  
   runApp(const AlgoBotApp());
 }
 
-class AlgoBotApp extends StatelessWidget {
+class AlgoBotApp extends StatefulWidget {
   const AlgoBotApp({super.key});
 
   @override
+  State<AlgoBotApp> createState() => _AlgoBotAppState();
+}
+
+class _AlgoBotAppState extends State<AlgoBotApp> {
+  bool _initialized = false;
+  String? _initError;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeApp();
+  }
+
+  Future<void> _initializeApp() async {
+    try {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      await dotenv.load(fileName: '.env');
+      Env.validate();
+      ApiHandler().initialize();
+      if (mounted) {
+        setState(() => _initialized = true);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _initError = e.toString());
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_initError != null) {
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          body: Center(
+            child: Text('Failed to initialize app: $_initError'),
+          ),
+        ),
+      );
+    }
+
+    if (!_initialized) {
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: Colors.deepOrange,
+            brightness: Brightness.light,
+          ),
+          useMaterial3: true,
+        ),
+        home: const SplashScreen(
+          child: Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          ),
+        ),
+      );
+    }
+
     final authService = AuthService();
-    
+
     return ChangeNotifierProvider(
       create: (_) => AppStateProvider(),
       child: Consumer<AppStateProvider>(
@@ -78,7 +124,7 @@ class AlgoBotApp extends StatelessWidget {
                   
                   // If user is logged in, show main navigation
                   if (snapshot.hasData && snapshot.data != null) {
-                    // Ensure user exists in database
+                    // Ensure user exists in database (runs once per user)
                     authService.ensureUserInDatabase();
                     return const MainNavigationScreen();
                   }

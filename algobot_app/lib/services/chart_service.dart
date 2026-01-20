@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import '../config/env.dart';
 import '../models/candlestick.dart';
 
 class ChartService {
@@ -20,7 +21,9 @@ class ChartService {
   }) async {
     try {
       final url = '$baseUrl/klines?symbol=$symbol&interval=$interval&limit=$limit';
-      print('[CHART SERVICE] Fetching candlesticks: $url');
+      if (Env.enableApiLogs) {
+        print('[CHART SERVICE] Fetching candlesticks: $url');
+      }
 
       final response = await _dio.get(url);
 
@@ -30,13 +33,17 @@ class ChartService {
             .map((item) => Candlestick.fromBinanceJson(item as List<dynamic>))
             .toList();
 
-        print('[CHART SERVICE] ✅ Fetched ${candles.length} candlesticks');
+        if (Env.enableApiLogs) {
+          print('[CHART SERVICE] ✅ Fetched ${candles.length} candlesticks');
+        }
         return candles;
       } else {
         throw Exception('Failed to load candlestick data: ${response.statusCode}');
       }
     } catch (e) {
-      print('[CHART SERVICE] ❌ Error: $e');
+      if (Env.enableApiLogs) {
+        print('[CHART SERVICE] ❌ Error: $e');
+      }
       rethrow;
     }
   }
@@ -57,7 +64,9 @@ class ChartService {
       }
       throw Exception('Failed to load 24h stats');
     } catch (e) {
-      print('[CHART SERVICE] ❌ Error loading 24h stats: $e');
+      if (Env.enableApiLogs) {
+        print('[CHART SERVICE] ❌ Error loading 24h stats: $e');
+      }
       rethrow;
     }
   }

@@ -43,7 +43,12 @@ app.use(cors({
   origin: process.env.CORS_ORIGIN || '*', // Allow all origins for ngrok
   credentials: true
 }));
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  },
+}));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Rate limiting for API routes
@@ -88,6 +93,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/test', require('./routes/test'));
 app.use('/api/users', require('./routes/user'));
 app.use('/api/exchange', require('./routes/exchange'));
+app.use('/api/webhooks', require('./routes/webhooks'));
 
 // 404 handler (must be last)
 app.use((req, res) => {

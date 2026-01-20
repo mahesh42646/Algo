@@ -17,6 +17,18 @@ Backend uses `backend/.env` for all configuration.
 - `SESSION_SECRET` - Session secret (min 32 chars)
 - `ENCRYPTION_KEY` - Encryption key (32 chars)
 
+### Tatum (USDT TRC20 Deposits)
+- `TATUM_MODE` - `test` or `production`
+- `TATUM_API_KEY_TEST` / `TATUM_API_KEY_PROD` - Tatum API keys
+- `TATUM_WEBHOOK_SECRET` - Webhook signature secret
+- `TATUM_TRON_CHAIN_TEST` / `TATUM_TRON_CHAIN_PROD` - Chain names
+- `TATUM_TRON_USDT_CONTRACT_TEST` / `TATUM_TRON_USDT_CONTRACT_PROD` - USDT TRC20 contract
+- `TATUM_MASTER_ADDRESS_TEST` / `TATUM_MASTER_ADDRESS_PROD` - Master TRON address
+- `TATUM_MASTER_PRIVATE_KEY_TEST` / `TATUM_MASTER_PRIVATE_KEY_PROD` - Master private key
+- `TATUM_MIN_DEPOSIT_USDT` - Minimum USDT deposit (default 100)
+- `TATUM_TRX_GAS_AMOUNT` - TRX sent to user for gas (default 35)
+- `TATUM_TRX_DUST_AMOUNT` - TRX left in user wallet (default 1)
+
 ### CORS
 - `CORS_ORIGIN` - Allowed origin for CORS
 

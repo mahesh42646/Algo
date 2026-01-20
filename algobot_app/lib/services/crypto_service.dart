@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
+import '../config/env.dart';
 import '../models/crypto_coin.dart';
 import 'api_handler.dart';
 
@@ -30,18 +31,24 @@ class CryptoService {
         _cacheTimestamps.containsKey(cacheKey)) {
       final cacheTime = _cacheTimestamps[cacheKey]!;
       if (now.difference(cacheTime) < cacheDuration) {
-        print('[CRYPTO SERVICE] ✅ Returning cached data for $cacheKey');
+        if (Env.enableApiLogs) {
+          print('[CRYPTO SERVICE] ✅ Returning cached data for $cacheKey');
+        }
         return _cache[cacheKey]!;
       }
     }
 
     try {
       final quoteUpper = quoteCurrency.toUpperCase();
-      print('[CRYPTO SERVICE] Fetching Binance trading pairs for quote: $quoteUpper');
+      if (Env.enableApiLogs) {
+        print('[CRYPTO SERVICE] Fetching Binance trading pairs for quote: $quoteUpper');
+      }
 
       // Get all 24h ticker data from Binance
       final url = '$baseUrl/ticker/24hr';
-      print('[CRYPTO SERVICE] Making API request to: $url');
+      if (Env.enableApiLogs) {
+        print('[CRYPTO SERVICE] Making API request to: $url');
+      }
 
       final response = await _externalDio.get(
         url,
@@ -64,7 +71,9 @@ class CryptoService {
               try {
                 return CryptoCoin.fromBinanceJson(json as Map<String, dynamic>, quoteUpper);
               } catch (e) {
-                print('[CRYPTO SERVICE] ⚠️ Error parsing coin: $e');
+                if (Env.enableApiLogs) {
+                  print('[CRYPTO SERVICE] ⚠️ Error parsing coin: $e');
+                }
                 return null;
               }
             })
@@ -79,20 +88,28 @@ class CryptoService {
         _cache[cacheKey] = coins;
         _cacheTimestamps[cacheKey] = now;
 
-        print('[CRYPTO SERVICE] ✅ Successfully fetched ${coins.length} trading pairs for $quoteUpper');
+        if (Env.enableApiLogs) {
+          print('[CRYPTO SERVICE] ✅ Successfully fetched ${coins.length} trading pairs for $quoteUpper');
+        }
         return coins;
       } else {
         final errorMsg = 'Failed to load market data: ${response.statusCode}';
         if (response.data != null) {
-          print('[CRYPTO SERVICE] ❌ Error response: ${response.data}');
+          if (Env.enableApiLogs) {
+            print('[CRYPTO SERVICE] ❌ Error response: ${response.data}');
+          }
         }
         throw Exception(errorMsg);
       }
     } catch (e) {
-      print('[CRYPTO SERVICE] ❌ Exception: $e');
+      if (Env.enableApiLogs) {
+        print('[CRYPTO SERVICE] ❌ Exception: $e');
+      }
       // Return cache if available
       if (_cache.containsKey(cacheKey)) {
-        print('[CRYPTO SERVICE] ⚠️ Returning cached data due to error');
+        if (Env.enableApiLogs) {
+          print('[CRYPTO SERVICE] ⚠️ Returning cached data due to error');
+        }
         return _cache[cacheKey]!;
       }
       rethrow;

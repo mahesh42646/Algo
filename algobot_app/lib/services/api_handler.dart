@@ -49,6 +49,7 @@ class ApiHandler {
   late Dio _dio;
   final List<ApiLog> _logs = [];
   static const int maxLogs = 1000;
+  bool _enableLogs = false;
 
   String _baseUrl = Env.backendUrl;
 
@@ -56,6 +57,7 @@ class ApiHandler {
   String get baseUrlWithoutApi => _baseUrl.replaceAll('/api', '');
 
   void initialize() {
+    _enableLogs = Env.enableApiLogs && kDebugMode;
     // Clean base URL (remove trailing slashes and ensure proper format)
     final cleanBaseUrl = _baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
     
@@ -73,31 +75,33 @@ class ApiHandler {
       },
     ));
 
-    _dio.interceptors.add(LogInterceptor(
-      requestBody: true,
-      responseBody: true,
-      error: true,
-      logPrint: (object) {
-        if (kDebugMode) {
-          print(object);
-        }
-      },
-    ));
+    if (_enableLogs) {
+      _dio.interceptors.add(LogInterceptor(
+        requestBody: true,
+        responseBody: true,
+        error: true,
+        logPrint: (object) {
+          if (kDebugMode) {
+            print(object);
+          }
+        },
+      ));
 
-    _dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) {
-        _logRequest(options);
-        handler.next(options);
-      },
-      onResponse: (response, handler) {
-        _logResponse(response);
-        handler.next(response);
-      },
-      onError: (error, handler) {
-        _logError(error);
-        handler.next(error);
-      },
-    ));
+      _dio.interceptors.add(InterceptorsWrapper(
+        onRequest: (options, handler) {
+          _logRequest(options);
+          handler.next(options);
+        },
+        onResponse: (response, handler) {
+          _logResponse(response);
+          handler.next(response);
+        },
+        onError: (error, handler) {
+          _logError(error);
+          handler.next(error);
+        },
+      ));
+    }
   }
 
   void updateBaseUrl(String newUrl) {
@@ -165,6 +169,9 @@ class ApiHandler {
   }
 
   void _addLog(ApiLog log) {
+    if (!_enableLogs) {
+      return;
+    }
     _logs.add(log);
     if (_logs.length > maxLogs) {
       _logs.removeAt(0);

@@ -145,6 +145,29 @@ const userSchema = new mongoose.Schema({
       type: String,
       unique: true,
     },
+    tron: {
+      address: {
+        type: String,
+        default: null,
+      },
+      privateKeyEncrypted: {
+        type: String,
+        default: null,
+      },
+      createdAt: {
+        type: Date,
+        default: null,
+      },
+    },
+    depositStatus: {
+      type: String,
+      enum: ['none', 'pending', 'confirmed', 'failed'],
+      default: 'none',
+    },
+    lastDepositTx: {
+      type: String,
+      default: null,
+    },
     balances: [{
       currency: {
         type: String,
@@ -348,6 +371,9 @@ userSchema.methods.toJSON = function() {
   obj.id = obj._id;
   delete obj._id;
   delete obj.__v;
+  if (obj.wallet?.tron?.privateKeyEncrypted) {
+    delete obj.wallet.tron.privateKeyEncrypted;
+  }
   return obj;
 };
 

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../config/env.dart';
 import '../models/crypto_coin.dart';
 import '../models/candlestick.dart';
 import '../services/chart_service.dart';
@@ -121,7 +122,9 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
         _isLoadingMA = false;
       });
     } catch (e) {
-      print('Error loading MA data: $e');
+      if (Env.enableApiLogs) {
+        print('Error loading MA data: $e');
+      }
       setState(() {
         _isLoadingMA = false;
       });

@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/settings_modal.dart';
+import '../widgets/skeleton.dart';
 import '../providers/app_state_provider.dart';
 import '../config/env.dart';
 
@@ -59,17 +61,11 @@ class _MinePageState extends State<MinePage> {
     super.dispose();
   }
 
-  Future<void> _loadUserData() async {
+  Future<void> _loadUserData({bool retryAfterCreate = false}) async {
     setState(() => _isLoading = true);
     try {
       final user = _authService.currentUser;
       if (user != null) {
-        // Ensure user exists in database before loading
-        await _authService.ensureUserInDatabase();
-        
-        // Wait a bit for user creation to complete
-        await Future.delayed(const Duration(milliseconds: 500));
-        
         final data = await _userService.getUser(user.uid);
         setState(() {
           _userData = data;
@@ -82,19 +78,28 @@ class _MinePageState extends State<MinePage> {
         setState(() => _isLoading = false);
       }
     } catch (e) {
-      print('❌ Error loading user profile: $e');
+      if (Env.enableApiLogs) {
+        print('❌ Error loading user profile: $e');
+      }
       setState(() => _isLoading = false);
       if (mounted) {
-        // Try to create user if it doesn't exist
+        // Try to create user if it doesn't exist (only once)
         final user = _authService.currentUser;
-        if (user != null) {
+        final errorString = e.toString();
+        final isNotFound = errorString.contains('User not found') ||
+            errorString.contains('404') ||
+            errorString.contains('not found');
+
+        if (!retryAfterCreate && user != null && isNotFound) {
           try {
             await _authService.ensureUserInDatabase();
-            await Future.delayed(const Duration(milliseconds: 500));
-            await _loadUserData();
+            await Future.delayed(const Duration(milliseconds: 200));
+            await _loadUserData(retryAfterCreate: true);
             return;
           } catch (createError) {
-            print('❌ Failed to create user: $createError');
+            if (Env.enableApiLogs) {
+              print('❌ Failed to create user: $createError');
+            }
           }
         }
         
@@ -211,6 +216,37 @@ class _MinePageState extends State<MinePage> {
     return '';
   }
 
+  String _getDepositAddress() {
+    return _userData?['wallet']?['tron']?['address'] ?? '';
+  }
+
+  String _getDepositStatus() {
+    final status = (_userData?['wallet']?['depositStatus'] ?? 'none').toString();
+    switch (status) {
+      case 'pending':
+        return 'Pending';
+      case 'confirmed':
+        return 'Confirmed';
+      case 'failed':
+        return 'Failed';
+      default:
+        return 'No deposits yet';
+    }
+  }
+
+  double _getUsdtBalance() {
+    final balances = _userData?['wallet']?['balances'] as List<dynamic>? ?? [];
+    for (final item in balances) {
+      final currency = item['currency']?.toString().toUpperCase();
+      if (currency == 'USDT') {
+        final amount = item['amount'];
+        if (amount is num) return amount.toDouble();
+        return double.tryParse(amount.toString()) ?? 0.0;
+      }
+    }
+    return 0.0;
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = _authService.currentUser;
@@ -239,7 +275,7 @@ class _MinePageState extends State<MinePage> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? _buildSkeleton()
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -247,12 +283,38 @@ class _MinePageState extends State<MinePage> {
                 children: [
                   _buildProfileHeader(),
                   const SizedBox(height: 24),
+                  _buildWalletSection(),
+                  const SizedBox(height: 24),
                   _buildUserInfo(),
                   const SizedBox(height: 24),
                   _buildAdditionalInfo(),
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildSkeleton() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Center(
+            child: Column(
+              children: [
+                SkeletonBox(width: 120, height: 120, borderRadius: BorderRadius.all(Radius.circular(60))),
+                SizedBox(height: 16),
+                SkeletonBox(width: 160, height: 20),
+              ],
+            ),
+          ),
+          SizedBox(height: 24),
+          SkeletonBox(width: double.infinity, height: 180),
+          SizedBox(height: 24),
+          SkeletonBox(width: double.infinity, height: 220),
+        ],
+      ),
     );
   }
 
@@ -349,6 +411,104 @@ class _MinePageState extends State<MinePage> {
             _buildInfoRow('Plan', _userData?['subscription']?['plan']?.toUpperCase() ?? 'FREE'),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildWalletSection() {
+    final address = _getDepositAddress();
+    final status = _getDepositStatus();
+    final balance = _getUsdtBalance();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Wallet',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _buildInfoRow('USDT Balance', balance.toStringAsFixed(2)),
+            const Divider(),
+            _buildInfoRow('Deposit Status', status),
+            const SizedBox(height: 12),
+            if (address.isNotEmpty)
+              Text(
+                'Deposit Address',
+                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+              ),
+            if (address.isNotEmpty)
+              Text(
+                address,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+              ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: address.isEmpty ? null : _showDepositModal,
+                    child: const Text('Deposit USDT (TRC20)'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDepositModal() {
+    final address = _getDepositAddress();
+    if (address.isEmpty) return;
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Deposit USDT (TRC20)'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: QrImageView(
+                  data: address,
+                  version: QrVersions.auto,
+                  size: 180,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Network: USDT (TRC20 only)',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Minimum deposit: 100 USDT',
+                style: TextStyle(fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                address,
+                style: const TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }
