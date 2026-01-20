@@ -79,8 +79,8 @@ const tatumRequest = async (method, path, data) => {
 const generateTronWallet = async () => {
   try {
     // Tatum v3 TRON wallet generation endpoint
-    // POST /v3/tron/wallet - generates mnemonic and xpub
-    const walletRes = await tatumRequest('post', '/tron/wallet', {});
+    // GET /v3/tron/wallet - generates mnemonic and xpub
+    const walletRes = await tatumRequest('get', '/tron/wallet');
     
     if (!walletRes || !walletRes.data) {
       throw new Error('Invalid response from Tatum API');
