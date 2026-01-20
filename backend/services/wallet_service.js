@@ -22,8 +22,11 @@ const ensureUserTronWallet = async (userId) => {
     throw new Error('User not found');
   }
 
-  if (user.wallet?.tron?.address && user.wallet?.tron?.privateKeyEncrypted) {
-    return user.wallet.tron.address;
+  const mode = getTatumMode();
+  const walletKey = mode === 'production' ? 'tronProd' : 'tronTest';
+
+  if (user.wallet?.[walletKey]?.address && user.wallet?.[walletKey]?.privateKeyEncrypted) {
+    return user.wallet[walletKey].address;
   }
 
   const wallet = await generateTronWallet();
@@ -32,7 +35,7 @@ const ensureUserTronWallet = async (userId) => {
   if (!user.wallet) {
     user.wallet = {};
   }
-  user.wallet.tron = {
+  user.wallet[walletKey] = {
     address: wallet.address,
     privateKeyEncrypted: encryptedKey,
     createdAt: new Date(),
@@ -43,14 +46,21 @@ const ensureUserTronWallet = async (userId) => {
 };
 
 const findUserByDepositAddress = async (address) => {
-  return User.findOne({ 'wallet.tron.address': address });
+  return User.findOne({
+    $or: [
+      { 'wallet.tronTest.address': address },
+      { 'wallet.tronProd.address': address },
+    ],
+  });
 };
 
 const getUserPrivateKey = (user) => {
-  if (!user.wallet?.tron?.privateKeyEncrypted) {
+  const mode = getTatumMode();
+  const walletKey = mode === 'production' ? 'tronProd' : 'tronTest';
+  if (!user.wallet?.[walletKey]?.privateKeyEncrypted) {
     throw new Error('User TRON private key not found');
   }
-  return decrypt(user.wallet.tron.privateKeyEncrypted);
+  return decrypt(user.wallet[walletKey].privateKeyEncrypted);
 };
 
 const updateLedgerBalance = async ({ user, amount }) => {

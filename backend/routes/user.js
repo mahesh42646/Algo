@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
 const User = require('../schemas/user');
-const { ensureUserTronWallet } = require('../services/wallet_service');
+const { ensureUserTronWallet, getTatumMode } = require('../services/wallet_service');
 
 const uploadsDir = path.join(__dirname, '../uploads');
 if (!fs.existsSync(uploadsDir)) {
@@ -78,7 +78,7 @@ router.post('/', async (req, res, next) => {
       return res.status(200).json({
         success: true,
         message: 'User already exists',
-        data: existingUser,
+        data: _sanitizeWalletForMode(existingUser),
       });
     }
 
@@ -118,7 +118,7 @@ router.post('/', async (req, res, next) => {
     res.status(201).json({
       success: true,
       message: 'User created successfully',
-      data: savedUser,
+      data: _sanitizeWalletForMode(savedUser),
     });
   } catch (error) {
     console.error(`[USER CREATE] ❌ Error creating user:`, error);
@@ -195,7 +195,7 @@ router.get('/:userId', async (req, res, next) => {
     console.log(`[USER GET] ✅ User found: ${user.userId}, Email: ${user.email}`);
     res.json({
       success: true,
-      data: user,
+      data: _sanitizeWalletForMode(user),
     });
   } catch (error) {
     console.error(`[USER GET] ❌ Error fetching user:`, error);
@@ -612,3 +612,18 @@ router.get('/:userId/kyc', async (req, res, next) => {
 });
 
 module.exports = router;
+
+function _sanitizeWalletForMode(user) {
+  if (!user) return user;
+  const mode = getTatumMode();
+  const walletKey = mode === 'production' ? 'tronProd' : 'tronTest';
+  const data = typeof user.toObject === 'function' ? user.toObject() : user;
+
+  if (data.wallet) {
+    data.wallet.tron = data.wallet[walletKey] || { address: null, createdAt: null };
+    delete data.wallet.tronTest;
+    delete data.wallet.tronProd;
+  }
+
+  return data;
+}

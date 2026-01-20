@@ -145,7 +145,21 @@ const userSchema = new mongoose.Schema({
       type: String,
       unique: true,
     },
-    tron: {
+    tronTest: {
+      address: {
+        type: String,
+        default: null,
+      },
+      privateKeyEncrypted: {
+        type: String,
+        default: null,
+      },
+      createdAt: {
+        type: Date,
+        default: null,
+      },
+    },
+    tronProd: {
       address: {
         type: String,
         default: null,
@@ -371,8 +385,11 @@ userSchema.methods.toJSON = function() {
   obj.id = obj._id;
   delete obj._id;
   delete obj.__v;
-  if (obj.wallet?.tron?.privateKeyEncrypted) {
-    delete obj.wallet.tron.privateKeyEncrypted;
+  if (obj.wallet?.tronTest?.privateKeyEncrypted) {
+    delete obj.wallet.tronTest.privateKeyEncrypted;
+  }
+  if (obj.wallet?.tronProd?.privateKeyEncrypted) {
+    delete obj.wallet.tronProd.privateKeyEncrypted;
   }
   return obj;
 };
