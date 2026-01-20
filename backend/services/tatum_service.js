@@ -36,7 +36,7 @@ const tatumRequest = async (method, path, data) => {
   const url = `${TATUM_BASE_URL}${path}`;
   
   try {
-    const response = await axios({
+    const config = {
       method,
       url,
       data,
@@ -45,7 +45,15 @@ const tatumRequest = async (method, path, data) => {
         'Content-Type': 'application/json',
       },
       timeout: 20000,
+    };
+    
+    // Log request details for debugging (mask API key)
+    console.log(`[TATUM API] ${method.toUpperCase()} ${url}`, {
+      hasData: !!data,
+      apiKeyPrefix: apiKey.substring(0, 10) + '...',
     });
+    
+    const response = await axios(config);
     return response;
   } catch (error) {
     // Enhanced error logging
@@ -54,9 +62,13 @@ const tatumRequest = async (method, path, data) => {
         status: error.response.status,
         statusText: error.response.statusText,
         data: error.response.data,
+        url: error.config?.url,
       });
     } else if (error.request) {
-      console.error(`[TATUM API] ${method.toUpperCase()} ${path} - No response:`, error.message);
+      console.error(`[TATUM API] ${method.toUpperCase()} ${path} - No response:`, {
+        message: error.message,
+        url: error.config?.url,
+      });
     } else {
       console.error(`[TATUM API] ${method.toUpperCase()} ${path} - Error:`, error.message);
     }
@@ -66,15 +78,9 @@ const tatumRequest = async (method, path, data) => {
 
 const generateTronWallet = async () => {
   try {
-    // Try Tatum v3 TRON-specific endpoint first
-    let walletRes;
-    try {
-      walletRes = await tatumRequest('post', '/tron/wallet');
-    } catch (e) {
-      // If that fails, try blockchain-agnostic endpoint
-      const chain = getTronChainName();
-      walletRes = await tatumRequest('post', `/blockchain/wallet/${chain}`);
-    }
+    // Tatum v3 TRON wallet generation endpoint
+    // POST /v3/tron/wallet - generates mnemonic and xpub
+    const walletRes = await tatumRequest('post', '/tron/wallet', {});
     
     if (!walletRes || !walletRes.data) {
       throw new Error('Invalid response from Tatum API');
@@ -85,33 +91,22 @@ const generateTronWallet = async () => {
       throw new Error('Failed to generate TRON wallet - missing mnemonic or xpub');
     }
 
-    // Use first index for address and private key
+    // Use first index (0) for address and private key
     const index = 0;
-    let addressRes;
-    try {
-      addressRes = await tatumRequest('get', `/tron/address/${xpub}/${index}`);
-    } catch (e) {
-      const chain = getTronChainName();
-      addressRes = await tatumRequest('get', `/blockchain/address/${chain}/${xpub}/${index}`);
-    }
+    
+    // GET /v3/tron/address/{xpub}/{index} - derive address from xpub
+    const addressRes = await tatumRequest('get', `/tron/address/${xpub}/${index}`);
     
     const address = addressRes.data?.address;
     if (!address) {
       throw new Error('Failed to generate TRON address');
     }
 
-    let privRes;
-    try {
-      privRes = await tatumRequest('post', '/tron/wallet/priv', {
-        index,
-        mnemonic,
-      });
-    } catch (e) {
-      privRes = await tatumRequest('post', '/blockchain/wallet/priv', {
-        index,
-        mnemonic,
-      });
-    }
+    // POST /v3/tron/wallet/priv - derive private key from mnemonic
+    const privRes = await tatumRequest('post', '/tron/wallet/priv', {
+      index,
+      mnemonic,
+    });
     
     const privateKey = privRes.data?.key || privRes.data?.privateKey;
     if (!privateKey) {
@@ -120,16 +115,29 @@ const generateTronWallet = async () => {
 
     return { address, privateKey };
   } catch (error) {
-    // Better error logging
+    // Enhanced error logging with full details
     const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message || 'Unknown error';
     const statusCode = error.response?.status;
     const errorData = error.response?.data;
+    const requestUrl = error.config?.url;
+    const requestMethod = error.config?.method?.toUpperCase();
+    
     console.error(`[TATUM] Wallet generation failed:`, {
       message: errorMsg,
       status: statusCode,
       data: errorData,
-      url: error.config?.url,
+      url: requestUrl,
+      method: requestMethod,
+      apiKey: getTatumApiKey() ? `${getTatumApiKey().substring(0, 10)}...` : 'MISSING',
     });
+    
+    // Provide more helpful error message
+    if (statusCode === 404) {
+      throw new Error(`Tatum API endpoint not found. Please verify your Tatum API key has TRON wallet generation permissions and the endpoint is correct: ${requestUrl}`);
+    } else if (statusCode === 401 || statusCode === 403) {
+      throw new Error(`Tatum API authentication failed. Please check your API key permissions for TRON operations.`);
+    }
+    
     throw new Error(`Tatum wallet generation failed: ${errorMsg}`);
   }
 };
@@ -143,13 +151,7 @@ const sendTrx = async ({ fromPrivateKey, to, amount }) => {
     to,
     amount: amount.toString(),
   };
-  let res;
-  try {
-    res = await tatumRequest('post', '/tron/transaction', body);
-  } catch (e) {
-    const chain = getTronChainName();
-    res = await tatumRequest('post', `/blockchain/transaction/${chain}`, body);
-  }
+  const res = await tatumRequest('post', '/tron/transaction', body);
   return res.data;
 };
 
@@ -168,24 +170,12 @@ const sendUsdtTrc20 = async ({ fromPrivateKey, to, amount }) => {
     tokenAddress: contractAddress,
     feeLimit: 10000000, // default fee limit for TRC20
   };
-  let res;
-  try {
-    res = await tatumRequest('post', '/tron/trc20/transaction', body);
-  } catch (e) {
-    const chain = getTronChainName();
-    res = await tatumRequest('post', `/blockchain/token/transaction/${chain}`, body);
-  }
+  const res = await tatumRequest('post', '/tron/trc20/transaction', body);
   return res.data;
 };
 
 const getTronAccount = async (address) => {
-  let res;
-  try {
-    res = await tatumRequest('get', `/tron/account/${address}`);
-  } catch (e) {
-    const chain = getTronChainName();
-    res = await tatumRequest('get', `/blockchain/account/${chain}/${address}`);
-  }
+  const res = await tatumRequest('get', `/tron/account/${address}`);
   return res.data;
 };
 
