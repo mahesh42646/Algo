@@ -471,44 +471,119 @@ class _MinePageState extends State<MinePage> {
 
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Deposit USDT (TRC20)'),
-        content: SingleChildScrollView(
+      barrierDismissible: true,
+      builder: (dialogContext) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        elevation: 8,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Deposit USDT (TRC20)',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
               Center(
-                child: QrImageView(
-                  data: address,
-                  version: QrVersions.auto,
-                  size: 180,
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: QrImageView(
+                    data: address,
+                    version: QrVersions.auto,
+                    size: 180,
+                    backgroundColor: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '⚠️ Important:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Network: USDT (TRC20 only)',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Deposits under 100 USDT will be credited but not auto-swept',
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 12),
               const Text(
-                'Network: USDT (TRC20 only)',
-                style: TextStyle(fontWeight: FontWeight.w600),
+                'Your Deposit Address:',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Note: Deposits under 100 USDT will be credited but not auto-swept',
-                style: TextStyle(fontSize: 11, color: Colors.grey),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: SelectableText(
+                  address,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                  ),
+                ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                address,
-                style: const TextStyle(fontSize: 12),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Close'),
+                ),
               ),
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
       ),
     );
   }
