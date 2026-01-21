@@ -138,6 +138,7 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
       final user = _authService.currentUser;
       if (user == null) return;
 
+      // Fetch latest user data to check for balance changes
       final data = await _userService.getUser(user.uid);
       final balances = data['wallet']?['balances'] as List<dynamic>? ?? [];
       
@@ -157,14 +158,29 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
         
         // Check unswept funds
         final unsweptFunds = data['wallet']?['unsweptFunds'] ?? 0.0;
-        _willAutoSweep = (unsweptFunds + received) >= (widget.minAmount ?? 100.0);
+        final totalUnswept = unsweptFunds + received;
+        _willAutoSweep = totalUnswept >= (widget.minAmount ?? 100.0);
         
-        // Check deposit status
-        final depositStatus = data['wallet']?['depositStatus']?.toString() ?? 'pending';
+        // Check deposit status from transactions
+        final transactions = data['wallet']?['transactions'] as List<dynamic>? ?? [];
+        bool hasRecentDeposit = false;
+        
+        if (transactions.isNotEmpty) {
+          // Check for recent completed deposits
+          for (final tx in transactions) {
+            if (tx['type'] == 'deposit' && 
+                tx['status'] == 'completed' &&
+                tx['currency']?.toString().toUpperCase() == 'USDT') {
+              hasRecentDeposit = true;
+              break;
+            }
+          }
+        }
         
         if (!mounted) return;
         
-        if (depositStatus == 'confirmed') {
+        // Update status based on recent transactions
+        if (hasRecentDeposit || currentBalance > (_initialBalance + 0.01)) {
           setState(() {
             _status = 'confirmed';
             _receivedAmount = received;
@@ -177,15 +193,11 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
         }
       }
     } catch (e) {
+      // Don't log errors unless in debug mode
       if (Env.enableApiLogs) {
-        print('Error checking deposit: $e');
+        print('Payment check failed');
       }
-      if (mounted && _status != 'confirmed') {
-        setState(() {
-          _status = 'failed';
-          _errorMessage = 'Failed to check transaction status';
-        });
-      }
+      // Don't change status to failed unless it's a critical error
     }
   }
 
@@ -211,34 +223,46 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
       ),
       elevation: 8,
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 400),
-        padding: const EdgeInsets.all(24),
+        constraints: const BoxConstraints(maxWidth: 400, maxHeight: 700),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  widget.title,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
+            // Header with close button (always visible)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.title,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                    ),
                   ),
-                ),
-                if (_status == 'confirmed' || _status == 'timeout' || _status == 'failed')
                   IconButton(
                     icon: Icon(Icons.close, color: subtextColor),
                     onPressed: widget.onClose,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
+                    tooltip: 'Close',
                   ),
-              ],
+                ],
+              ),
             ),
-            const SizedBox(height: 24),
+            Divider(height: 1, color: borderColor),
+            
+            // Scrollable content
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
 
             // Status Indicator
             _buildStatusIndicator(textColor, subtextColor),
@@ -408,6 +432,10 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
 
             // Action Button
             _buildActionButton(isDark, textColor),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),

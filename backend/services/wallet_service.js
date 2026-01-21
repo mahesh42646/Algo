@@ -229,7 +229,7 @@ const processDeposit = async ({ address, txHash, amount, chain, token, contractA
     deposit.status = 'completed';
     await deposit.save();
 
-    console.log(`[DEPOSIT] ✅ Deposit completed: ${amount} USDT credited to user ${user.userId}`);
+    console.log(`[DEPOSIT] ✅ Deposit completed: ${amount} USDT credited`);
     return { success: true, swept: shouldSweep };
   } catch (error) {
     deposit.status = 'failed';
