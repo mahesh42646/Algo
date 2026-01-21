@@ -102,7 +102,8 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
   }
 
   void _startPolling() {
-    _pollTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+    // Backend auto-detects every 15s, so poll every 10s is sufficient
+    _pollTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
       if (_status == 'confirmed' || _status == 'timeout' || _status == 'failed') {
         timer.cancel();
         return;
@@ -185,6 +186,8 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
             _status = 'confirmed';
             _receivedAmount = received;
           });
+          // Stop polling immediately when confirmed
+          _pollTimer?.cancel();
         } else {
           setState(() {
             _status = 'processing';

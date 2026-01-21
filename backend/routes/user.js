@@ -161,7 +161,10 @@ router.get('/', async (req, res, next) => {
 router.get('/:userId', async (req, res, next) => {
   try {
     const userId = req.params.userId;
-    console.log(`[USER GET] Fetching user: ${userId}`);
+    // Only log in debug mode to reduce spam
+    if (process.env.LOG_LEVEL === 'debug') {
+      console.log(`[USER GET] Fetching user: ${userId}`);
+    }
 
     let user = await User.findOne({ userId: userId })
       .populate('counselor', 'userId nickname email avatar')
@@ -183,7 +186,11 @@ router.get('/:userId', async (req, res, next) => {
       });
     }
 
-    console.log(`[USER GET] ✅ User found: ${user.userId}, Email: ${user.email}`);
+    // Only log in debug mode
+    if (process.env.LOG_LEVEL === 'debug') {
+      console.log(`[USER GET] ✅ User found: ${user.userId}, Email: ${user.email}`);
+    }
+    
     res.json({
       success: true,
       data: _sanitizeWalletForMode(user),
