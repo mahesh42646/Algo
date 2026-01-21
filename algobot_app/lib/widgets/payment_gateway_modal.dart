@@ -216,6 +216,22 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
     final textColor = isDark ? Colors.white : Colors.black87;
     final subtextColor = isDark ? Colors.grey[400] : Colors.grey[600];
 
+    // Responsive sizing based on screen height
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isSmallScreen = screenHeight < 700;
+    
+    // Dynamic sizes
+    final qrSize = isSmallScreen ? 140.0 : 200.0;
+    final titleFontSize = isSmallScreen ? 16.0 : 18.0;
+    final statusIconSize = isSmallScreen ? 48.0 : 64.0;
+    final statusTitleSize = isSmallScreen ? 16.0 : 20.0;
+    final statusSubtitleSize = isSmallScreen ? 12.0 : 14.0;
+    final addressFontSize = isSmallScreen ? 10.0 : 12.0;
+    final warningFontSize = isSmallScreen ? 10.0 : 11.0;
+    final timerFontSize = isSmallScreen ? 12.0 : 13.0;
+    final padding = isSmallScreen ? 16.0 : 24.0;
+    final spacing = isSmallScreen ? 12.0 : 16.0;
+
     return Dialog(
       backgroundColor: backgroundColor,
       shape: RoundedRectangleBorder(
@@ -223,13 +239,13 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
       ),
       elevation: 8,
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 400),
+        constraints: const BoxConstraints(maxWidth: 450),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             // Header with close button and timer
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: EdgeInsets.symmetric(horizontal: padding, vertical: spacing * 0.75),
               decoration: BoxDecoration(
                 border: Border(bottom: BorderSide(color: borderColor, width: 1)),
               ),
@@ -239,19 +255,19 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
                     child: Text(
                       widget.title,
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: titleFontSize,
                         fontWeight: FontWeight.bold,
                         color: textColor,
                       ),
                     ),
                   ),
                   if (_status == 'waiting' || _status == 'processing') ...[
-                    Icon(Icons.timer_outlined, size: 14, color: subtextColor),
+                    Icon(Icons.timer_outlined, size: timerFontSize + 2, color: subtextColor),
                     const SizedBox(width: 4),
                     Text(
                       _formatTime(_remainingSeconds),
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: timerFontSize,
                         fontWeight: FontWeight.w500,
                         color: subtextColor,
                       ),
@@ -259,7 +275,7 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
                     const SizedBox(width: 12),
                   ],
                   IconButton(
-                    icon: Icon(Icons.close, size: 20, color: subtextColor),
+                    icon: Icon(Icons.close, size: 22, color: subtextColor),
                     onPressed: widget.onClose,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -271,41 +287,41 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
             
             // Content (no scroll)
             Padding(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.all(padding),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
 
             // Status Indicator
-            _buildStatusIndicator(textColor, subtextColor),
-            const SizedBox(height: 16),
+            _buildStatusIndicator(textColor, subtextColor, statusIconSize, statusTitleSize, statusSubtitleSize),
+            SizedBox(height: spacing),
 
             // Show QR and address only if waiting or processing
             if (_status == 'waiting' || _status == 'processing') ...[
               // QR Code
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: EdgeInsets.all(spacing * 0.75),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: borderColor, width: 1),
                 ),
                 child: QrImageView(
                   data: widget.address,
                   version: QrVersions.auto,
-                  size: 140,
+                  size: qrSize,
                   backgroundColor: Colors.white,
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: spacing),
               
               // Network Warning (One Line)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                padding: EdgeInsets.symmetric(horizontal: spacing * 0.67, vertical: spacing * 0.5),
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF3D2E1F) : const Color(0xFFFFF3E0),
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: isDark ? const Color(0xFF755233) : const Color(0xFFFFB74D),
                   ),
@@ -313,21 +329,21 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
                 child: Text(
                   '⚠️ TEST MODE: Use TRON Nile Testnet • USDT (TRC20)${widget.minAmount != null ? " • Auto-sweep ≥${widget.minAmount}" : ""}',
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: warningFontSize,
                     fontWeight: FontWeight.w600,
                     color: isDark ? const Color(0xFFFFB74D) : const Color(0xFFE65100),
                   ),
                   textAlign: TextAlign.center,
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: spacing),
               
               // Address with Copy Icon
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                padding: EdgeInsets.symmetric(horizontal: spacing * 0.67, vertical: spacing * 0.67),
                 decoration: BoxDecoration(
                   color: surfaceColor,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: borderColor),
                 ),
                 child: Row(
@@ -336,7 +352,7 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
                       child: Text(
                         widget.address,
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: addressFontSize,
                           fontFamily: 'monospace',
                           color: textColor,
                         ),
@@ -356,18 +372,18 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
                           ),
                         );
                       },
-                      child: Icon(Icons.copy, size: 16, color: textColor),
+                      child: Icon(Icons.copy, size: addressFontSize + 6, color: textColor),
                     ),
                   ],
                 ),
               ),
             ],
 
-            const SizedBox(height: 16),
+            SizedBox(height: spacing),
 
             // Action Button (only Done for confirmed, nothing for waiting/processing)
             if (_status == 'confirmed' || _status == 'timeout' || _status == 'failed')
-              _buildActionButton(isDark, textColor),
+              _buildActionButton(isDark, textColor, isSmallScreen),
                 ],
               ),
             ),
@@ -377,7 +393,7 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
     );
   }
 
-  Widget _buildStatusIndicator(Color textColor, Color? subtextColor) {
+  Widget _buildStatusIndicator(Color textColor, Color? subtextColor, double iconSize, double titleSize, double subtitleSize) {
     IconData icon;
     Color iconColor;
     String title;
@@ -431,7 +447,7 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
               scale: value,
               child: Icon(
                 icon,
-                size: 48,
+                size: iconSize,
                 color: iconColor,
               ),
             );
@@ -441,17 +457,17 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
         Text(
           title,
           style: TextStyle(
-            fontSize: 16,
+            fontSize: titleSize,
             fontWeight: FontWeight.bold,
             color: textColor,
           ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         Text(
           subtitle,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: subtitleSize,
             color: subtextColor,
           ),
           textAlign: TextAlign.center,
@@ -460,10 +476,10 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
           Padding(
             padding: const EdgeInsets.only(top: 12),
             child: SizedBox(
-              width: 24,
-              height: 24,
+              width: iconSize * 0.5,
+              height: iconSize * 0.5,
               child: CircularProgressIndicator(
-                strokeWidth: 2.5,
+                strokeWidth: 3,
                 valueColor: AlwaysStoppedAnimation<Color>(iconColor),
               ),
             ),
@@ -472,7 +488,7 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
     );
   }
 
-  Widget _buildActionButton(bool isDark, Color textColor) {
+  Widget _buildActionButton(bool isDark, Color textColor, bool isSmallScreen) {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
@@ -482,12 +498,12 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
               ? Colors.green 
               : (isDark ? const Color(0xFF404040) : Colors.grey[300]),
           foregroundColor: _status == 'confirmed' ? Colors.white : textColor,
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: EdgeInsets.symmetric(vertical: isSmallScreen ? 12 : 14),
           elevation: 0,
         ),
         child: Text(
           _status == 'confirmed' ? 'Done' : _status == 'timeout' ? 'Retry' : 'Close',
-          style: const TextStyle(fontSize: 14),
+          style: TextStyle(fontSize: isSmallScreen ? 14 : 16),
         ),
       ),
     );
