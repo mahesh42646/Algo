@@ -94,6 +94,7 @@ app.use('/api/test', require('./routes/test'));
 app.use('/api/users', require('./routes/user'));
 app.use('/api/exchange', require('./routes/exchange'));
 app.use('/api/webhooks', require('./routes/webhooks'));
+app.use('/api/admin', require('./routes/admin'));
 
 // 404 handler (must be last)
 app.use((req, res) => {

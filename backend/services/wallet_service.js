@@ -11,6 +11,7 @@ const {
   getTronAccount,
   getUsdtContract,
 } = require('./tatum_service');
+const { subscribeToAddressMonitoring } = require('./webhook_subscription');
 
 const MIN_DEPOSIT_USDT = parseFloat(process.env.TATUM_MIN_DEPOSIT_USDT || '100');
 const TRX_GAS_AMOUNT = parseFloat(process.env.TATUM_TRX_GAS_AMOUNT || '35');
@@ -41,6 +42,19 @@ const ensureUserTronWallet = async (userId) => {
     createdAt: new Date(),
   };
   await user.save();
+
+  console.log(`[WALLET] ✅ TRON wallet created for user ${userId} in ${mode} mode:`, wallet.address);
+
+  // Subscribe to webhook monitoring for this address (non-blocking)
+  subscribeToAddressMonitoring(wallet.address).then((result) => {
+    if (result.success) {
+      console.log(`[WALLET] ✅ Webhook subscription active for ${wallet.address}`);
+    } else {
+      console.log(`[WALLET] ⚠️  Webhook subscription failed for ${wallet.address}: ${result.error}`);
+    }
+  }).catch((err) => {
+    console.error(`[WALLET] ❌ Webhook subscription error:`, err.message);
+  });
 
   return wallet.address;
 };
