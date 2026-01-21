@@ -148,6 +148,24 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`📡 API available at http://localhost:${PORT}/api`);
   console.log(`🌐 Network access: http://${localIP}:${PORT}/api`);
   console.log(`   Use this IP in mobile app .env.local: ${localIP}`);
+  
+  // Start automatic deposit monitoring for testnet
+  const autoMonitor = require('./services/auto_monitor');
+  autoMonitor.startAutoMonitoring();
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server');
+  const autoMonitor = require('./services/auto_monitor');
+  autoMonitor.stopAutoMonitoring();
+  server.close(() => {
+    console.log('HTTP server closed');
+    mongoose.connection.close(false, () => {
+      console.log('MongoDB connection closed');
+      process.exit(0);
+    });
+  });
 });
 
 module.exports = app;

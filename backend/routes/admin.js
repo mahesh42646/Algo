@@ -4,6 +4,7 @@ const User = require('../schemas/user');
 const { subscribeToAddressMonitoring, listSubscriptions, deleteSubscription } = require('../services/webhook_subscription');
 const { getTatumMode } = require('../services/wallet_service');
 const { checkAddressForDeposits, checkAllUserDeposits } = require('../services/testnet_monitor');
+const autoMonitor = require('../services/auto_monitor');
 
 // Subscribe all user addresses to webhook monitoring
 router.post('/subscribe-all-addresses', async (req, res, next) => {
@@ -160,6 +161,23 @@ router.get('/sweep-stats', async (req, res, next) => {
     });
   } catch (error) {
     console.error('[ADMIN] Error fetching sweep stats:', error);
+    next(error);
+  }
+});
+
+// Get auto-monitor status
+router.get('/monitor-status', async (req, res, next) => {
+  try {
+    const status = autoMonitor.getStatus();
+    res.json({
+      success: true,
+      ...status,
+      message: status.running 
+        ? `Automatic monitoring active - checking every ${status.interval/1000}s` 
+        : 'Automatic monitoring disabled (production mode or not started)',
+    });
+  } catch (error) {
+    console.error('[ADMIN] Error getting monitor status:', error);
     next(error);
   }
 });
