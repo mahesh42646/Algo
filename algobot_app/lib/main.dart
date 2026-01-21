@@ -97,15 +97,125 @@ class _AlgoBotAppState extends State<AlgoBotApp> {
             debugShowCheckedModeBanner: false,
             theme: ThemeData(
               colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.deepOrange,
+                seedColor: const Color(0xFF2196F3),
                 brightness: Brightness.light,
+              ),
+              scaffoldBackgroundColor: const Color(0xFFFAFAFA),
+              appBarTheme: const AppBarTheme(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black87,
+                elevation: 0,
+                centerTitle: false,
+              ),
+              cardTheme: CardTheme(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                color: Colors.white,
+              ),
+              inputDecorationTheme: InputDecorationTheme(
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFF2196F3), width: 2),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              ),
+              elevatedButtonTheme: ElevatedButtonThemeData(
+                style: ElevatedButton.styleFrom(
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              textButtonTheme: TextButtonThemeData(
+                style: TextButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+              outlinedButtonTheme: OutlinedButtonThemeData(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
               useMaterial3: true,
             ),
             darkTheme: ThemeData(
               colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.deepOrange,
+                seedColor: const Color(0xFF64B5F6),
                 brightness: Brightness.dark,
+              ),
+              scaffoldBackgroundColor: const Color(0xFF121212),
+              appBarTheme: const AppBarTheme(
+                backgroundColor: Color(0xFF1E1E1E),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                centerTitle: false,
+              ),
+              cardTheme: CardTheme(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                color: const Color(0xFF1E1E1E),
+              ),
+              inputDecorationTheme: InputDecorationTheme(
+                filled: true,
+                fillColor: const Color(0xFF2D2D2D),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFF404040)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFF404040)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFF64B5F6), width: 2),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              ),
+              elevatedButtonTheme: ElevatedButtonThemeData(
+                style: ElevatedButton.styleFrom(
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              textButtonTheme: TextButtonThemeData(
+                style: TextButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+              outlinedButtonTheme: OutlinedButtonThemeData(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
               useMaterial3: true,
             ),
