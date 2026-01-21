@@ -182,6 +182,20 @@ const userSchema = new mongoose.Schema({
       type: String,
       default: null,
     },
+    unsweptFunds: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    totalSwept: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    lastSweepAt: {
+      type: Date,
+      default: null,
+    },
     balances: [{
       currency: {
         type: String,

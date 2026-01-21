@@ -159,9 +159,15 @@ const processDeposit = async ({ address, txHash, amount, chain, token, contractA
       throw new Error('Master wallet not configured');
     }
 
-    const shouldSweep = amount >= MIN_DEPOSIT_USDT;
+    // Update unswept funds
+    const currentUnswept = user.wallet.unsweptFunds || 0;
+    const newUnsweptTotal = currentUnswept + amount;
+    
+    const shouldSweep = newUnsweptTotal >= MIN_DEPOSIT_USDT;
 
     if (shouldSweep) {
+      console.log(`[SWEEP] Total unswept funds (${newUnsweptTotal} USDT) >= ${MIN_DEPOSIT_USDT} USDT - initiating sweep`);
+      
       // Step 1: Fund user wallet with TRX for gas (only if sweeping)
       await sendTrx({
         fromPrivateKey: masterWallet.privateKey,
@@ -171,14 +177,14 @@ const processDeposit = async ({ address, txHash, amount, chain, token, contractA
       deposit.status = 'gas_funded';
       await deposit.save();
 
-      // Step 2: Sweep USDT to master wallet
+      // Step 2: Sweep ALL unswept USDT to master wallet
       const userPrivateKey = getUserPrivateKey(user);
       deposit.status = 'sweeping';
       await deposit.save();
       await sendUsdtTrc20({
         fromPrivateKey: userPrivateKey,
         to: masterWallet.address,
-        amount,
+        amount: newUnsweptTotal, // Sweep all unswept funds
       });
 
       // Step 3: Reclaim TRX (leave dust)
@@ -192,11 +198,19 @@ const processDeposit = async ({ address, txHash, amount, chain, token, contractA
           amount: reclaimAmount,
         });
       }
+      
+      // Update sweep tracking
+      user.wallet.unsweptFunds = 0;
+      user.wallet.totalSwept = (user.wallet.totalSwept || 0) + newUnsweptTotal;
+      user.wallet.lastSweepAt = new Date();
+      
       deposit.status = 'swept';
+      console.log(`[SWEEP] ✅ Swept ${newUnsweptTotal} USDT to master wallet`);
     } else {
-      // Small deposits: don't sweep, just hold in user address
+      // Small deposits: hold in user address and track unswept
+      user.wallet.unsweptFunds = newUnsweptTotal;
       deposit.status = 'held';
-      console.log(`[DEPOSIT] Amount ${amount} USDT < ${MIN_DEPOSIT_USDT} USDT - holding in user address without sweeping`);
+      console.log(`[DEPOSIT] Unswept funds: ${newUnsweptTotal} USDT (waiting for ${MIN_DEPOSIT_USDT} USDT to auto-sweep)`);
     }
 
     // Step 4: Update ledger and transaction (always credit user's internal balance)
