@@ -561,12 +561,29 @@ class _MinePageState extends State<MinePage> {
                               : const Color(0xFFE65100),
                         ),
                       ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '🔴 TEST MODE - Use Nile Testnet Only',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? const Color(0xFFFF6B6B) : Colors.red[700],
+                        ),
+                      ),
                       const SizedBox(height: 4),
                       Text(
-                        'Network: USDT (TRC20 only)',
+                        'Network: USDT (TRC20) on TRON Nile Testnet',
                         style: TextStyle(
                           fontSize: 13,
                           color: textColor,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '⚙️ Switch TronLink to Nile Testnet before sending',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: subtextColor,
                         ),
                       ),
                       const SizedBox(height: 4),
