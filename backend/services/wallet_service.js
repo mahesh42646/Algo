@@ -229,16 +229,21 @@ const normalizeWebhookPayload = (payload) => {
 };
 
 const isValidUsdtTrc20Deposit = ({ chain, token, contractAddress }) => {
-  const expectedChain = getTronChainName();
+  const mode = getTatumMode();
   const expectedToken = 'USDT';
   const expectedContract = getUsdtContract();
 
   const chainOk = chain && chain.toUpperCase().includes('TRON');
-  const tokenOk = token && token.toUpperCase() === expectedToken;
-  const contractOk = expectedContract
-    ? (contractAddress || '').toLowerCase() === expectedContract.toLowerCase()
-    : true;
+  const tokenOk = token && (token.toUpperCase() === expectedToken || token.toUpperCase().includes('USDT'));
+  
+  // In test mode, be more lenient with contract validation
+  const contractOk = mode === 'test' 
+    ? true  // Accept any TRC20 USDT on testnet
+    : expectedContract
+      ? (contractAddress || '').toLowerCase() === expectedContract.toLowerCase()
+      : true;
 
+  console.log(`[VALIDATION] Chain: ${chainOk}, Token: ${tokenOk}, Contract: ${contractOk}, Mode: ${mode}`);
   return chainOk && tokenOk && contractOk;
 };
 

@@ -31,6 +31,25 @@ const subscribeToAddressMonitoring = async (address) => {
 
     // Subscribe to TRC20 token transfers (USDT)
     // Tatum v3 endpoint for subscription
+    // In test mode, we monitor testnet transactions
+    const mode = getTatumMode();
+    const isTestMode = mode !== 'production';
+    
+    const subscriptionData = {
+      type: 'ADDRESS_TRANSACTION',
+      attr: {
+        address: address,
+        chain: 'TRON',  // Chain name is always TRON
+        url: webhookUrl,
+      },
+    };
+
+    // For testnet, we need to specify we're monitoring testnet
+    if (isTestMode) {
+      subscriptionData.attr.testnetType = 'TRON-SHASTA';  // or TRON-NILE
+      console.log(`[WEBHOOK] Subscribing for TESTNET (Nile) monitoring`);
+    }
+
     const response = await axios({
       method: 'post',
       url: `${TATUM_BASE_URL}/subscription`,
@@ -38,14 +57,7 @@ const subscribeToAddressMonitoring = async (address) => {
         'x-api-key': apiKey,
         'Content-Type': 'application/json',
       },
-      data: {
-        type: 'ADDRESS_TRANSACTION',
-        attr: {
-          address: address,
-          chain: getTatumMode() === 'production' ? 'TRON' : 'TRON',
-          url: webhookUrl,
-        },
-      },
+      data: subscriptionData,
       timeout: 20000,
     });
 

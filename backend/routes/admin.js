@@ -3,6 +3,7 @@ const router = express.Router();
 const User = require('../schemas/user');
 const { subscribeToAddressMonitoring, listSubscriptions, deleteSubscription } = require('../services/webhook_subscription');
 const { getTatumMode } = require('../services/wallet_service');
+const { checkAddressForDeposits, checkAllUserDeposits } = require('../services/testnet_monitor');
 
 // Subscribe all user addresses to webhook monitoring
 router.post('/subscribe-all-addresses', async (req, res, next) => {
@@ -67,6 +68,28 @@ router.delete('/subscription/:id', async (req, res, next) => {
     });
   } catch (error) {
     console.error('[ADMIN] Error deleting subscription:', error);
+    next(error);
+  }
+});
+
+// Check for testnet deposits (manual polling)
+router.post('/check-testnet-deposits', async (req, res, next) => {
+  try {
+    const result = await checkAllUserDeposits();
+    res.json(result);
+  } catch (error) {
+    console.error('[ADMIN] Error checking deposits:', error);
+    next(error);
+  }
+});
+
+// Check specific address for deposits
+router.post('/check-address/:address', async (req, res, next) => {
+  try {
+    const result = await checkAddressForDeposits(req.params.address);
+    res.json(result);
+  } catch (error) {
+    console.error('[ADMIN] Error checking address:', error);
     next(error);
   }
 });
