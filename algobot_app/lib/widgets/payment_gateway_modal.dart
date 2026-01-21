@@ -223,28 +223,43 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
       ),
       elevation: 8,
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 400, maxHeight: 700),
+        constraints: const BoxConstraints(maxWidth: 400),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Header with close button (always visible)
-            Padding(
-              padding: const EdgeInsets.all(16),
+            // Header with close button and timer
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: borderColor, width: 1)),
+              ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
                     child: Text(
                       widget.title,
                       style: TextStyle(
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                         color: textColor,
                       ),
                     ),
                   ),
+                  if (_status == 'waiting' || _status == 'processing') ...[
+                    Icon(Icons.timer_outlined, size: 14, color: subtextColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      _formatTime(_remainingSeconds),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: subtextColor,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
                   IconButton(
-                    icon: Icon(Icons.close, color: subtextColor),
+                    icon: Icon(Icons.close, size: 20, color: subtextColor),
                     onPressed: widget.onClose,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -253,187 +268,107 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
                 ],
               ),
             ),
-            Divider(height: 1, color: borderColor),
             
-            // Scrollable content
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
+            // Content (no scroll)
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
 
             // Status Indicator
             _buildStatusIndicator(textColor, subtextColor),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
 
             // Show QR and address only if waiting or processing
             if (_status == 'waiting' || _status == 'processing') ...[
               // QR Code
-              Center(
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: borderColor, width: 1),
-                  ),
-                  child: QrImageView(
-                    data: widget.address,
-                    version: QrVersions.auto,
-                    size: 180,
-                    backgroundColor: Colors.white,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              
-              // Network Warning
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isDark 
-                      ? const Color(0xFF3D2E1F) 
-                      : const Color(0xFFFFF3E0),
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: borderColor, width: 1),
+                ),
+                child: QrImageView(
+                  data: widget.address,
+                  version: QrVersions.auto,
+                  size: 140,
+                  backgroundColor: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              // Network Warning (One Line)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF3D2E1F) : const Color(0xFFFFF3E0),
+                  borderRadius: BorderRadius.circular(6),
                   border: Border.all(
-                    color: isDark 
-                        ? const Color(0xFF755233) 
-                        : const Color(0xFFFFB74D),
+                    color: isDark ? const Color(0xFF755233) : const Color(0xFFFFB74D),
                   ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '⚠️ Important:',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: isDark 
-                            ? const Color(0xFFFFB74D) 
-                            : const Color(0xFFE65100),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '🔴 TEST MODE - Use Nile Testnet Only',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? const Color(0xFFFF6B6B) : Colors.red[700],
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Network: USDT (TRC20) on TRON Nile Testnet',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: textColor,
-                      ),
-                    ),
-                    if (widget.minAmount != null && widget.minAmount! > 0) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'Auto-sweep: ${widget.minAmount} USDT or more',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: subtextColor,
-                        ),
-                      ),
-                    ],
-                  ],
+                child: Text(
+                  '⚠️ TEST MODE: Use TRON Nile Testnet • USDT (TRC20)${widget.minAmount != null ? " • Auto-sweep ≥${widget.minAmount}" : ""}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? const Color(0xFFFFB74D) : const Color(0xFFE65100),
+                  ),
+                  textAlign: TextAlign.center,
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               
-              // Address with Copy
-              Text(
-                'Your Deposit Address:',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  color: textColor,
-                ),
-              ),
-              const SizedBox(height: 8),
+              // Address with Copy Icon
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 decoration: BoxDecoration(
                   color: surfaceColor,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(6),
                   border: Border.all(color: borderColor),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                child: Row(
                   children: [
-                    SelectableText(
-                      widget.address,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontFamily: 'monospace',
-                        color: textColor,
+                    Expanded(
+                      child: Text(
+                        widget.address,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontFamily: 'monospace',
+                          color: textColor,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    OutlinedButton.icon(
-                      onPressed: () {
+                    const SizedBox(width: 8),
+                    InkWell(
+                      onTap: () {
                         Clipboard.setData(ClipboardData(text: widget.address));
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: const Text('Address copied to clipboard'),
-                            backgroundColor: isDark 
-                                ? const Color(0xFF2D2D2D) 
-                                : Colors.grey[800],
+                            content: const Text('Address copied'),
+                            backgroundColor: isDark ? const Color(0xFF2D2D2D) : Colors.grey[800],
                             behavior: SnackBarBehavior.floating,
                             duration: const Duration(seconds: 2),
                           ),
                         );
                       },
-                      icon: const Icon(Icons.copy, size: 16),
-                      label: const Text('Copy Address'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: isDark ? Colors.white : Colors.black87,
-                        side: BorderSide(color: borderColor),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              
-              // Timer
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: surfaceColor,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: borderColor),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.timer_outlined, size: 18, color: subtextColor),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Time remaining: ${_formatTime(_remainingSeconds)}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: textColor,
-                      ),
+                      child: Icon(Icons.copy, size: 16, color: textColor),
                     ),
                   ],
                 ),
               ),
             ],
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
 
-            // Action Button
-            _buildActionButton(isDark, textColor),
-                  ],
-                ),
+            // Action Button (only Done for confirmed, nothing for waiting/processing)
+            if (_status == 'confirmed' || _status == 'timeout' || _status == 'failed')
+              _buildActionButton(isDark, textColor),
+                ],
               ),
             ),
           ],
@@ -453,19 +388,19 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
         icon = Icons.pending_outlined;
         iconColor = Colors.orange;
         title = 'Waiting for Payment';
-        subtitle = 'Send USDT to the address below';
+        subtitle = 'Scan QR or copy address below';
         break;
       case 'processing':
         icon = Icons.sync;
         iconColor = Colors.blue;
-        title = 'Processing Transaction';
-        subtitle = 'Amount: $_receivedAmount USDT${_willAutoSweep ? " • Will auto-sweep" : ""}';
+        title = 'Processing...';
+        subtitle = '$_receivedAmount USDT${_willAutoSweep ? " • Auto-sweep" : ""}';
         break;
       case 'confirmed':
         icon = Icons.check_circle;
         iconColor = Colors.green;
         title = 'Payment Confirmed!';
-        subtitle = 'Received: $_receivedAmount USDT${_willAutoSweep ? " (Auto-swept)" : ""}';
+        subtitle = 'Received: $_receivedAmount USDT${_willAutoSweep ? " (Swept)" : ""}';
         break;
       case 'failed':
         icon = Icons.error;
@@ -476,13 +411,13 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
       case 'timeout':
         icon = Icons.access_time;
         iconColor = Colors.grey;
-        title = 'Session Timeout';
-        subtitle = 'Please try again';
+        title = 'Timeout';
+        subtitle = 'Session expired';
         break;
       default:
         icon = Icons.info;
         iconColor = Colors.grey;
-        title = 'Unknown Status';
+        title = 'Unknown';
         subtitle = '';
     }
 
@@ -490,45 +425,45 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
       children: [
         TweenAnimationBuilder<double>(
           tween: Tween(begin: 0.0, end: 1.0),
-          duration: const Duration(milliseconds: 600),
+          duration: const Duration(milliseconds: 500),
           builder: (context, value, child) {
             return Transform.scale(
               scale: value,
               child: Icon(
                 icon,
-                size: 64,
+                size: 48,
                 color: iconColor,
               ),
             );
           },
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         Text(
           title,
           style: TextStyle(
-            fontSize: 20,
+            fontSize: 16,
             fontWeight: FontWeight.bold,
             color: textColor,
           ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
         Text(
           subtitle,
           style: TextStyle(
-            fontSize: 14,
+            fontSize: 12,
             color: subtextColor,
           ),
           textAlign: TextAlign.center,
         ),
         if (_status == 'processing')
           Padding(
-            padding: const EdgeInsets.only(top: 16),
+            padding: const EdgeInsets.only(top: 12),
             child: SizedBox(
-              width: 30,
-              height: 30,
+              width: 24,
+              height: 24,
               child: CircularProgressIndicator(
-                strokeWidth: 3,
+                strokeWidth: 2.5,
                 valueColor: AlwaysStoppedAnimation<Color>(iconColor),
               ),
             ),
@@ -538,21 +473,6 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
   }
 
   Widget _buildActionButton(bool isDark, Color textColor) {
-    if (_status == 'waiting' || _status == 'processing') {
-      return SizedBox(
-        width: double.infinity,
-        child: OutlinedButton(
-          onPressed: widget.onClose,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: textColor,
-            side: BorderSide(color: isDark ? const Color(0xFF404040) : const Color(0xFFE0E0E0)),
-            padding: const EdgeInsets.symmetric(vertical: 14),
-          ),
-          child: const Text('Cancel'),
-        ),
-      );
-    }
-
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
@@ -562,10 +482,13 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
               ? Colors.green 
               : (isDark ? const Color(0xFF404040) : Colors.grey[300]),
           foregroundColor: _status == 'confirmed' ? Colors.white : textColor,
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          padding: const EdgeInsets.symmetric(vertical: 12),
           elevation: 0,
         ),
-        child: Text(_status == 'confirmed' ? 'Done' : _status == 'timeout' ? 'Retry' : 'Close'),
+        child: Text(
+          _status == 'confirmed' ? 'Done' : _status == 'timeout' ? 'Retry' : 'Close',
+          style: const TextStyle(fontSize: 14),
+        ),
       ),
     );
   }
