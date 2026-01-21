@@ -202,10 +202,20 @@ const processDeposit = async ({ address, txHash, amount, chain, token, contractA
     // Step 4: Update ledger and transaction (always credit user's internal balance)
     await updateLedgerBalance({ user, amount });
     await addWalletTransaction({ user, amount, txHash });
+    
+    // Step 5: Add notification for deposit
+    user.notifications.push({
+      title: '✅ Deposit Received',
+      message: `You have received ${amount} USDT. Your balance has been updated.`,
+      type: 'success',
+      read: false,
+      createdAt: new Date(),
+    });
 
     deposit.status = 'completed';
     await deposit.save();
 
+    console.log(`[DEPOSIT] ✅ Deposit completed: ${amount} USDT credited to user ${user.userId}`);
     return { success: true, swept: shouldSweep };
   } catch (error) {
     deposit.status = 'failed';

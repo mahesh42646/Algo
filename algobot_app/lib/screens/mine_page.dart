@@ -63,11 +63,13 @@ class _MinePageState extends State<MinePage> {
   }
 
   Future<void> _loadUserData({bool retryAfterCreate = false}) async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       final user = _authService.currentUser;
       if (user != null) {
         final data = await _userService.getUser(user.uid);
+        if (!mounted) return;
         setState(() {
           _userData = data;
           _nicknameController.text = data['nickname'] ?? '';
@@ -76,6 +78,7 @@ class _MinePageState extends State<MinePage> {
           _isLoading = false;
         });
       } else {
+        if (!mounted) return;
         setState(() => _isLoading = false);
       }
     } catch (e) {
@@ -263,6 +266,11 @@ class _MinePageState extends State<MinePage> {
                 setState(() => _isEditing = true);
               },
             ),
+          // Refresh button
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadUserData,
+          ),
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
@@ -277,11 +285,14 @@ class _MinePageState extends State<MinePage> {
       ),
       body: _isLoading
           ? _buildSkeleton()
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+          : RefreshIndicator(
+              onRefresh: _loadUserData,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   _buildProfileHeader(),
                   const SizedBox(height: 24),
                   _buildWalletSection(),
@@ -660,7 +671,13 @@ class _MinePageState extends State<MinePage> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop();
+                      // Refresh balance after closing deposit modal
+                      Future.delayed(const Duration(milliseconds: 300), () {
+                        _loadUserData();
+                      });
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isDark 
                           ? const Color(0xFF404040) 
