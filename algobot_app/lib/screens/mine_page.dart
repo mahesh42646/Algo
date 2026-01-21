@@ -502,6 +502,175 @@ class _MinePageState extends State<MinePage> {
       },
     );
   }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdditionalInfo() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Additional Information',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (_isEditing) ...[
+              DropdownButtonFormField<String>(
+                value: _selectedCountry,
+                decoration: const InputDecoration(
+                  labelText: 'Country',
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  'United States',
+                  'United Kingdom',
+                  'Canada',
+                  'Australia',
+                  'Germany',
+                  'France',
+                  'Japan',
+                  'China',
+                  'India',
+                  'Brazil',
+                ].map((country) {
+                  return DropdownMenuItem(
+                    value: country,
+                    child: Text(country),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() => _selectedCountry = value);
+                },
+              ),
+              const SizedBox(height: 16),
+              Consumer<AppStateProvider>(
+                builder: (context, appState, _) {
+                  return DropdownButtonFormField<String>(
+                    value: appState.language,
+                    decoration: const InputDecoration(
+                      labelText: 'Language',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: _languages.map((lang) {
+                      return DropdownMenuItem(
+                        value: lang,
+                        child: Text(_languageNames[lang] ?? lang),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        appState.setLanguage(value);
+                        setState(() => _selectedLanguage = value);
+                      }
+                    },
+                  );
+                },
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        setState(() {
+                          _isEditing = false;
+                          _loadUserData();
+                        });
+                      },
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _saveProfile,
+                      child: const Text('Save'),
+                    ),
+                  ),
+                ],
+              ),
+            ] else ...[
+              _buildInfoRow('Location', _userData?['location']?['country'] ?? 'Not set'),
+              const Divider(),
+              _buildInfoRow('Language', _languageNames[_userData?['language'] ?? 'en'] ?? 'English'),
+              const Divider(),
+              _buildInfoRow('Counselor', _userData?['counselor']?['nickname'] ?? 'Not assigned'),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActions() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Actions',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () async {
+                  await _authService.signOut();
+                  if (mounted) {
+                    Navigator.of(context).pushReplacementNamed('/login');
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Logout'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // Stateful Deposit Modal Widget
@@ -1013,139 +1182,6 @@ class _DepositModalContentState extends State<_DepositModalContent> {
           elevation: 0,
         ),
         child: Text(_status == 'confirmed' ? 'Done' : _status == 'timeout' ? 'Retry' : 'Close'),
-      ),
-    );
-  }
-}
-
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAdditionalInfo() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Additional Information',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            if (_isEditing) ...[
-              DropdownButtonFormField<String>(
-                value: _selectedCountry,
-                decoration: const InputDecoration(
-                  labelText: 'Country',
-                  border: OutlineInputBorder(),
-                ),
-                items: [
-                  'United States',
-                  'United Kingdom',
-                  'Canada',
-                  'Australia',
-                  'Germany',
-                  'France',
-                  'Japan',
-                  'China',
-                  'India',
-                  'Brazil',
-                ].map((country) {
-                  return DropdownMenuItem(
-                    value: country,
-                    child: Text(country),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() => _selectedCountry = value);
-                },
-              ),
-              const SizedBox(height: 16),
-              Consumer<AppStateProvider>(
-                builder: (context, appState, _) {
-                  return DropdownButtonFormField<String>(
-                    value: appState.language,
-                    decoration: const InputDecoration(
-                      labelText: 'Language',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: _languages.map((lang) {
-                      return DropdownMenuItem(
-                        value: lang,
-                        child: Text(_languageNames[lang] ?? lang),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        appState.setLanguage(value);
-                        setState(() => _selectedLanguage = value);
-                      }
-                    },
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {
-                        setState(() {
-                          _isEditing = false;
-                          _loadUserData();
-                        });
-                      },
-                      child: const Text('Cancel'),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _saveProfile,
-                      child: const Text('Save'),
-                    ),
-                  ),
-                ],
-              ),
-            ] else ...[
-              _buildInfoRow('Location', _userData?['location']?['country'] ?? 'Not set'),
-              const Divider(),
-              _buildInfoRow('Language', _languageNames[_userData?['language'] ?? 'en'] ?? 'English'),
-              const Divider(),
-              _buildInfoRow('Counselor', _userData?['counselor']?['nickname'] ?? 'Not assigned'),
-            ],
-          ],
-        ),
       ),
     );
   }
