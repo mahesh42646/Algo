@@ -1,15 +1,14 @@
 const axios = require('axios');
 const User = require('../schemas/user');
+const Deposit = require('../schemas/deposit');
 const { processDeposit, getTatumMode } = require('./wallet_service');
 
 // Nile Testnet API
 const NILE_API = 'https://nile.trongrid.io';
 
 // Poll a specific address for new TRC20 transactions
-const checkAddressForDeposits = async (address) => {
+const checkAddressForDeposits = async (address, silent = false) => {
   try {
-    console.log(`[TESTNET MONITOR] Checking address: ${address}`);
-    
     // Get TRC20 transactions for this address
     const response = await axios({
       method: 'get',
@@ -22,40 +21,51 @@ const checkAddressForDeposits = async (address) => {
     });
 
     const transactions = response.data?.data || [];
-    console.log(`[TESTNET MONITOR] Found ${transactions.length} TRC20 transactions for ${address}`);
+    let newDepositsFound = 0;
 
     for (const tx of transactions) {
       // Check if it's USDT and incoming to this address
       if (tx.to === address && tx.token_info?.symbol === 'USDT') {
-        const amount = parseFloat(tx.value) / Math.pow(10, tx.token_info.decimals || 6);
+        const txHash = tx.transaction_id;
         
-        console.log(`[TESTNET MONITOR] Found USDT deposit:`, {
-          txHash: tx.transaction_id,
-          amount,
-          from: tx.from,
-          to: tx.to,
-          timestamp: tx.block_timestamp,
-        });
+        // Check if this transaction has already been processed
+        const existingDeposit = await Deposit.findOne({ txHash });
+        if (existingDeposit) {
+          // Skip already processed transactions (no logging for duplicates)
+          continue;
+        }
+
+        // This is a NEW deposit!
+        const amount = parseFloat(tx.value) / Math.pow(10, tx.token_info.decimals || 6);
+        newDepositsFound++;
+        
+        console.log(`[DEPOSIT] 💰 NEW ${amount} USDT from ${tx.from.substring(0, 8)}... → ${tx.to.substring(0, 8)}...`);
 
         // Try to process this deposit
         try {
           await processDeposit({
             address: tx.to,
-            txHash: tx.transaction_id,
+            txHash,
             amount,
             chain: 'TRON_TESTNET',
             token: 'USDT',
             contractAddress: tx.token_info.address,
           });
         } catch (processError) {
-          console.error(`[TESTNET MONITOR] Error processing deposit:`, processError.message);
+          console.error(`[DEPOSIT] ❌ Processing failed:`, processError.message);
         }
       }
     }
 
-    return { success: true, transactionCount: transactions.length };
+    return { 
+      success: true, 
+      transactionCount: transactions.length,
+      newDeposits: newDepositsFound,
+    };
   } catch (error) {
-    console.error(`[TESTNET MONITOR] Error checking address:`, error.message);
+    if (!silent) {
+      console.error(`[TESTNET MONITOR] Error checking address:`, error.message);
+    }
     return { success: false, error: error.message };
   }
 };
@@ -65,7 +75,6 @@ const checkAllUserDeposits = async () => {
   try {
     const mode = getTatumMode();
     if (mode !== 'test') {
-      console.log(`[TESTNET MONITOR] Skipping - not in test mode`);
       return { skipped: true, reason: 'Not in test mode' };
     }
 
@@ -76,13 +85,16 @@ const checkAllUserDeposits = async () => {
       [`wallet.${walletKey}.address`]: { $exists: true, $ne: null },
     });
 
-    console.log(`[TESTNET MONITOR] Checking ${users.length} user addresses for deposits`);
-
     const results = [];
+    let totalNewDeposits = 0;
+
     for (const user of users) {
       const address = user.wallet[walletKey]?.address;
       if (address) {
-        const result = await checkAddressForDeposits(address);
+        const result = await checkAddressForDeposits(address, true); // silent mode
+        if (result.newDeposits > 0) {
+          totalNewDeposits += result.newDeposits;
+        }
         results.push({
           userId: user.userId,
           address,
@@ -91,13 +103,19 @@ const checkAllUserDeposits = async () => {
       }
     }
 
+    // Only log summary if new deposits were found
+    if (totalNewDeposits > 0) {
+      console.log(`[AUTO MONITOR] ✅ ${totalNewDeposits} new deposit(s) processed`);
+    }
+
     return {
       success: true,
       totalUsers: users.length,
+      newDeposits: totalNewDeposits,
       results,
     };
   } catch (error) {
-    console.error(`[TESTNET MONITOR] Error:`, error);
+    console.error(`[TESTNET MONITOR] Error:`, error.message);
     return { success: false, error: error.message };
   }
 };

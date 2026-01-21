@@ -39,14 +39,8 @@ const startAutoMonitoring = () => {
         return;
       }
 
-      const result = await checkAllUserDeposits();
-      
-      if (result.success) {
-        const hasTransactions = result.results?.some(r => r.transactionCount > 0);
-        if (hasTransactions) {
-          console.log(`[AUTO MONITOR] Processed deposits for ${result.totalUsers} users`);
-        }
-      }
+      await checkAllUserDeposits();
+      // Logging is handled inside checkAllUserDeposits (only when new deposits found)
     } catch (error) {
       console.error('[AUTO MONITOR] Check failed:', error.message);
     }
