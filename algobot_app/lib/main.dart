@@ -107,7 +107,7 @@ class _AlgoBotAppState extends State<AlgoBotApp> {
                 elevation: 0,
                 centerTitle: false,
               ),
-              cardTheme: CardTheme(
+              cardTheme: CardThemeData(
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -169,7 +169,7 @@ class _AlgoBotAppState extends State<AlgoBotApp> {
                 elevation: 0,
                 centerTitle: false,
               ),
-              cardTheme: CardTheme(
+              cardTheme: CardThemeData(
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
