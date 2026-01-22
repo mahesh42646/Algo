@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function DashboardLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -11,12 +12,14 @@ export default function DashboardLayout({ children }) {
   const router = useRouter();
   const pathname = usePathname();
 
+  // Use auth hook - requires authentication, redirects to login if not authenticated
+  const { authenticated, loading: authLoading, logout } = useAuth({
+    requireAuth: true,
+    redirectTo: '/admin',
+  });
+
   useEffect(() => {
     setMounted(true);
-    const auth = localStorage.getItem('adminAuth');
-    if (!auth) {
-      router.push('/admin');
-    }
 
     const checkMobile = () => {
       const width = window.innerWidth;
@@ -35,12 +38,32 @@ export default function DashboardLayout({ children }) {
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
-  }, [router]);
+  }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem('adminAuth');
-    router.push('/admin');
+    logout();
   };
+
+  // Show loading state while checking auth
+  if (!mounted || authLoading) {
+    return (
+      <div className="d-flex align-items-center justify-content-center min-vh-100" style={{
+        background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
+      }}>
+        <div className="text-center">
+          <div className="spinner-border text-primary mb-3" role="status" style={{ width: '3rem', height: '3rem' }}>
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="text-muted">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated (redirect will happen)
+  if (!authenticated) {
+    return null;
+  }
 
   if (!mounted) return null;
 

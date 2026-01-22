@@ -16,13 +16,38 @@ async function fetchAPI(endpoint, options = {}) {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `API Error: ${response.status}`);
+      let errorData = {};
+      try {
+        const text = await response.text();
+        if (text) {
+          errorData = JSON.parse(text);
+        }
+      } catch (e) {
+        // If JSON parsing fails, use the text as error message
+        errorData = { error: text || `HTTP ${response.status} ${response.statusText}` };
+      }
+      
+      const errorMessage = errorData.error || errorData.message || `API Error: ${response.status} ${response.statusText}`;
+      const error = new Error(errorMessage);
+      error.status = response.status;
+      error.data = errorData;
+      throw error;
     }
 
     const data = await response.json();
     return data;
   } catch (error) {
+   
+
+    // Network or other errors
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      const networkError = new Error(`Network error: Unable to connect to backend server. Please ensure the backend is running at ${API_BASE_URL}`);
+      networkError.status = 0;
+      networkError.isNetworkError = true;
+      console.error(`Network Error [${endpoint}]:`, networkError.message);
+      throw networkError;
+    }
+    
     console.error(`API Error [${endpoint}]:`, error);
     throw error;
   }
@@ -187,6 +212,46 @@ export const usersAPI = {
    */
   async getNotifications(userId) {
     return fetchAPI(`/users/${userId}/notifications`);
+  },
+
+  /**
+   * Create a personal notification for a user
+   */
+  async createNotification(userId, payload) {
+    return fetchAPI(`/users/${userId}/notifications`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Mark a notification as read
+   */
+  async markNotificationRead(userId, notificationId) {
+    return fetchAPI(`/users/${userId}/notifications/${notificationId}/read`, {
+      method: 'PUT',
+    });
+  },
+
+  /**
+   * Get user wallet (balances + transactions)
+   */
+  async getWallet(userId) {
+    return fetchAPI(`/users/${userId}/wallet`);
+  },
+
+  /**
+   * Get user strategies (bots)
+   */
+  async getStrategies(userId) {
+    return fetchAPI(`/users/${userId}/strategies`);
+  },
+
+  /**
+   * Get user activities (trade history + audits)
+   */
+  async getActivities(userId) {
+    return fetchAPI(`/users/${userId}/activities`);
   },
 
   /**

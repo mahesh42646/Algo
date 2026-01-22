@@ -166,9 +166,18 @@ router.get('/:userId', async (req, res, next) => {
       console.log(`[USER GET] Fetching user: ${userId}`);
     }
 
-    let user = await User.findOne({ userId: userId })
-      .populate('counselor', 'userId nickname email avatar')
-      .select('-__v');
+    let user;
+    try {
+      // Try to populate counselor if it exists
+      user = await User.findOne({ userId: userId })
+        .populate('counselor', 'userId nickname email avatar')
+        .select('-__v');
+    } catch (populateError) {
+      // If populate fails (e.g., counselor model doesn't exist), try without populate
+      console.log(`[USER GET] Populate failed, fetching without populate: ${populateError.message}`);
+      user = await User.findOne({ userId: userId })
+        .select('-__v');
+    }
 
     if (user) {
       // Ensure wallet exists for existing users (non-blocking)
@@ -343,11 +352,12 @@ router.get('/:userId/referrals', async (req, res, next) => {
     res.json({
       success: true,
       data: {
-        referralCode: user.referralCode,
-        referrals: user.referrals,
+        referralCode: user.referralCode || null,
+        referrals: user.referrals || [],
       },
     });
   } catch (error) {
+    console.error(`[REFERRALS GET] ❌ Error fetching referrals:`, error);
     next(error);
   }
 });
@@ -366,9 +376,10 @@ router.get('/:userId/activities', async (req, res, next) => {
 
     res.json({
       success: true,
-      data: user.activities,
+      data: user.activities || [],
     });
   } catch (error) {
+    console.error(`[ACTIVITIES GET] ❌ Error fetching activities:`, error);
     next(error);
   }
 });
@@ -385,16 +396,19 @@ router.get('/:userId/notifications', async (req, res, next) => {
       });
     }
 
-    // Sort by createdAt descending (newest first)
-    const sortedNotifications = user.notifications.sort((a, b) => 
-      b.createdAt.getTime() - a.createdAt.getTime()
-    );
+    // Sort by createdAt descending (newest first), handle null/undefined dates
+    const sortedNotifications = (user.notifications || []).sort((a, b) => {
+      const dateA = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
 
     res.json({
       success: true,
       data: sortedNotifications,
     });
   } catch (error) {
+    console.error(`[NOTIFICATIONS GET] ❌ Error fetching notifications:`, error);
     next(error);
   }
 });
@@ -523,9 +537,28 @@ router.post('/:userId/notifications/clear-all', async (req, res, next) => {
 
 router.get('/:userId/strategies', async (req, res, next) => {
   try {
-    const user = await User.findOne({ userId: req.params.userId })
-      .populate('strategies.strategyId')
-      .select('strategies');
+    const mongoose = require('mongoose');
+    const StrategyModelExists = mongoose.models && mongoose.models.Strategy;
+    
+    let user;
+    
+    if (StrategyModelExists) {
+      // Try to populate if Strategy model exists
+      try {
+        user = await User.findOne({ userId: req.params.userId })
+          .populate('strategies.strategyId')
+          .select('strategies');
+      } catch (populateError) {
+        // If populate fails, fall back to non-populated query
+        console.log(`[STRATEGIES GET] Populate failed, using non-populated query: ${populateError.message}`);
+        user = await User.findOne({ userId: req.params.userId })
+          .select('strategies');
+      }
+    } else {
+      // Strategy model doesn't exist, just get strategies without populate
+      user = await User.findOne({ userId: req.params.userId })
+        .select('strategies');
+    }
 
     if (!user) {
       return res.status(404).json({
@@ -536,9 +569,10 @@ router.get('/:userId/strategies', async (req, res, next) => {
 
     res.json({
       success: true,
-      data: user.strategies,
+      data: user.strategies || [],
     });
   } catch (error) {
+    console.error(`[STRATEGIES GET] ❌ Error fetching strategies:`, error);
     next(error);
   }
 });
@@ -555,11 +589,23 @@ router.get('/:userId/wallet', async (req, res, next) => {
       });
     }
 
+    // Ensure wallet structure exists
+    const walletData = user.wallet || {
+      walletId: null,
+      balances: [],
+      transactions: [],
+    };
+
+    // Ensure arrays exist
+    if (!walletData.balances) walletData.balances = [];
+    if (!walletData.transactions) walletData.transactions = [];
+
     res.json({
       success: true,
-      data: user.wallet,
+      data: walletData,
     });
   } catch (error) {
+    console.error(`[WALLET GET] ❌ Error fetching wallet:`, error);
     next(error);
   }
 });

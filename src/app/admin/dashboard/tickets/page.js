@@ -274,48 +274,60 @@ export default function Tickets() {
       <div className="row g-2 g-md-3 g-lg-4 mb-3 mb-md-4">
         <div className="col-6 col-md-6 col-lg-3">
           <div
-            className="card h-100"
+            className="card border-0 text-white h-100"
             style={{
-              background: '#ffffff',
-              borderRadius: '12px',
-              border: '1px solid rgba(255, 140, 0, 0.3)',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
-              transition: 'all 0.3s ease'
+              background: 'linear-gradient(135deg, #ff8c00 0%, #ffa500 100%)',
+              borderRadius: '16px',
+              boxShadow: '0 4px 20px rgba(255, 140, 0, 0.3)',
+              transition: 'all 0.3s ease',
+              position: 'relative',
+              overflow: 'hidden'
             }}
             onMouseEnter={(e) => {
               if (window.innerWidth > 768) {
                 e.currentTarget.style.transform = 'translateY(-4px)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
-                e.currentTarget.style.borderColor = 'rgba(255, 140, 0, 0.5)';
+                e.currentTarget.style.boxShadow = '0 8px 25px rgba(255, 140, 0, 0.4)';
               }
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.04)';
-              e.currentTarget.style.borderColor = 'rgba(255, 140, 0, 0.3)';
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(255, 140, 0, 0.3)';
             }}
           >
-            <div className="card-body p-2 p-md-3 p-lg-4">
+            <div
+              className="d-none d-md-block"
+              style={{
+                position: 'absolute',
+                top: '-20px',
+                right: '-20px',
+                width: '80px',
+                height: '80px',
+                borderRadius: '50%',
+                background: 'rgba(255, 255, 255, 0.1)'
+            }}
+            />
+            <div className="card-body p-2 p-md-3 p-lg-4 position-relative">
               <div className="d-flex justify-content-between align-items-start mb-2 mb-md-3">
                 <div
                   style={{
                     width: 'clamp(36px, 9vw, 48px)',
                     height: 'clamp(36px, 9vw, 48px)',
                     borderRadius: 'clamp(8px, 2vw, 12px)',
-                    background: 'rgba(255, 140, 0, 0.1)',
+                    background: 'rgba(255, 255, 255, 0.2)',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    backdropFilter: 'blur(10px)'
                   }}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="clamp(18px, 4.5vw, 24px)" height="clamp(18px, 4.5vw, 24px)" fill="#ff8c00" viewBox="0 0 16 16">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="clamp(18px, 4.5vw, 24px)" height="clamp(18px, 4.5vw, 24px)" fill="white" viewBox="0 0 16 16">
                     <path d="M2.5 1A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-11A1.5 1.5 0 0 0 13.5 1h-11zm0 1h11a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5z"/>
                     <path d="M3 4.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5z"/>
                   </svg>
                 </div>
               </div>
-              <h3 className="fw-bold mb-1" style={{ fontSize: 'clamp(1.1rem, 5vw, 2rem)', lineHeight: '1.2', color: '#1a202c' }}>{stats.total}</h3>
-              <p className="mb-0 fw-medium" style={{ fontSize: 'clamp(0.7rem, 2vw, 0.95rem)', color: '#718096' }}>Total Tickets</p>
+              <h3 className="fw-bold mb-1" style={{ fontSize: 'clamp(1.1rem, 5vw, 2rem)', lineHeight: '1.2' }}>{stats.total}</h3>
+              <p className="mb-0 opacity-90 fw-medium" style={{ fontSize: 'clamp(0.7rem, 2vw, 0.95rem)' }}>Total Tickets</p>
             </div>
           </div>
         </div>
@@ -324,7 +336,7 @@ export default function Tickets() {
             className="card border-0 text-white h-100"
             style={{
               background: 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
-              borderRadius: '12px',
+              borderRadius: '16px',
               boxShadow: '0 4px 20px rgba(220, 53, 69, 0.3)',
               transition: 'all 0.3s ease',
               position: 'relative',
@@ -383,7 +395,7 @@ export default function Tickets() {
             className="card border-0 text-white h-100"
             style={{
               background: 'linear-gradient(135deg, #ff8c00 0%, #ffa500 100%)',
-              borderRadius: '12px',
+              borderRadius: '16px',
               boxShadow: '0 4px 20px rgba(255, 140, 0, 0.4)',
               transition: 'all 0.3s ease',
               position: 'relative',
@@ -442,7 +454,7 @@ export default function Tickets() {
             className="card border-0 text-white h-100"
             style={{
               background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-              borderRadius: '12px',
+              borderRadius: '16px',
               boxShadow: '0 4px 20px rgba(67, 233, 123, 0.3)',
               transition: 'all 0.3s ease',
               position: 'relative',
