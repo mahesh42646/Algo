@@ -298,14 +298,36 @@ class _ApiBindingScreenState extends State<ApiBindingScreen> {
                 const Text('API Verified'),
               ],
             ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Can Trade: ${result['canTrade'] ?? false}'),
-                Text('Can Withdraw: ${result['canWithdraw'] ?? false}'),
-                Text('Can Deposit: ${result['canDeposit'] ?? false}'),
-              ],
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildPermissionRow('Can Trade', result['canTrade'] ?? false),
+                  const SizedBox(height: 8),
+                  _buildPermissionRow('Can Withdraw', result['canWithdraw'] ?? false),
+                  const SizedBox(height: 8),
+                  _buildPermissionRow('Can Deposit', result['canDeposit'] ?? false),
+                  if (result['balances'] != null && (result['balances'] as List).isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Sample Balances:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    ...(result['balances'] as List).take(5).map((balance) {
+                      final asset = balance['asset'] ?? '';
+                      final free = balance['free'] ?? 0;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Text('$asset: ${free.toStringAsFixed(8)}'),
+                      );
+                    }).toList(),
+                  ],
+                ],
+              ),
             ),
             actions: [
               TextButton(
@@ -319,14 +341,184 @@ class _ApiBindingScreenState extends State<ApiBindingScreen> {
     } catch (e) {
       if (mounted) Navigator.pop(context);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Verification failed: $e'),
-            backgroundColor: Colors.red,
+        String errorMessage = 'Verification failed';
+        String errorDetails = '';
+        String serverIP = '';
+        List<String> troubleshooting = [];
+        
+        // Try to extract structured error data from exception
+        try {
+          final errorStr = e.toString();
+          
+          // Extract server IP
+          final ipMatch = RegExp(r'serverIP:\s*([^\s|]+)').firstMatch(errorStr);
+          if (ipMatch != null) {
+            serverIP = ipMatch.group(1) ?? '';
+          }
+          
+          // Extract troubleshooting steps
+          final troubleshootingMatch = RegExp(r'troubleshooting:\s*(.+?)(?:\s*\||$)').firstMatch(errorStr);
+          if (troubleshootingMatch != null) {
+            final troubleshootingStr = troubleshootingMatch.group(1) ?? '';
+            troubleshooting = troubleshootingStr.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+          }
+          
+          // Extract error message and details
+          final parts = errorStr.split(' | ');
+          if (parts.isNotEmpty) {
+            errorMessage = parts[0].replaceAll('Exception: ', '');
+            if (parts.length > 1) {
+              errorDetails = parts[1];
+            }
+          }
+          
+          // Parse specific error types
+          if (errorStr.contains('Invalid signature')) {
+            errorMessage = 'Invalid API Secret';
+            errorDetails = 'Please check your API secret key. Make sure it matches your API key.';
+          } else if (errorStr.contains('Invalid API-key') || errorStr.contains('Invalid API key')) {
+            errorMessage = 'Invalid API Key';
+            errorDetails = 'Please check your API key. Make sure it\'s correct and active.';
+          } else if (errorStr.contains('IP') || errorStr.contains('restriction') || errorStr.contains('IP Address Restriction')) {
+            errorMessage = 'IP Address Restriction';
+            if (serverIP.isEmpty) {
+              errorDetails = 'Your API key has IP restrictions enabled. Please whitelist the server IP or disable IP restrictions.';
+            } else {
+              errorDetails = 'Your API key has IP restrictions. Add the server IP shown below to your Binance API whitelist.';
+            }
+          } else if (errorStr.contains('Permission') || errorStr.contains('Insufficient Permissions')) {
+            errorMessage = 'Insufficient Permissions';
+            errorDetails = 'Your API key doesn\'t have the required permissions. Please enable "Enable Reading" and "Enable Spot & Margin Trading" in Binance API settings.';
+          } else if (errorStr.contains('expired') || errorStr.contains('Expired')) {
+            errorMessage = 'API Key Expired';
+            errorDetails = 'Your API key has expired or been revoked. Please create a new API key.';
+          }
+          
+          // If details not set, use the error string
+          if (errorDetails.isEmpty) {
+            errorDetails = errorStr.replaceAll('Exception: ', '');
+          }
+        } catch (parseError) {
+          errorDetails = e.toString().replaceAll('Exception: ', '');
+        }
+
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.red),
+                const SizedBox(width: 8),
+                Expanded(child: Text(errorMessage)),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(errorDetails),
+                  if (serverIP.isNotEmpty && serverIP != 'Unknown') ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue[200]!),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Server IP Address:',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          SelectableText(
+                            serverIP,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue[900],
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Add this IP to your Binance API whitelist',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.blue[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (troubleshooting.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Troubleshooting Steps:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    ...troubleshooting.map((step) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('• ', style: TextStyle(fontWeight: FontWeight.bold)),
+                          Expanded(child: Text(step)),
+                        ],
+                      ),
+                    )),
+                  ] else ...[
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Common Issues:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text('• Check that your API key and secret are correct'),
+                    const Text('• Ensure "Enable Reading" is enabled'),
+                    const Text('• Ensure "Enable Spot & Margin Trading" is enabled'),
+                    const Text('• Check IP restrictions if enabled'),
+                    const Text('• Make sure the API key is not expired'),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
           ),
         );
       }
     }
+  }
+
+  Widget _buildPermissionRow(String label, bool value) {
+    return Row(
+      children: [
+        Icon(
+          value ? Icons.check_circle : Icons.cancel,
+          color: value ? Colors.green : Colors.red,
+          size: 20,
+        ),
+        const SizedBox(width: 8),
+        Text('$label: ${value ? "Yes" : "No"}'),
+      ],
+    );
   }
 
   Future<void> _showBalance(ExchangeApi api) async {
@@ -344,23 +536,58 @@ class _ApiBindingScreenState extends State<ApiBindingScreen> {
         showDialog(
           context: context,
           builder: (_) => AlertDialog(
-            title: const Text('Account Balance'),
+            title: Row(
+              children: [
+                const Icon(Icons.account_balance_wallet, color: Colors.blue),
+                const SizedBox(width: 8),
+                const Text('Account Balance'),
+              ],
+            ),
             content: SizedBox(
               width: double.maxFinite,
               child: balances.isEmpty
-                  ? const Text('No balances found')
+                  ? const Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: Text('No balances found'),
+                    )
                   : ListView.builder(
                       shrinkWrap: true,
                       itemCount: balances.length,
                       itemBuilder: (context, index) {
                         final balance = balances[index];
-                        return ListTile(
-                          dense: true,
-                          title: Text(balance.asset),
-                          subtitle: Text('Free: ${balance.free.toStringAsFixed(8)}'),
-                          trailing: Text(
-                            balance.total.toStringAsFixed(4),
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                        return Card(
+                          margin: const EdgeInsets.symmetric(vertical: 4),
+                          child: ListTile(
+                            dense: true,
+                            leading: CircleAvatar(
+                              backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                              child: Text(
+                                balance.asset.substring(0, 1),
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            title: Text(
+                              balance.asset,
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Free: ${balance.free.toStringAsFixed(8)}'),
+                                if (balance.locked > 0)
+                                  Text('Locked: ${balance.locked.toStringAsFixed(8)}'),
+                              ],
+                            ),
+                            trailing: Text(
+                              balance.total.toStringAsFixed(8),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
                           ),
                         );
                       },
@@ -378,10 +605,151 @@ class _ApiBindingScreenState extends State<ApiBindingScreen> {
     } catch (e) {
       if (mounted) Navigator.pop(context);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to get balance: $e'),
-            backgroundColor: Colors.red,
+        String errorMessage = 'Failed to get balance';
+        String errorDetails = '';
+        String serverIP = '';
+        List<String> troubleshooting = [];
+        
+        // Try to extract structured error data from exception
+        try {
+          final errorStr = e.toString();
+          
+          // Extract server IP
+          final ipMatch = RegExp(r'serverIP:\s*([^\s|]+)').firstMatch(errorStr);
+          if (ipMatch != null) {
+            serverIP = ipMatch.group(1) ?? '';
+          }
+          
+          // Extract troubleshooting steps
+          final troubleshootingMatch = RegExp(r'troubleshooting:\s*(.+?)(?:\s*\||$)').firstMatch(errorStr);
+          if (troubleshootingMatch != null) {
+            final troubleshootingStr = troubleshootingMatch.group(1) ?? '';
+            troubleshooting = troubleshootingStr.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+          }
+          
+          // Extract error message and details
+          final parts = errorStr.split(' | ');
+          if (parts.isNotEmpty) {
+            errorMessage = parts[0].replaceAll('Exception: ', '');
+            if (parts.length > 1) {
+              errorDetails = parts[1];
+            }
+          }
+          
+          // Parse specific error types
+          if (errorStr.contains('Invalid signature')) {
+            errorMessage = 'Invalid API Secret';
+            errorDetails = 'Please check your API secret key.';
+          } else if (errorStr.contains('Invalid API-key') || errorStr.contains('Invalid API key')) {
+            errorMessage = 'Invalid API Key';
+            errorDetails = 'Please check your API key.';
+          } else if (errorStr.contains('IP') || errorStr.contains('restriction') || errorStr.contains('IP Address Restriction')) {
+            errorMessage = 'IP Address Restriction';
+            if (serverIP.isEmpty) {
+              errorDetails = 'Your API key has IP restrictions. Please whitelist the server IP.';
+            } else {
+              errorDetails = 'Your API key has IP restrictions. Add the server IP shown below to your Binance API whitelist.';
+            }
+          } else if (errorStr.contains('Permission') || errorStr.contains('Insufficient Permissions')) {
+            errorMessage = 'Insufficient Permissions';
+            errorDetails = 'Your API key needs "Enable Reading" permission.';
+          }
+          
+          // If details not set, use the error string
+          if (errorDetails.isEmpty) {
+            errorDetails = errorStr.replaceAll('Exception: ', '');
+          }
+        } catch (parseError) {
+          errorDetails = e.toString().replaceAll('Exception: ', '');
+        }
+
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.red),
+                const SizedBox(width: 8),
+                Expanded(child: Text(errorMessage)),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(errorDetails),
+                  if (serverIP.isNotEmpty && serverIP != 'Unknown') ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue[200]!),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Server IP Address:',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          SelectableText(
+                            serverIP,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue[900],
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Add this IP to your Binance API whitelist',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.blue[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (troubleshooting.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Troubleshooting Steps:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    ...troubleshooting.map((step) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('• ', style: TextStyle(fontWeight: FontWeight.bold)),
+                          Expanded(child: Text(step)),
+                        ],
+                      ),
+                    )),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
           ),
         );
       }

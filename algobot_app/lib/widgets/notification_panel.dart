@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/notification_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/notification_service.dart';
 
 class NotificationPanel extends StatefulWidget {
   const NotificationPanel({super.key});
@@ -18,6 +18,10 @@ class _NotificationPanelState extends State<NotificationPanel> {
   void initState() {
     super.initState();
     _loadNotifications();
+    // Refresh notifications when panel is shown
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadNotifications();
+    });
   }
 
   Future<void> _loadNotifications() async {
@@ -104,7 +108,7 @@ class _NotificationPanelState extends State<NotificationPanel> {
         width: 320,
         constraints: const BoxConstraints(maxHeight: 500),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).scaffoldBackgroundColor,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -209,10 +213,12 @@ class _NotificationPanelState extends State<NotificationPanel> {
 
                     return Container(
                       decoration: BoxDecoration(
-                        color: isRead ? Colors.white : Colors.blue[50],
+                        color: isRead
+                            ? Theme.of(context).scaffoldBackgroundColor
+                            : Theme.of(context).colorScheme.primary.withOpacity(0.1),
                         border: Border(
                           bottom: BorderSide(
-                            color: Colors.grey[200]!,
+                            color: Theme.of(context).dividerColor,
                             width: 0.5,
                           ),
                         ),

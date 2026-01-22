@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import '../config/env.dart';
 import 'api_handler.dart';
 import 'auth_service.dart';
@@ -258,8 +259,46 @@ class ExchangeService {
       if (response.statusCode == 200) {
         return response.data['data'] ?? {};
       } else {
-        throw Exception(response.data['error'] ?? 'API verification failed');
+        final errorMsg = response.data['error'] ?? 'API verification failed';
+        final details = response.data['details'] ?? '';
+        throw Exception('$errorMsg${details.isNotEmpty ? ' - $details' : ''}');
       }
+    } on DioException catch (e) {
+      if (Env.enableApiLogs) {
+        print('Error verifying API (DioException): $e');
+      }
+      
+      // Extract error message from response
+      String errorMessage = 'API verification failed';
+      String errorDetails = '';
+      String serverIP = '';
+      List<String> troubleshooting = [];
+      
+      if (e.response != null) {
+        final responseData = e.response?.data;
+        if (responseData is Map) {
+          errorMessage = responseData['error'] ?? errorMessage;
+          errorDetails = responseData['details'] ?? '';
+          serverIP = responseData['serverIP']?.toString() ?? '';
+          if (responseData['troubleshooting'] != null) {
+            troubleshooting = List<String>.from(responseData['troubleshooting']);
+          }
+        }
+      } else {
+        errorMessage = e.message ?? errorMessage;
+      }
+      
+      // Create detailed error message with all info
+      final errorParts = [errorMessage];
+      if (errorDetails.isNotEmpty) errorParts.add(errorDetails);
+      if (serverIP.isNotEmpty && serverIP != 'Unknown') {
+        errorParts.add('serverIP: $serverIP');
+      }
+      if (troubleshooting.isNotEmpty) {
+        errorParts.add('troubleshooting: ${troubleshooting.join(", ")}');
+      }
+      
+      throw Exception(errorParts.join(' | '));
     } catch (e) {
       if (Env.enableApiLogs) {
         print('Error verifying API: $e');
@@ -281,8 +320,46 @@ class ExchangeService {
         final balances = response.data['data']['balances'] as List;
         return balances.map((b) => ExchangeBalance.fromJson(b)).toList();
       } else {
-        throw Exception(response.data['error'] ?? 'Failed to get balance');
+        final errorMsg = response.data['error'] ?? 'Failed to get balance';
+        final details = response.data['details'] ?? '';
+        throw Exception('$errorMsg${details.isNotEmpty ? ' - $details' : ''}');
       }
+    } on DioException catch (e) {
+      if (Env.enableApiLogs) {
+        print('Error getting balance (DioException): $e');
+      }
+      
+      // Extract error message from response
+      String errorMessage = 'Failed to get balance';
+      String errorDetails = '';
+      String serverIP = '';
+      List<String> troubleshooting = [];
+      
+      if (e.response != null) {
+        final responseData = e.response?.data;
+        if (responseData is Map) {
+          errorMessage = responseData['error'] ?? errorMessage;
+          errorDetails = responseData['details'] ?? '';
+          serverIP = responseData['serverIP']?.toString() ?? '';
+          if (responseData['troubleshooting'] != null) {
+            troubleshooting = List<String>.from(responseData['troubleshooting']);
+          }
+        }
+      } else {
+        errorMessage = e.message ?? errorMessage;
+      }
+      
+      // Create detailed error message with all info
+      final errorParts = [errorMessage];
+      if (errorDetails.isNotEmpty) errorParts.add(errorDetails);
+      if (serverIP.isNotEmpty && serverIP != 'Unknown') {
+        errorParts.add('serverIP: $serverIP');
+      }
+      if (troubleshooting.isNotEmpty) {
+        errorParts.add('troubleshooting: ${troubleshooting.join(", ")}');
+      }
+      
+      throw Exception(errorParts.join(' | '));
     } catch (e) {
       if (Env.enableApiLogs) {
         print('Error getting balance: $e');

@@ -84,7 +84,7 @@ class _NotificationBellState extends State<NotificationBell> {
             Positioned(
               right: 16,
               top: buttonPosition.dy + buttonSize.height + 8,
-              child: NotificationPanel(),
+              child: NotificationPanel(key: ValueKey(DateTime.now().millisecondsSinceEpoch)),
             ),
             Positioned.fill(
               child: GestureDetector(

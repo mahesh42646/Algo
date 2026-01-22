@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/crypto_list_widget.dart';
 import 'api_binding_screen.dart';
+import 'profit_details_screen.dart';
+import 'reward_details_screen.dart';
+import 'invite_friends_screen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -49,11 +52,6 @@ class _HomePageState extends State<HomePage> {
       'color': [Colors.green, Colors.teal],
     },
     {
-      'title': 'Assets',
-      'icon': Icons.account_balance_wallet,
-      'color': [Colors.orange, Colors.yellow],
-    },
-    {
       'title': 'Invite Friends',
       'icon': Icons.person_add,
       'color': [Colors.yellow, Colors.orange],
@@ -62,16 +60,6 @@ class _HomePageState extends State<HomePage> {
       'title': 'User Guide',
       'icon': Icons.menu_book,
       'color': [Colors.red, Colors.orange],
-    },
-    {
-      'title': 'Mentor',
-      'icon': Icons.school,
-      'color': [Colors.purple, Colors.blue],
-    },
-    {
-      'title': 'More',
-      'icon': Icons.apps,
-      'color': [Colors.green, Colors.teal],
     },
   ];
 
@@ -90,25 +78,28 @@ class _HomePageState extends State<HomePage> {
         );
         break;
       case 'Profit Details':
-        // TODO: Navigate to profit details
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ProfitDetailsScreen()),
+        );
         break;
       case 'Reward Details':
-        // TODO: Navigate to reward details
-        break;
-      case 'Assets':
-        // TODO: Navigate to assets
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const RewardDetailsScreen()),
+        );
         break;
       case 'Invite Friends':
-        // TODO: Navigate to invite friends
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const InviteFriendsScreen()),
+        );
         break;
       case 'User Guide':
         // TODO: Navigate to user guide
-        break;
-      case 'Mentor':
-        // TODO: Navigate to mentor
-        break;
-      case 'More':
-        // TODO: Show more options
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('User Guide coming soon')),
+        );
         break;
     }
   }
@@ -243,61 +234,66 @@ class _HomePageState extends State<HomePage> {
   Widget _buildPlatformOptions() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 4,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 0.85,
-        ),
-        itemCount: _platformOptions.length,
-        itemBuilder: (context, index) {
-          final option = _platformOptions[index];
-          final colors = option['color'] as List<Color>;
-          
-          return GestureDetector(
-            onTap: () => _handlePlatformOptionTap(option['title'] as String),
-            child: Column(
-              children: [
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: colors,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: colors[0].withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    option['icon'] as IconData,
-                    color: Colors.white,
-                    size: 28,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  option['title'] as String,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final crossAxisCount = constraints.maxWidth > 600 ? 5 : 4;
+          return GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 0.85,
             ),
+            itemCount: _platformOptions.length,
+            itemBuilder: (context, index) {
+              final option = _platformOptions[index];
+              final colors = option['color'] as List<Color>;
+              
+              return GestureDetector(
+                onTap: () => _handlePlatformOptionTap(option['title'] as String),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: colors,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: colors[0].withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        option['icon'] as IconData,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      option['title'] as String,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              );
+            },
           );
         },
       ),
