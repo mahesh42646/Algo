@@ -11,23 +11,35 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  // Dummy login handler for UI demo only
-  const handleSubmit = (e) => {
+  // Login handler - TODO: Integrate with user authentication API
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    setTimeout(() => {
-      if (!email || !password) {
-        setError('Please enter both email and password.');
-        setLoading(false);
-      } else if (email !== 'admin@dashboard.com' || password !== 'admin123') {
-        setError('Invalid email or password.');
-        setLoading(false);
-      } else {
-        // Simulate successful login
-        router.push('/home');
-      }
-    }, 1000);
+
+    if (!email || !password) {
+      setError('Please enter both email and password.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // TODO: Replace with actual user authentication API call
+      // Example:
+      // const response = await userAPI.login(email, password);
+      // if (response.success) {
+      //   router.push('/home');
+      // } else {
+      //   setError(response.error || 'Invalid email or password.');
+      // }
+      
+      // Placeholder: Show error until API is integrated
+      setError('User authentication API not yet implemented. Please use admin login for dashboard access.');
+      setLoading(false);
+    } catch (err) {
+      setError('An error occurred. Please try again.');
+      setLoading(false);
+    }
   };
 
   return (

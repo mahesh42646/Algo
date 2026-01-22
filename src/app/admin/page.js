@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function AdminLogin() {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -22,12 +22,12 @@ export default function AdminLogin() {
     setLoading(true);
 
     try {
-      const result = login(email, password);
+      const result = await login(username, password);
       if (result.success) {
-        // Redirect handled by useAuth hook
+        // Redirect to dashboard after successful login
         window.location.href = '/admin/dashboard';
       } else {
-        setError(result.error || 'Invalid email or password');
+        setError(result.error || 'Invalid username or password');
       }
     } catch (err) {
       setError('An error occurred. Please try again.');
@@ -101,15 +101,16 @@ export default function AdminLogin() {
 
               <form onSubmit={handleSubmit}>
                 <div className="mb-3">
-                  <label htmlFor="email" className="form-label fw-semibold">Email</label>
+                  <label htmlFor="username" className="form-label fw-semibold">Username</label>
                   <input
-                    type="email"
+                    type="text"
                     className="form-control"
-                    id="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="admin@dashboard.com"
+                    id="username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Enter your username"
                     required
+                    autoComplete="username"
                   />
                 </div>
 
@@ -124,6 +125,7 @@ export default function AdminLogin() {
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Enter your password"
                       required
+                      autoComplete="current-password"
                     />
                     <button
                       type="button"
@@ -170,11 +172,6 @@ export default function AdminLogin() {
                 </button>
               </form>
 
-              <div className="mt-4 text-center">
-                <small className="text-muted">
-                  Demo: admin@dashboard.com / admin123
-                </small>
-              </div>
             </div>
           </div>
         </div>

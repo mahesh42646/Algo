@@ -78,9 +78,9 @@ export default function UserProfile() {
       setNotifForm({ title: '', message: '', type: 'info' });
       setNotificationSubTab('list');
       await refetch({ hard: true });
-    } catch (err) {
+      } catch (err) {
       setNotifError(err?.message || 'Failed to create notification');
-    } finally {
+      } finally {
       setNotifSubmitting(false);
     }
   };
@@ -701,8 +701,8 @@ export default function UserProfile() {
                           </svg>
                         </div>
                         <h5 className="mb-0 fw-bold" style={{ fontSize: 'clamp(0.95rem, 3vw, 1.1rem)' }}>Connected Integrations</h5>
+                        </div>
                       </div>
-                    </div>
                     <div className="card-body p-3 p-md-4">
                       <div className="text-center py-4">
                         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="var(--light-gray)" viewBox="0 0 16 16" className="mb-3">
@@ -712,7 +712,7 @@ export default function UserProfile() {
                         <p className="text-muted mb-0" style={{ fontSize: 'clamp(0.85rem, 2vw, 0.95rem)' }}>
                           {Array.isArray(user.integrations) && user.integrations.length > 0 ? 'Integrations connected' : 'No integrations connected'}
                         </p>
-                      </div>
+                    </div>
                     </div>
                   </div>
                 </div>
@@ -758,11 +758,11 @@ export default function UserProfile() {
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="white" viewBox="0 0 16 16">
                         <path d="M8.864.046C7.908-.193 7.02.53 6.956 1.466c-.072 1.051-.23 2.016-.428 2.59-.125.36-.479 1.013-1.04 1.639-.557.623-1.282 1.178-2.131 1.41C2.685 7.288 2 7.87 2 8.72v4.001c0 .845.682 1.464 1.448 1.545 1.07.114 1.564.415 2.068.723l.048.03c.272.165.578.348.97.484.397.136.861.217 1.466.217h3.5c.937 0 1.599-.477 1.934-1.064a1.86 1.86 0 0 0 .254-.912c0-.152-.023-.312-.077-.464.201-.263.38-.578.488-.901.11-.33.172-.762.004-1.149.069-.13.12-.269.159-.403.077-.27.113-.568.113-.857 0-.288-.036-.585-.113-.856a2.144 2.144 0 0 0-.138-.362 1.9 1.9 0 0 0 .234-1.734c-.206-.592-.682-1.1-1.2-1.272-.847-.282-1.803-.276-2.516-.211a9.84 9.84 0 0 0-.443.05 9.365 9.365 0 0 0-.062-4.509A1.38 1.38 0 0 0 9.125.111L8.864.046zM11.5 14.721H8c-.51 0-.863-.069-1.14-.164-.281-.097-.506-.228-.776-.393l-.04-.024c-.555-.339-1.198-.731-2.49-.868-.333-.036-.554-.29-.554-.55V8.72c0-.254.226-.543.62-.65 1.095-.3 1.977-.996 2.614-1.708.635-.71 1.064-1.475 1.238-1.978.243-.7.407-1.768.482-2.85.025-.362.36-.594.667-.518l.262.066c.16.04.258.143.288.255a8.34 8.34 0 0 1-.145 4.725.5.5 0 0 0 .595.644l.003-.001.014-.003.058-.014a8.908 8.908 0 0 0 1.036-.696l.72-.504a.5.5 0 0 1 .671.33c.025.16.045.33.061.52.071.32.106.739.106 1.276 0 .256-.03.585-.113.856-.113.27-.234.566-.368.822a.5.5 0 0 1-.562.395c-.224-.053-.451-.224-.648-.433-.294-.403-.577-.843-.646-1.33a.5.5 0 0 1 .33-.671l.595-.195c.113-.037.23-.095.337-.174a1.9 1.9 0 0 0 .593-.286c.26-.186.458-.393.596-.653a.5.5 0 0 1 .874.33c-.16.387-.316.7-.52.932-.218.247-.444.378-.728.491-.303.123-.614.22-1.012.22z"/>
-                      </svg>
-                    </div>
+                          </svg>
+                        </div>
                     <h5 className="mb-0 fw-bold" style={{ fontSize: 'clamp(0.95rem, 3vw, 1.1rem)' }}>Referral Program</h5>
-                  </div>
-                </div>
+                        </div>
+                      </div>
                 <div className="card-body p-3 p-md-4">
                   <div className="text-center py-5">
                     <div
@@ -818,9 +818,9 @@ export default function UserProfile() {
                         </div>
                         <h4 className="mb-0 fw-bold" style={{ color: '#f59e0b' }}>—</h4>
                         <small className="text-muted">Earnings not tracked</small>
-                      </div>
-                    </div>
-                  </div>
+                </div>
+              </div>
+            </div>
 
                   {/* Referral Code */}
                   <div className="mb-4">
@@ -985,21 +985,21 @@ export default function UserProfile() {
               >
                 <div className="card-header border-bottom px-3 px-md-4 py-2 py-md-3" style={{ background: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(10px)' }}>
                   <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                    <div className="d-flex align-items-center">
-                      <div
-                        className="d-flex align-items-center justify-content-center me-2 me-md-3 flex-shrink-0"
-                        style={{
-                          width: '36px',
-                          height: '36px',
-                          borderRadius: '10px',
+                  <div className="d-flex align-items-center">
+                    <div
+                      className="d-flex align-items-center justify-content-center me-2 me-md-3 flex-shrink-0"
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '10px',
                           background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
                           boxShadow: '0 4px 15px rgba(59, 130, 246, 0.3)'
-                        }}
-                      >
+                      }}
+                    >
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="white" viewBox="0 0 16 16">
                           <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4Zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2Zm13 2.383-4.708 2.825L15 11.105V5.383Zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741ZM1 11.105l4.708-2.897L1 5.383v5.722Z"/>
-                        </svg>
-                      </div>
+                      </svg>
+                    </div>
                       <h5 className="mb-0 fw-bold" style={{ fontSize: 'clamp(0.95rem, 3vw, 1.1rem)' }}>Transaction History</h5>
                     </div>
                     <select
@@ -1081,7 +1081,7 @@ export default function UserProfile() {
                               <td className="px-3 py-3">
                                 <span className="fw-semibold" style={{ color: 'var(--text-muted)', fontSize: 'clamp(0.8rem, 2vw, 0.9rem)' }}>
                                   {transaction.createdAt ? new Date(transaction.createdAt).toLocaleString() : '—'}
-                                </span>
+                    </span>
                               </td>
                               <td className="px-3 py-3">
                                 <span className={`badge ${
@@ -1126,12 +1126,12 @@ export default function UserProfile() {
                           ))}
                         </tbody>
                       </table>
-                    </div>
+                  </div>
                   )}
+                  </div>
+                  </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          </div>
         )}
 
         {activeTab === 'notification' && (
@@ -1186,50 +1186,50 @@ export default function UserProfile() {
                       </div>
                     </nav>
                   </div>
-                </div>
               </div>
+            </div>
 
               {/* Notification List Tab */}
               {notificationSubTab === 'list' && (
                 <div className="row g-3 g-md-4">
                   <div className="col-12">
-                    <div
+              <div
                       className="card"
-                      style={{
-                        background: '#ffffff',
+                style={{
+                  background: '#ffffff',
                         border: '1px solid rgba(245, 158, 11, 0.2)',
-                        borderRadius: '16px',
+                  borderRadius: '16px',
                         boxShadow: '0 4px 20px rgba(245, 158, 11, 0.1)',
-                        transition: 'all 0.3s ease'
-                      }}
-                      onMouseEnter={(e) => {
-                        if (window.innerWidth > 768) {
-                          e.currentTarget.style.transform = 'translateY(-4px)';
+                  transition: 'all 0.3s ease'
+                }}
+                onMouseEnter={(e) => {
+                  if (window.innerWidth > 768) {
+                    e.currentTarget.style.transform = 'translateY(-4px)';
                           e.currentTarget.style.boxShadow = '0 8px 25px rgba(245, 158, 11, 0.15)';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'translateY(0)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
                         e.currentTarget.style.boxShadow = '0 4px 20px rgba(245, 158, 11, 0.1)';
-                      }}
-                    >
-                      <div className="card-header border-bottom px-3 px-md-4 py-2 py-md-3" style={{ background: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(10px)' }}>
+                }}
+              >
+                <div className="card-header border-bottom px-3 px-md-4 py-2 py-md-3" style={{ background: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(10px)' }}>
                         <div className="d-flex align-items-center justify-content-between">
-                          <div className="d-flex align-items-center">
-                        <div
-                          className="d-flex align-items-center justify-content-center me-2 me-md-3 flex-shrink-0"
-                              style={{
-                                width: '36px',
-                                height: '36px',
-                                borderRadius: '10px',
+                  <div className="d-flex align-items-center">
+                    <div
+                      className="d-flex align-items-center justify-content-center me-2 me-md-3 flex-shrink-0"
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '10px',
                                 background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
                                 boxShadow: '0 4px 15px rgba(245, 158, 11, 0.3)'
-                              }}
-                            >
+                      }}
+                    >
                               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="white" viewBox="0 0 16 16">
                                 <path d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2zM8 1.918l-.797.161A4.002 4.002 0 0 0 4 6c0 .628-.134 2.197-.459 3.742-.16.767-.376 1.566-.663 2.258h10.244c-.287-.692-.502-1.49-.663-2.258C12.134 8.197 12 6.628 12 6a4.002 4.002 0 0 0-3.203-3.92L8 1.917zM14.22 12c.223.447.481.801.78 1H1c.299-.199.557-.553.78-1C2.68 10.2 3 6.88 3 6c0-2.42 1.72-4.44 4.005-4.901a1 1 0 1 1 1.99 0A5.002 5.002 0 0 1 13 6c0 .88.32 4.2 1.22 6z"/>
-                              </svg>
-                            </div>
+                      </svg>
+                    </div>
                             <h5 className="mb-0 fw-bold" style={{ fontSize: 'clamp(0.95rem, 3vw, 1.1rem)' }}>Personal Notifications</h5>
                           </div>
                           <div className="d-flex align-items-center gap-2">
@@ -1245,9 +1245,9 @@ export default function UserProfile() {
                               Refresh
                             </button>
                           </div>
-                        </div>
-                      </div>
-                      <div className="card-body p-3 p-md-4">
+                  </div>
+                </div>
+                <div className="card-body p-3 p-md-4">
                         <div className="text-center py-4">
                           <div
                             className="d-flex align-items-center justify-content-center mx-auto mb-3"
@@ -1261,22 +1261,22 @@ export default function UserProfile() {
                             <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="#f59e0b" viewBox="0 0 16 16">
                               <path d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2zM8 1.918l-.797.161A4.002 4.002 0 0 0 4 6c0 .628-.134 2.197-.459 3.742-.16.767-.376 1.566-.663 2.258h10.244c-.287-.692-.502-1.49-.663-2.258C12.134 8.197 12 6.628 12 6a4.002 4.002 0 0 0-3.203-3.92L8 1.917zM14.22 12c.223.447.481.801.78 1H1c.299-.199.557-.553.78-1C2.68 10.2 3 6.88 3 6c0-2.42 1.72-4.44 4.005-4.901a1 1 0 1 1 1.99 0A5.002 5.002 0 0 1 13 6c0 .88.32 4.2 1.22 6z"/>
                             </svg>
-                          </div>
+                  </div>
                           <h4 className="text-muted mb-2">Personal Notifications</h4>
                           <p className="text-muted mb-4">Notifications specifically sent to this user</p>
-                        </div>
+                    </div>
 
                         {/* Notifications List */}
                         <div className="space-y-3">
                           {(Array.isArray(notifications) ? notifications : []).length === 0 ? (
                             <div className="text-center text-muted py-4">
                               No notifications found
-                            </div>
+                      </div>
                           ) : (notifications || []).map((notification) => (
-                            <div
+                        <div
                               key={notification._id || notification.id || `${notification.title}-${notification.createdAt}`}
                               className={`d-flex align-items-start p-3 rounded ${!notification.read ? 'border-start border-warning border-4' : ''}`}
-                              style={{
+                          style={{
                                 background: !notification.read ? 'rgba(245, 158, 11, 0.05)' : 'rgba(255,255,255,0.5)',
                                 border: !notification.read ? '1px solid rgba(245, 158, 11, 0.1)' : '1px solid rgba(0,0,0,0.05)',
                                 borderRadius: '12px',
@@ -1430,9 +1430,9 @@ export default function UserProfile() {
                                 border: '1px solid rgba(0,0,0,0.1)',
                                 padding: '0.75rem 1rem',
                                 fontSize: 'clamp(0.9rem, 2vw, 1rem)'
-                              }}
-                            />
-                          </div>
+                          }}
+                        />
+                      </div>
 
                           <div className="mb-4">
                             <label className="form-label fw-semibold">Notification Message</label>
@@ -1451,7 +1451,7 @@ export default function UserProfile() {
                                 resize: 'vertical'
                               }}
                             />
-                          </div>
+                    </div>
 
                           <div className="mb-4">
                             <label className="form-label fw-semibold">Notification Type</label>
@@ -1497,7 +1497,7 @@ export default function UserProfile() {
                   </div>
                               ))}
                   </div>
-                  </div>
+                </div>
 
                           <div className="mb-4">
                             <div className="form-check">
@@ -1505,8 +1505,8 @@ export default function UserProfile() {
                               <label className="form-check-label fw-semibold" htmlFor="sendEmail">
                                 Also send as email notification
                               </label>
-                </div>
               </div>
+            </div>
 
                           <div className="text-center">
                             <button
@@ -1716,8 +1716,8 @@ export default function UserProfile() {
                           </tr>
                         ) : tradeActivities.map((trade, index) => (
                           <tr
-                            key={index}
-                            style={{
+                          key={index}
+                          style={{
                               transition: 'all 0.3s ease',
                               borderBottom: '1px solid rgba(0,0,0,0.05)'
                             }}
@@ -1806,16 +1806,16 @@ export default function UserProfile() {
                   border: '1px solid rgba(139, 69, 19, 0.2)',
                   borderRadius: '16px',
                   boxShadow: '0 4px 20px rgba(139, 69, 19, 0.1)',
-                  transition: 'all 0.3s ease'
-                }}
-                onMouseEnter={(e) => {
-                  if (window.innerWidth > 768) {
+                            transition: 'all 0.3s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (window.innerWidth > 768) {
                     e.currentTarget.style.transform = 'translateY(-4px)';
                     e.currentTarget.style.boxShadow = '0 8px 25px rgba(139, 69, 19, 0.15)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = 'translateY(0)';
                   e.currentTarget.style.boxShadow = '0 4px 20px rgba(139, 69, 19, 0.1)';
                 }}
               >
@@ -1836,7 +1836,7 @@ export default function UserProfile() {
                           <path d="M6 3.5A1.5 1.5 0 0 1 7.5 2h1A1.5 1.5 0 0 1 10 3.5v1A1.5 1.5 0 0 1 8.5 6v1H14a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0V8H8.5v.5a.5.5 0 0 1-1 0v-2A1.5 1.5 0 0 1 6 5.5v-1zM8.5 5a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1zM9 7.5v1.5H5V12a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2V7.5H9z"/>
                           <path d="M.25 1a.25.25 0 0 0-.25.25v1.5c0 .138.112.25.25.25h.5A.25.25 0 0 0 1 3H.25a.25.25 0 0 0-.25.25v1.5c0 .138.112.25.25.25h.5a.25.25 0 0 0 .25-.25v-3.5A.25.25 0 0 0 .75 1h-.5zM3 3a.5.5 0 0 1-.5-.5v-2a.5.5 0 0 1 .5-.5h.5a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5H3z"/>
                       </svg>
-                    </div>
+                        </div>
                       <h5 className="mb-0 fw-bold" style={{ fontSize: 'clamp(0.95rem, 3vw, 1.1rem)' }}>Trading Bots</h5>
                     </div>
                     <button
@@ -1857,7 +1857,7 @@ export default function UserProfile() {
                       </svg>
                       Create Bot
                     </button>
-                  </div>
+                    </div>
                 </div>
                 <div className="card-body p-3 p-md-4">
                   <div className="text-center py-5">
@@ -1874,10 +1874,10 @@ export default function UserProfile() {
                         <path d="M6 3.5A1.5 1.5 0 0 1 7.5 2h1A1.5 1.5 0 0 1 10 3.5v1A1.5 1.5 0 0 1 8.5 6v1H14a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0V8H8.5v.5a.5.5 0 0 1-1 0v-2A1.5 1.5 0 0 1 6 5.5v-1zM8.5 5a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1zM9 7.5v1.5H5V12a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2V7.5H9z"/>
                         <path d="M.25 1a.25.25 0 0 0-.25.25v1.5c0 .138.112.25.25.25h.5A.25.25 0 0 0 1 3H.25a.25.25 0 0 0-.25.25v1.5c0 .138.112.25.25.25h.5a.25.25 0 0 0 .25-.25v-3.5A.25.25 0 0 0 .75 1h-.5zM3 3a.5.5 0 0 1-.5-.5v-2a.5.5 0 0 1 .5-.5h.5a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5H3z"/>
                       </svg>
-                    </div>
+              </div>
                     <h4 className="text-muted mb-2">Trading Bots</h4>
                     <p className="text-muted mb-4">Manage and monitor user's automated trading bots</p>
-                  </div>
+            </div>
 
                   {/* Bot Statistics */}
                   <div className="row g-3 mb-4">
@@ -1888,10 +1888,10 @@ export default function UserProfile() {
                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#22c55e" viewBox="0 0 16 16">
                             <path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/>
                           </svg>
-                        </div>
+          </div>
                         <h4 className="mb-0 fw-bold text-success">{(strategies || []).filter((s) => s?.status === 'active').length}</h4>
                         <small className="text-muted">Running bots</small>
-                      </div>
+        </div>
                     </div>
                     <div className="col-12 col-md-3">
                       <div className="p-3 rounded" style={{ background: 'rgba(59, 130, 246, 0.05)', border: '1px solid rgba(59, 130, 246, 0.1)', borderRadius: '12px' }}>

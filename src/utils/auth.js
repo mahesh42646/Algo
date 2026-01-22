@@ -4,6 +4,7 @@
  */
 
 const AUTH_KEY = 'adminAuth';
+const AUTH_TOKEN_KEY = 'adminToken';
 const AUTH_EXPIRY_KEY = 'adminAuthExpiry';
 const SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
@@ -15,9 +16,10 @@ export function isAuthenticated() {
   if (typeof window === 'undefined') return false;
   
   const auth = localStorage.getItem(AUTH_KEY);
+  const token = localStorage.getItem(AUTH_TOKEN_KEY);
   const expiry = localStorage.getItem(AUTH_EXPIRY_KEY);
   
-  if (!auth || auth !== 'true') return false;
+  if (!auth || auth !== 'true' || !token) return false;
   
   // Check if session has expired
   if (expiry) {
@@ -33,14 +35,25 @@ export function isAuthenticated() {
 }
 
 /**
- * Set authentication state
- * @param {boolean} value - Authentication status
+ * Get authentication token
+ * @returns {string|null} Authentication token or null
  */
-export function setAuth(value) {
+export function getAuthToken() {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(AUTH_TOKEN_KEY);
+}
+
+/**
+ * Set authentication state
+ * @param {boolean|string} value - Authentication status or token
+ * @param {string} token - Authentication token (if value is true)
+ */
+export function setAuth(value, token = null) {
   if (typeof window === 'undefined') return;
   
-  if (value) {
+  if (value && token) {
     localStorage.setItem(AUTH_KEY, 'true');
+    localStorage.setItem(AUTH_TOKEN_KEY, token);
     // Set expiry time (24 hours from now)
     const expiryTime = Date.now() + SESSION_DURATION;
     localStorage.setItem(AUTH_EXPIRY_KEY, expiryTime.toString());
@@ -56,6 +69,7 @@ export function clearAuth() {
   if (typeof window === 'undefined') return;
   
   localStorage.removeItem(AUTH_KEY);
+  localStorage.removeItem(AUTH_TOKEN_KEY);
   localStorage.removeItem(AUTH_EXPIRY_KEY);
 }
 

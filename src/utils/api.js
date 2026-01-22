@@ -368,6 +368,46 @@ export const referralsAPI = {
 };
 
 /**
+ * Admin API functions
+ */
+export const adminAPI = {
+  /**
+   * Login admin with username and password
+   */
+  async login(username, password) {
+    return fetchAPI('/admin/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+  },
+
+  /**
+   * Get admin profile (requires authentication)
+   */
+  async getProfile(token) {
+    return fetchAPI('/admin/profile', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  },
+
+  /**
+   * Update admin profile (username and/or password)
+   */
+  async updateProfile(token, updates) {
+    return fetchAPI('/admin/profile', {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(updates),
+    });
+  },
+};
+
+/**
  * Notifications API functions
  */
 export const notificationsAPI = {

@@ -1,10 +1,226 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../schemas/user');
+const Admin = require('../schemas/admin');
 const { subscribeToAddressMonitoring, listSubscriptions, deleteSubscription } = require('../services/webhook_subscription');
 const { getTatumMode } = require('../services/wallet_service');
 const { checkAddressForDeposits, checkAllUserDeposits } = require('../services/testnet_monitor');
 const autoMonitor = require('../services/auto_monitor');
+const { authenticateAdmin, generateAdminToken } = require('../middleware/auth');
+
+// ============================================
+// ADMIN AUTHENTICATION ROUTES
+// ============================================
+
+/**
+ * POST /api/admin/login
+ * Authenticate admin with username and password
+ */
+router.post('/login', async (req, res, next) => {
+  try {
+    const { username, password } = req.body;
+
+    // Validate input
+    if (!username || !password) {
+      return res.status(400).json({
+        success: false,
+        error: 'Username and password are required',
+      });
+    }
+
+    // Find admin by username (with password field)
+    const admin = await Admin.findByUsername(username);
+
+    if (!admin) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid username or password',
+      });
+    }
+
+    // Check if admin is active
+    if (!admin.isActive) {
+      return res.status(401).json({
+        success: false,
+        error: 'Admin account is deactivated',
+      });
+    }
+
+    // Compare password
+    const isPasswordValid = await admin.comparePassword(password);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid username or password',
+      });
+    }
+
+    // Update last login
+    admin.lastLogin = new Date();
+    await admin.save();
+
+    // Generate token
+    const token = generateAdminToken(admin.username);
+
+    // Return success response with admin data (without password)
+    res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      data: {
+        admin: {
+          id: admin._id,
+          username: admin.username,
+          email: admin.email,
+          isActive: admin.isActive,
+          lastLogin: admin.lastLogin,
+          createdAt: admin.createdAt,
+        },
+        token,
+      },
+    });
+  } catch (error) {
+    console.error('[ADMIN LOGIN] Error:', error);
+    next(error);
+  }
+});
+
+/**
+ * GET /api/admin/profile
+ * Get authenticated admin profile
+ */
+router.get('/profile', authenticateAdmin, async (req, res, next) => {
+  try {
+    // Admin is attached to req by authenticateAdmin middleware
+    const admin = req.admin;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        admin: {
+          id: admin._id,
+          username: admin.username,
+          email: admin.email,
+          isActive: admin.isActive,
+          lastLogin: admin.lastLogin,
+          createdAt: admin.createdAt,
+          updatedAt: admin.updatedAt,
+        },
+      },
+    });
+  } catch (error) {
+    console.error('[ADMIN PROFILE] Error:', error);
+    next(error);
+  }
+});
+
+/**
+ * PUT /api/admin/profile
+ * Update admin username and/or password
+ */
+router.put('/profile', authenticateAdmin, async (req, res, next) => {
+  try {
+    const { username, password, currentPassword } = req.body;
+    const admin = req.admin;
+
+    // Validate that at least one field is being updated
+    if (!username && !password) {
+      return res.status(400).json({
+        success: false,
+        error: 'At least one field (username or password) must be provided',
+      });
+    }
+
+    // If updating password, current password is required
+    if (password && !currentPassword) {
+      return res.status(400).json({
+        success: false,
+        error: 'Current password is required to update password',
+      });
+    }
+
+    // Verify current password if updating password
+    if (password && currentPassword) {
+      // Need to fetch admin with password field
+      const adminWithPassword = await Admin.findById(admin._id).select('+password');
+      const isCurrentPasswordValid = await adminWithPassword.comparePassword(currentPassword);
+
+      if (!isCurrentPasswordValid) {
+        return res.status(401).json({
+          success: false,
+          error: 'Current password is incorrect',
+        });
+      }
+
+      // Update password
+      adminWithPassword.password = password;
+      await adminWithPassword.save();
+    }
+
+    // Update username if provided
+    if (username) {
+      // Check if username is already taken by another admin
+      const existingAdmin = await Admin.findOne({
+        username: username.toLowerCase(),
+        _id: { $ne: admin._id },
+      });
+
+      if (existingAdmin) {
+        return res.status(400).json({
+          success: false,
+          error: 'Username is already taken',
+        });
+      }
+
+      admin.username = username.toLowerCase();
+      await admin.save();
+    }
+
+    // Fetch updated admin (without password)
+    const updatedAdmin = await Admin.findById(admin._id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: {
+        admin: {
+          id: updatedAdmin._id,
+          username: updatedAdmin.username,
+          email: updatedAdmin.email,
+          isActive: updatedAdmin.isActive,
+          lastLogin: updatedAdmin.lastLogin,
+          createdAt: updatedAdmin.createdAt,
+          updatedAt: updatedAdmin.updatedAt,
+        },
+      },
+    });
+  } catch (error) {
+    console.error('[ADMIN UPDATE PROFILE] Error:', error);
+    
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        error: errors.join(', '),
+      });
+    }
+
+    // Handle duplicate key error (username already exists)
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        error: 'Username is already taken',
+      });
+    }
+
+    next(error);
+  }
+});
+
+// ============================================
+// ADMIN MANAGEMENT ROUTES (Protected)
+// ============================================
 
 // Subscribe all user addresses to webhook monitoring
 router.post('/subscribe-all-addresses', async (req, res, next) => {

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { isAuthenticated, setAuth, clearAuth, extendSession } from '@/utils/auth';
+import { isAuthenticated, setAuth, clearAuth, extendSession, getAuthToken } from '@/utils/auth';
+import { adminAPI } from '@/utils/api';
 
 /**
  * Custom hook for admin authentication
@@ -74,14 +75,24 @@ export function useAuth(options = {}) {
     };
   }, [requireAuth, redirectTo, redirectIfAuthenticated, redirectIfAuthTo, router]);
 
-  const login = (email, password) => {
-    // Simple credential check (in production, this should be an API call)
-    if (email === 'admin@dashboard.com' && password === 'admin123') {
-      setAuth(true);
-      setAuthenticated(true);
-      return { success: true };
+  const login = async (username, password) => {
+    try {
+      const response = await adminAPI.login(username, password);
+      
+      if (response.success && response.data && response.data.token) {
+        // Store authentication token
+        setAuth(true, response.data.token);
+        setAuthenticated(true);
+        return { success: true, data: response.data };
+      } else {
+        return { success: false, error: response.error || 'Login failed' };
+      }
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error.message || 'Invalid username or password' 
+      };
     }
-    return { success: false, error: 'Invalid email or password' };
   };
 
   const logout = () => {
