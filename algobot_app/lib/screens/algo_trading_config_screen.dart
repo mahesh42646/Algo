@@ -66,20 +66,21 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
       final apis = await _exchangeService.getLinkedApis();
       
       // Load platform wallet balance
+      double platformWalletBalance = 0.0;
       final authService = AuthService();
       final userId = authService.currentUser?.uid;
       if (userId != null) {
-        final wallet = await _userService.getWallet(userId);
-        final walletBalances = wallet['balances'] as List?;
-        final usdtBalance = walletBalances?.firstWhere(
-          (b) => (b['currency'] ?? '').toString().toUpperCase() == 'USDT',
-          orElse: () => {'amount': 0.0},
-        );
-        
-        if (mounted) {
-          setState(() {
-            _platformWalletBalance = (usdtBalance['amount'] ?? 0.0).toDouble();
-          });
+        try {
+          final wallet = await _userService.getWallet(userId);
+          final walletBalances = wallet['balances'] as List?;
+          final usdtBalance = walletBalances?.firstWhere(
+            (b) => (b['currency'] ?? '').toString().toUpperCase() == 'USDT',
+            orElse: () => {'amount': 0.0},
+          );
+          platformWalletBalance = (usdtBalance['amount'] ?? 0.0).toDouble();
+        } catch (e) {
+          // If wallet fetch fails, use default 0.0
+          platformWalletBalance = 0.0;
         }
       }
       
@@ -90,7 +91,7 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
           if (_availableApis.isNotEmpty) {
             _selectedApi = _availableApis.first;
           }
-          _platformWalletBalance = (usdtBalance['amount'] ?? 0.0).toDouble();
+          _platformWalletBalance = platformWalletBalance;
           _isLoading = false;
         });
         
