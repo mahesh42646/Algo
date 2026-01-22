@@ -3,8 +3,8 @@ import '../widgets/notification_bell.dart';
 import '../widgets/crypto_list_widget.dart';
 import 'api_binding_screen.dart';
 import 'profit_details_screen.dart';
-import 'reward_details_screen.dart';
 import 'invite_friends_screen.dart';
+import 'user_guide_screen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -47,11 +47,6 @@ class _HomePageState extends State<HomePage> {
       'color': [Colors.red, Colors.orange],
     },
     {
-      'title': 'Reward Details',
-      'icon': Icons.star,
-      'color': [Colors.green, Colors.teal],
-    },
-    {
       'title': 'Invite Friends',
       'icon': Icons.person_add,
       'color': [Colors.yellow, Colors.orange],
@@ -83,12 +78,6 @@ class _HomePageState extends State<HomePage> {
           MaterialPageRoute(builder: (_) => const ProfitDetailsScreen()),
         );
         break;
-      case 'Reward Details':
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const RewardDetailsScreen()),
-        );
-        break;
       case 'Invite Friends':
         Navigator.push(
           context,
@@ -96,9 +85,9 @@ class _HomePageState extends State<HomePage> {
         );
         break;
       case 'User Guide':
-        // TODO: Navigate to user guide
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('User Guide coming soon')),
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const UserGuideScreen()),
         );
         break;
     }

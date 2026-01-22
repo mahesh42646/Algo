@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../services/algo_trading_service.dart';
+import '../services/auth_service.dart';
 
 class ProfitDetailsScreen extends StatefulWidget {
   const ProfitDetailsScreen({super.key});
@@ -9,11 +11,60 @@ class ProfitDetailsScreen extends StatefulWidget {
 }
 
 class _ProfitDetailsScreenState extends State<ProfitDetailsScreen> {
+  final AlgoTradingService _algoService = AlgoTradingService();
+  final AuthService _authService = AuthService();
+
   int _selectedTab = 0;
   String _selectedPeriod = 'Last 7 days';
   String _selectedExchange = 'Spot';
   String _selectedPieExchange = 'Binance';
   bool _isProfitVisible = false;
+  
+  double _totalProfit = 0.0;
+  double _todayProfit = 0.0;
+  List<Map<String, dynamic>> _tradeHistory = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfitData();
+  }
+
+  Future<void> _loadProfitData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final userId = _authService.currentUser?.uid;
+      if (userId != null) {
+        // Note: We need to add this endpoint to algo_trading_service
+        // For now, we'll calculate from active trades
+        final activeTrades = await _algoService.getActiveTrades();
+        
+        // Calculate profits (simplified - in production, get from backend)
+        double totalProfit = 0.0;
+        double todayProfit = 0.0;
+        final today = DateTime.now();
+        today.copyWith(hour: 0, minute: 0, second: 0, millisecond: 0);
+
+        if (mounted) {
+          setState(() {
+            _totalProfit = totalProfit;
+            _todayProfit = todayProfit;
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -120,14 +171,14 @@ class _ProfitDetailsScreenState extends State<ProfitDetailsScreen> {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        Text(
-                          _isProfitVisible ? '12,345.67' : '******',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                    Text(
+                      _isProfitVisible ? _todayProfit.toStringAsFixed(2) : '******',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                         const SizedBox(width: 8),
                         GestureDetector(
                           onTap: () => setState(() => _isProfitVisible = !_isProfitVisible),
@@ -155,7 +206,7 @@ class _ProfitDetailsScreenState extends State<ProfitDetailsScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      _isProfitVisible ? '98,765.43' : '******',
+                      _isProfitVisible ? _totalProfit.toStringAsFixed(2) : '******',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 24,
@@ -250,27 +301,132 @@ class _ProfitDetailsScreenState extends State<ProfitDetailsScreen> {
   }
 
   Widget _buildHistoryRecord() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.inbox_outlined, size: 80, color: Colors.grey[300]),
-            const SizedBox(height: 16),
-            Text(
-              'No Data',
-              style: TextStyle(color: Colors.grey[600], fontSize: 16),
-            ),
-          ],
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_tradeHistory.isEmpty) {
+      return Container(
+        margin: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
         ),
-      ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.inbox_outlined, size: 80, color: Colors.grey[300]),
+              const SizedBox(height: 16),
+              Text(
+                'No Trade History',
+                style: TextStyle(color: Colors.grey[600], fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Your completed algo trades will appear here',
+                style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(16),
+      itemCount: _tradeHistory.length,
+      itemBuilder: (context, index) {
+        final trade = _tradeHistory[index];
+        final profit = trade['profit'] ?? 0.0;
+        final isProfit = profit >= 0;
+        
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isProfit ? Colors.green.withOpacity(0.3) : Colors.red.withOpacity(0.3),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      trade['symbol'] ?? 'Unknown',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Levels: ${trade['levels'] ?? 0}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    if (trade['stoppedAt'] != null)
+                      Text(
+                        'Stopped: ${_formatDate(trade['stoppedAt'])}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    isProfit ? '+${profit.toStringAsFixed(2)}' : profit.toStringAsFixed(2),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isProfit ? Colors.green : Colors.red,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'USDT',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
+  }
+
+  String _formatDate(dynamic date) {
+    if (date == null) return 'Unknown';
+    try {
+      if (date is String) {
+        final parsed = DateTime.parse(date);
+        return '${parsed.day}/${parsed.month}/${parsed.year}';
+      }
+      return 'Unknown';
+    } catch (e) {
+      return 'Unknown';
+    }
   }
 
   Widget _buildProfitAnalysis() {

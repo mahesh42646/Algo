@@ -179,15 +179,37 @@ router.post('/:userId/start', async (req, res, next) => {
     trade.intervalId = intervalId;
     activeTrades.set(tradeKey, trade);
 
-    // Add notification
+    // Add notification - trade is waiting for signal
     user.notifications.push({
-      title: 'Algo Trading Started 🚀',
-      message: `Algo trading started for ${trade.symbol}. Initial fee: \$${firstLevelFee.toFixed(2)}`,
-      type: 'success',
+      title: 'Algo Trading Waiting for Signal ⏳',
+      message: `Algo trading configured for ${trade.symbol}. Waiting for strong signal to start...`,
+      type: 'info',
       read: false,
       createdAt: new Date(),
     });
+
+    // Save as strategy
+    const strategyName = `Algo Trade - ${trade.symbol}`;
+    user.strategies.push({
+      strategyId: null, // Algo trades don't use Strategy model
+      name: strategyName,
+      createdAt: new Date(),
+      status: 'active',
+      type: 'algo_trading', // Custom field to identify algo trades
+      symbol: trade.symbol,
+      platform: trade.platform,
+      config: {
+        maxLossPerTrade: trade.maxLossPerTrade,
+        maxLossOverall: trade.maxLossOverall,
+        maxProfitBook: trade.maxProfitBook,
+        amountPerLevel: trade.amountPerLevel,
+        numberOfLevels: trade.numberOfLevels,
+        useMargin: trade.useMargin,
+      },
+    });
     await user.save();
+
+    console.log(`[ALGO TRADING START] 📝 Saved as strategy: ${strategyName}`);
 
     const duration = Date.now() - startTime;
     console.log(`[ALGO TRADING START] ✅ Started algo trading for ${symbol} (User: ${userId}, Duration: ${duration}ms)`);
@@ -351,6 +373,8 @@ router.get('/:userId/trades', async (req, res, next) => {
           currentLevel: trade.currentLevel,
           totalInvested: trade.totalInvested,
           numberOfLevels: trade.numberOfLevels,
+          isStarted: trade.isStarted,
+          tradeDirection: trade.tradeDirection,
           startedAt: trade.startedAt,
           lastSignal: trade.lastSignal,
         });
@@ -363,6 +387,64 @@ router.get('/:userId/trades', async (req, res, next) => {
     });
   } catch (error) {
     console.error(`[ALGO TRADING] ❌ Error getting active trades:`, error);
+    next(error);
+  }
+});
+
+// Get profit details for algo trades
+router.get('/:userId/profits', async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const { period = '7d' } = req.query; // 7d, 30d, all
+
+    // Get all trades (active and stopped) for this user
+    const userTrades = [];
+    for (const [key, trade] of activeTrades.entries()) {
+      if (trade.userId === userId) {
+        userTrades.push(trade);
+      }
+    }
+
+    // Calculate profits
+    let totalProfit = 0;
+    let todayProfit = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const tradeHistory = [];
+    for (const trade of userTrades) {
+      if (trade.stoppedAt) {
+        // Calculate profit for stopped trades
+        const profit = trade.totalInvested > 0 
+          ? (trade.totalInvested * (trade.maxProfitBook / 100)) - trade.platformWalletFees.reduce((a, b) => a + b, 0)
+          : 0;
+        
+        totalProfit += profit;
+        
+        if (new Date(trade.stoppedAt) >= today) {
+          todayProfit += profit;
+        }
+
+        tradeHistory.push({
+          symbol: trade.symbol,
+          profit: profit,
+          stoppedAt: trade.stoppedAt,
+          reason: trade.stopReason,
+          levels: trade.currentLevel,
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        totalProfit: totalProfit,
+        todayProfit: todayProfit,
+        tradeHistory: tradeHistory,
+      },
+    });
+  } catch (error) {
+    console.error(`[ALGO TRADING] ❌ Error getting profits:`, error);
     next(error);
   }
 });

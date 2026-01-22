@@ -126,6 +126,7 @@ const userSchema = new mongoose.Schema({
     strategyId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Strategy',
+      default: null,
     },
     name: {
       type: String,
@@ -138,6 +139,24 @@ const userSchema = new mongoose.Schema({
       type: String,
       enum: ['active', 'inactive', 'paused'],
       default: 'active',
+    },
+    type: {
+      type: String,
+      enum: ['algo_trading', 'manual', 'other'],
+      default: 'other',
+    },
+    symbol: {
+      type: String,
+      default: null,
+    },
+    platform: {
+      type: String,
+      default: null,
+    },
+    config: {
+      type: Map,
+      of: mongoose.Schema.Types.Mixed,
+      default: {},
     },
   }],
   wallet: {
