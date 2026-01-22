@@ -95,6 +95,7 @@ app.use('/api/users', require('./routes/user'));
 app.use('/api/exchange', require('./routes/exchange'));
 app.use('/api/webhooks', require('./routes/webhooks'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/algo-trading', require('./routes/algo_trading'));
 
 // 404 handler (must be last)
 app.use((req, res) => {

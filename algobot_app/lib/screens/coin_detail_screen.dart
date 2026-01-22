@@ -5,8 +5,10 @@ import '../models/crypto_coin.dart';
 import '../models/candlestick.dart';
 import '../services/chart_service.dart';
 import '../services/technical_indicators.dart';
+import '../services/exchange_service.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/tradingview_chart.dart';
+import 'algo_trading_config_screen.dart';
 
 class CoinDetailScreen extends StatefulWidget {
   final CryptoCoin coin;
@@ -184,13 +186,13 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(16),
         child: ElevatedButton(
-          onPressed: () {},
+          onPressed: () => _showTradingModeDialog(context),
           style: ElevatedButton.styleFrom(
             backgroundColor: Theme.of(context).colorScheme.primary,
             padding: const EdgeInsets.symmetric(vertical: 16),
           ),
           child: const Text(
-            'Create',
+            'Start Trading',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
         ),
@@ -859,6 +861,84 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
         ),
       );
     }).toList();
+  }
+
+  void _showTradingModeDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Select Trading Mode'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.auto_awesome, color: Colors.blue),
+              title: const Text('Algo Trading'),
+              subtitle: const Text('Automated trading with technical indicators'),
+              onTap: () {
+                Navigator.pop(context);
+                _navigateToAlgoConfig(context);
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.touch_app, color: Colors.green),
+              title: const Text('Manual Trade'),
+              subtitle: const Text('Place orders manually'),
+              onTap: () {
+                Navigator.pop(context);
+                _showManualTradeDialog(context);
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _navigateToAlgoConfig(BuildContext context) async {
+    // Check if exchange is linked
+    final exchangeService = ExchangeService();
+    final isLinked = await exchangeService.isPlatformLinked('binance');
+    
+    if (!isLinked) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please link your Binance API first'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (context.mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AlgoTradingConfigScreen(
+            coin: widget.coin,
+            quoteCurrency: widget.quoteCurrency,
+          ),
+        ),
+      );
+    }
+  }
+
+  void _showManualTradeDialog(BuildContext context) {
+    // TODO: Implement manual trade dialog
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Manual trading coming soon'),
+      ),
+    );
   }
 }
 

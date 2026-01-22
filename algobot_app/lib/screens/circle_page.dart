@@ -109,7 +109,7 @@ class _CirclePageState extends State<CirclePage> {
     final isSelected = _selectedTab == index;
     return GestureDetector(
       onTap: () => setState(() => _selectedTab = index),
-      child: Text(
+        child: Text(
         label,
         style: TextStyle(
           fontSize: 16,
