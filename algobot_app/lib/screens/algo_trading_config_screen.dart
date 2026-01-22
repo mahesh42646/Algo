@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../models/crypto_coin.dart';
 import '../services/algo_trading_service.dart';
 import '../services/exchange_service.dart';
+import '../services/user_service.dart';
+import '../services/auth_service.dart';
 
 class AlgoTradingConfigScreen extends StatefulWidget {
   final CryptoCoin coin;
@@ -21,6 +23,7 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
   final _formKey = GlobalKey<FormState>();
   final AlgoTradingService _algoService = AlgoTradingService();
   final ExchangeService _exchangeService = ExchangeService();
+  final UserService _userService = UserService();
 
   // Form controllers
   final TextEditingController _maxLossPerTradeController = TextEditingController(text: '3.0');
@@ -31,25 +34,110 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
 
   bool _acceptedTerms = false;
   bool _isLoading = false;
+  bool _isValidating = false;
   bool _hasActiveTrade = false;
+  bool _useMargin = false;
+  
+  // API and balance data
+  List<ExchangeApi> _availableApis = [];
+  ExchangeApi? _selectedApi;
+  Map<String, dynamic>? _apiBalance;
+  double _platformWalletBalance = 0.0;
+  String? _validationError;
+  Map<String, dynamic>? _validationDetails;
 
   @override
   void initState() {
     super.initState();
-    _checkActiveTrade();
+    _loadData();
   }
 
-  Future<void> _checkActiveTrade() async {
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
+      // Load active trade status
       final symbol = '${widget.coin.symbol}${widget.quoteCurrency}';
       final status = await _algoService.getTradeStatus(symbol);
+      
+      // Load available APIs
+      final apis = await _exchangeService.getLinkedApis();
+      
+      // Load platform wallet balance
+      final authService = AuthService();
+      final userId = authService.currentUser?.uid;
+      if (userId != null) {
+        final wallet = await _userService.getWallet(userId);
+        final walletBalances = wallet['balances'] as List?;
+        final usdtBalance = walletBalances?.firstWhere(
+          (b) => (b['currency'] ?? '').toString().toUpperCase() == 'USDT',
+          orElse: () => {'amount': 0.0},
+        );
+        
+        if (mounted) {
+          setState(() {
+            _platformWalletBalance = (usdtBalance['amount'] ?? 0.0).toDouble();
+          });
+        }
+      }
+      
       if (mounted) {
         setState(() {
           _hasActiveTrade = status['isActive'] == true;
+          _availableApis = apis.where((api) => api.isActive).toList();
+          if (_availableApis.isNotEmpty) {
+            _selectedApi = _availableApis.first;
+          }
+          _platformWalletBalance = (usdtBalance['amount'] ?? 0.0).toDouble();
+          _isLoading = false;
+        });
+        
+        // Load balance for selected API
+        if (_selectedApi != null) {
+          _loadApiBalance(_selectedApi!);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading data: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _loadApiBalance(ExchangeApi api) async {
+    try {
+      final balance = await _exchangeService.getBalance(api.platform);
+      final totalBalance = balance.fold<double>(
+        0.0,
+        (sum, b) => sum + (b.total * (b.asset == widget.quoteCurrency ? 1.0 : 0.0)),
+      );
+      
+      if (mounted) {
+        setState(() {
+          _apiBalance = {
+            'total': totalBalance,
+            'balances': balance,
+            'platform': api.platform,
+            'permissions': api.permissions,
+          };
         });
       }
     } catch (e) {
-      // No active trade or error
+      if (mounted) {
+        setState(() {
+          _apiBalance = null;
+        });
+      }
     }
   }
 
@@ -63,7 +151,7 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
     super.dispose();
   }
 
-  Future<void> _startAlgoTrading() async {
+  Future<void> _validateBeforeStart() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -78,6 +166,171 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
       return;
     }
 
+    if (_selectedApi == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select an API'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isValidating = true;
+      _validationError = null;
+      _validationDetails = null;
+    });
+
+    try {
+      final amountPerLevel = double.parse(_amountPerLevelController.text);
+      final numberOfLevels = int.parse(_numberOfLevelsController.text);
+      final totalTradeAmount = amountPerLevel * numberOfLevels;
+      final requiredWalletBalance = totalTradeAmount * 0.03; // 3% of total trade amount
+
+      // Check API balance
+      if (_apiBalance == null || (_apiBalance!['total'] ?? 0.0) <= 0) {
+        setState(() {
+          _validationError = 'Insufficient Exchange Balance';
+          _validationDetails = {
+            'message': 'Your ${_selectedApi!.platform} account has no balance.',
+            'required': 'Balance > 0',
+            'current': '0.0',
+          };
+        });
+        return;
+      }
+
+      // Check platform wallet balance
+      if (_platformWalletBalance < requiredWalletBalance) {
+        setState(() {
+          _validationError = 'Insufficient Platform Wallet Balance';
+          _validationDetails = {
+            'message': 'You need at least 3% of total trade amount in platform wallet.',
+            'required': '\$${requiredWalletBalance.toStringAsFixed(2)}',
+            'current': '\$${_platformWalletBalance.toStringAsFixed(2)}',
+            'totalTradeAmount': '\$${totalTradeAmount.toStringAsFixed(2)}',
+          };
+        });
+        return;
+      }
+
+      // Check permissions
+      final requiredPermission = _useMargin ? 'margin_trade' : 'spot_trade';
+      if (!_selectedApi!.permissions.contains(requiredPermission)) {
+        setState(() {
+          _validationError = 'Missing API Permissions';
+          _validationDetails = {
+            'message': 'Your API key does not have ${_useMargin ? "margin" : "spot"} trading permissions.',
+            'required': requiredPermission,
+            'current': _selectedApi!.permissions.join(', '),
+          };
+        });
+        return;
+      }
+
+      // All validations passed - show confirmation dialog
+      _showConfirmationDialog(totalTradeAmount, requiredWalletBalance);
+    } catch (e) {
+      setState(() {
+        _validationError = 'Validation Error';
+        _validationDetails = {
+          'message': e.toString(),
+        };
+      });
+    } finally {
+      setState(() {
+        _isValidating = false;
+      });
+    }
+  }
+
+  void _showConfirmationDialog(double totalTradeAmount, double requiredWalletBalance) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Algo Trading Start'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Please confirm the following details:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              _buildConfirmationRow('Symbol', '${widget.coin.symbol}/${widget.quoteCurrency}'),
+              _buildConfirmationRow('API', '${_selectedApi!.platform} (${_selectedApi!.label})'),
+              _buildConfirmationRow('Trading Mode', _useMargin ? 'Margin' : 'Spot'),
+              _buildConfirmationRow('Total Trade Amount', '\$${totalTradeAmount.toStringAsFixed(2)}'),
+              _buildConfirmationRow('Platform Wallet Fee', '\$${requiredWalletBalance.toStringAsFixed(2)} (3%)'),
+              _buildConfirmationRow('Exchange Balance', '\$${(_apiBalance!['total'] ?? 0.0).toStringAsFixed(2)}'),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.warning, color: Colors.orange, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '3% platform wallet fee will be deducted at each level.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _startAlgoTrading();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Confirm & Start'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConfirmationRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(color: Colors.grey[600], fontSize: 14),
+          ),
+          Text(
+            value,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _startAlgoTrading() async {
     setState(() {
       _isLoading = true;
     });
@@ -87,11 +340,13 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
       
       await _algoService.startAlgoTrade(
         symbol: symbol,
+        apiId: _selectedApi!.id,
         maxLossPerTrade: double.parse(_maxLossPerTradeController.text),
         maxLossOverall: double.parse(_maxLossOverallController.text),
         maxProfitBook: double.parse(_maxProfitBookController.text),
         amountPerLevel: double.parse(_amountPerLevelController.text),
         numberOfLevels: int.parse(_numberOfLevelsController.text),
+        useMargin: _useMargin,
       );
 
       if (mounted) {
@@ -156,7 +411,253 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
                     ],
                   ),
                 ),
-              
+
+              // API Selection
+              if (_availableApis.isNotEmpty) ...[
+                Text(
+                  'Select API',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<ExchangeApi>(
+                  value: _selectedApi,
+                  decoration: InputDecoration(
+                    labelText: 'Exchange API',
+                    prefixIcon: const Icon(Icons.api),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  items: _availableApis.map((api) {
+                    return DropdownMenuItem(
+                      value: api,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${api.platform.toUpperCase()} - ${api.label}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            'Permissions: ${api.permissions.join(", ")}',
+                            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (api) {
+                    setState(() {
+                      _selectedApi = api;
+                    });
+                    if (api != null) {
+                      _loadApiBalance(api);
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                
+                // API Balance Display
+                if (_apiBalance != null)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: (_apiBalance!['total'] ?? 0.0) > 0
+                          ? Colors.green.withOpacity(0.1)
+                          : Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: (_apiBalance!['total'] ?? 0.0) > 0
+                            ? Colors.green
+                            : Colors.red,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          (_apiBalance!['total'] ?? 0.0) > 0
+                              ? Icons.check_circle
+                              : Icons.error,
+                          color: (_apiBalance!['total'] ?? 0.0) > 0
+                              ? Colors.green
+                              : Colors.red,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${_apiBalance!['platform'].toUpperCase()} Balance',
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              Text(
+                                '\$${(_apiBalance!['total'] ?? 0.0).toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: (_apiBalance!['total'] ?? 0.0) > 0
+                                      ? Colors.green
+                                      : Colors.red,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 16),
+              ] else ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.error, color: Colors.red),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'No active APIs found. Please link an exchange API first.',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+
+              // Platform Wallet Balance
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _platformWalletBalance > 0
+                      ? Colors.blue.withOpacity(0.1)
+                      : Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: _platformWalletBalance > 0
+                        ? Colors.blue
+                        : Colors.orange,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _platformWalletBalance > 0
+                          ? Icons.account_balance_wallet
+                          : Icons.warning,
+                      color: _platformWalletBalance > 0
+                          ? Colors.blue
+                          : Colors.orange,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Platform Wallet Balance',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            '\$${_platformWalletBalance.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: _platformWalletBalance > 0
+                                  ? Colors.blue
+                                  : Colors.orange,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Required: 3% of total trade amount',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Margin Trading Toggle
+              SwitchListTile(
+                title: const Text('Margin Trading'),
+                subtitle: const Text('Enable margin trading (requires margin permissions)'),
+                value: _useMargin,
+                onChanged: (value) {
+                  setState(() {
+                    _useMargin = value;
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // Validation Error Display
+              if (_validationError != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.error, color: Colors.red),
+                          const SizedBox(width: 8),
+                          Text(
+                            _validationError!,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_validationDetails != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          _validationDetails!['message'] ?? '',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        if (_validationDetails!['required'] != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Required: ${_validationDetails!['required']}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ],
+                        if (_validationDetails!['current'] != null) ...[
+                          Text(
+                            'Current: ${_validationDetails!['current']}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ],
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+
               _buildInfoCard(),
               const SizedBox(height: 24),
               
@@ -264,20 +765,33 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isLoading ? null : _startAlgoTrading,
+                  onPressed: (_isLoading || _isValidating || _availableApis.isEmpty) 
+                      ? null 
+                      : _validateBeforeStart,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
-                  child: _isLoading
+                  child: _isLoading || _isValidating
                       ? const SizedBox(
                           height: 20,
                           width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
                       : const Text(
                           'Start Algo Trading',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
                 ),
               ),
@@ -322,7 +836,8 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
             '• The algorithm places limit orders based on strong technical indicator signals\n'
             '• If loss hits your "Max Loss Per Trade" (e.g., 3%), it adds more funds (Amount Per Level)\n'
             '• If profit hits your "Max Profit Book" (e.g., 3%), it books profit and stops\n'
-            '• If max levels are reached, it books overall loss and stops',
+            '• If max levels are reached, it books overall loss and stops\n'
+            '• 3% platform wallet fee is deducted at each level',
             style: TextStyle(
               fontSize: 12,
               color: Colors.grey[700],
@@ -386,7 +901,7 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'I understand that algorithmic trading involves risks. I accept full responsibility for all trades executed by this algorithm. The algorithm will automatically place orders based on technical indicators and my configured parameters.',
+                  'I understand that algorithmic trading involves risks. I accept full responsibility for all trades executed by this algorithm. The algorithm will automatically place orders based on technical indicators and my configured parameters. A 3% platform wallet fee will be deducted at each level.',
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.grey[600],

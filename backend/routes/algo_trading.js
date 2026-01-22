@@ -10,21 +10,36 @@ const activeTrades = new Map();
 
 // Start algo trading
 router.post('/:userId/start', async (req, res, next) => {
-  try {
-    const { userId } = req.params;
-    const { symbol, maxLossPerTrade, maxLossOverall, maxProfitBook, amountPerLevel, numberOfLevels } = req.body;
+  const startTime = Date.now();
+  const { userId } = req.params;
+  const { symbol, apiId, maxLossPerTrade, maxLossOverall, maxProfitBook, amountPerLevel, numberOfLevels, useMargin } = req.body;
 
+  console.log(`[ALGO TRADING START] 📊 Request from user ${userId}`);
+  console.log(`[ALGO TRADING START] 📋 Parameters:`, {
+    symbol,
+    apiId,
+    maxLossPerTrade,
+    maxLossOverall,
+    maxProfitBook,
+    amountPerLevel,
+    numberOfLevels,
+    useMargin,
+  });
+
+  try {
     // Validate input
-    if (!symbol || !maxLossPerTrade || !maxLossOverall || !maxProfitBook || !amountPerLevel || !numberOfLevels) {
+    if (!symbol || !apiId || !maxLossPerTrade || !maxLossOverall || !maxProfitBook || !amountPerLevel || !numberOfLevels) {
+      console.error(`[ALGO TRADING START] ❌ Missing required parameters`);
       return res.status(400).json({
         success: false,
-        error: 'All parameters are required',
+        error: 'All parameters are required (symbol, apiId, maxLossPerTrade, maxLossOverall, maxProfitBook, amountPerLevel, numberOfLevels)',
       });
     }
 
-    const user = await User.findOne({ userId }).select('exchangeApis');
+    const user = await User.findOne({ userId }).select('exchangeApis wallet notifications');
 
     if (!user) {
+      console.error(`[ALGO TRADING START] ❌ User not found: ${userId}`);
       return res.status(404).json({
         success: false,
         error: 'User not found',
@@ -32,48 +47,114 @@ router.post('/:userId/start', async (req, res, next) => {
     }
 
     // Check if there's an active trade for this symbol
-    const tradeKey = `${userId}:${symbol}`;
+    const tradeKey = `${userId}:${symbol.toUpperCase()}`;
     if (activeTrades.has(tradeKey)) {
-      // Stop existing trade
+      console.log(`[ALGO TRADING START] ⚠️ Stopping existing trade for ${symbol}`);
       const existingTrade = activeTrades.get(tradeKey);
       if (existingTrade.intervalId) {
         clearInterval(existingTrade.intervalId);
       }
+      activeTrades.delete(tradeKey);
     }
 
-    // Get Binance API
-    const api = user.exchangeApis.find(
-      a => a.platform === 'binance' && a.isActive
-    );
+    // Get selected API
+    const api = user.exchangeApis.find(a => a._id.toString() === apiId && a.isActive);
 
     if (!api) {
+      console.error(`[ALGO TRADING START] ❌ API not found or inactive: ${apiId}`);
       return res.status(404).json({
         success: false,
-        error: 'No active Binance API found. Please link your API first.',
+        error: 'API not found or inactive. Please select a valid API.',
       });
     }
+
+    console.log(`[ALGO TRADING START] ✅ API found: ${api.platform} - ${api.label}`);
+
+    // Validate permissions
+    const requiredPermission = useMargin ? 'margin_trade' : 'spot_trade';
+    if (!api.permissions.includes(requiredPermission)) {
+      console.error(`[ALGO TRADING START] ❌ Missing permission: ${requiredPermission}`);
+      return res.status(403).json({
+        success: false,
+        error: `API does not have ${useMargin ? 'margin' : 'spot'} trading permission`,
+        details: `Required: ${requiredPermission}, Available: ${api.permissions.join(', ')}`,
+      });
+    }
+
+    console.log(`[ALGO TRADING START] ✅ Permission check passed: ${requiredPermission}`);
 
     // Decrypt credentials
     let apiKey, apiSecret;
     try {
       apiKey = decrypt(api.apiKey);
       apiSecret = decrypt(api.apiSecret);
+      console.log(`[ALGO TRADING START] ✅ Credentials decrypted`);
     } catch (error) {
+      console.error(`[ALGO TRADING START] ❌ Decryption failed:`, error.message);
       return res.status(500).json({
         success: false,
         error: 'Failed to decrypt API credentials',
       });
     }
 
+    // Check exchange balance
+    const exchangeBalance = await getExchangeBalance(apiKey, apiSecret, symbol.toUpperCase());
+    if (exchangeBalance <= 0) {
+      console.error(`[ALGO TRADING START] ❌ Insufficient exchange balance: ${exchangeBalance}`);
+      return res.status(400).json({
+        success: false,
+        error: 'Insufficient exchange balance',
+        details: `Your ${api.platform} account has no balance. Please deposit funds first.`,
+      });
+    }
+
+    console.log(`[ALGO TRADING START] ✅ Exchange balance: \$${exchangeBalance.toFixed(2)}`);
+
+    // Calculate required platform wallet balance (3% of total trade amount)
+    const totalTradeAmount = parseFloat(amountPerLevel) * parseInt(numberOfLevels);
+    const requiredWalletBalance = totalTradeAmount * 0.03;
+
+    // Check platform wallet balance
+    const walletBalances = user.wallet?.balances || [];
+    const usdtBalance = walletBalances.find(b => b.currency === 'USDT');
+    const platformWalletBalance = usdtBalance?.amount || 0;
+
+    if (platformWalletBalance < requiredWalletBalance) {
+      console.error(`[ALGO TRADING START] ❌ Insufficient platform wallet: ${platformWalletBalance} < ${requiredWalletBalance}`);
+      return res.status(400).json({
+        success: false,
+        error: 'Insufficient platform wallet balance',
+        details: `You need at least 3% of total trade amount (\$${requiredWalletBalance.toFixed(2)}) in platform wallet. Current: \$${platformWalletBalance.toFixed(2)}`,
+        required: requiredWalletBalance,
+        current: platformWalletBalance,
+      });
+    }
+
+    console.log(`[ALGO TRADING START] ✅ Platform wallet balance: \$${platformWalletBalance.toFixed(2)} (Required: \$${requiredWalletBalance.toFixed(2)})`);
+
+    // Deduct initial platform wallet fee (3% of first level)
+    const firstLevelFee = parseFloat(amountPerLevel) * 0.03;
+    if (usdtBalance) {
+      usdtBalance.amount = Math.max(0, usdtBalance.amount - firstLevelFee);
+    } else {
+      walletBalances.push({ currency: 'USDT', amount: -firstLevelFee });
+    }
+    await user.save();
+
+    console.log(`[ALGO TRADING START] 💰 Deducted platform wallet fee: \$${firstLevelFee.toFixed(2)}`);
+
     // Create trade object
     const trade = {
       userId,
       symbol: symbol.toUpperCase(),
+      apiId: api._id.toString(),
+      platform: api.platform,
       maxLossPerTrade: parseFloat(maxLossPerTrade),
       maxLossOverall: parseFloat(maxLossOverall),
       maxProfitBook: parseFloat(maxProfitBook),
       amountPerLevel: parseFloat(amountPerLevel),
       numberOfLevels: parseInt(numberOfLevels),
+      useMargin: useMargin === true,
       apiKey,
       apiSecret,
       startPrice: 0,
@@ -84,6 +165,7 @@ router.post('/:userId/start', async (req, res, next) => {
       startedAt: new Date(),
       lastSignal: null,
       intervalId: null,
+      platformWalletFees: [firstLevelFee], // Track all fees
     };
 
     // Start the algo trading loop
@@ -91,14 +173,33 @@ router.post('/:userId/start', async (req, res, next) => {
       try {
         await executeAlgoTradingStep(trade);
       } catch (error) {
-        console.error(`[ALGO TRADING] Error in trading step for ${symbol}:`, error.message);
+        console.error(`[ALGO TRADING] ❌ Error in trading step for ${symbol}:`, error.message);
       }
     }, 30000); // Check every 30 seconds
 
     trade.intervalId = intervalId;
     activeTrades.set(tradeKey, trade);
 
-    console.log(`[ALGO TRADING] ✅ Started algo trading for ${symbol} (User: ${userId})`);
+    // Add notification
+    user.notifications.push({
+      title: 'Algo Trading Started 🚀',
+      message: `Algo trading started for ${trade.symbol}. Initial fee: \$${firstLevelFee.toFixed(2)}`,
+      type: 'success',
+      read: false,
+      createdAt: new Date(),
+    });
+    await user.save();
+
+    const duration = Date.now() - startTime;
+    console.log(`[ALGO TRADING START] ✅ Started algo trading for ${symbol} (User: ${userId}, Duration: ${duration}ms)`);
+    console.log(`[ALGO TRADING START] 📊 Trade Summary:`, {
+      symbol: trade.symbol,
+      platform: trade.platform,
+      useMargin: trade.useMargin,
+      totalTradeAmount: totalTradeAmount.toFixed(2),
+      numberOfLevels: trade.numberOfLevels,
+      amountPerLevel: trade.amountPerLevel.toFixed(2),
+    });
 
     res.json({
       success: true,
@@ -106,13 +207,45 @@ router.post('/:userId/start', async (req, res, next) => {
       data: {
         symbol: trade.symbol,
         startedAt: trade.startedAt,
+        platformWalletFee: firstLevelFee,
       },
     });
   } catch (error) {
-    console.error(`[ALGO TRADING] ❌ Error starting algo trade:`, error);
+    const duration = Date.now() - startTime;
+    console.error(`[ALGO TRADING START] ❌ Error starting algo trade (Duration: ${duration}ms):`, error);
     next(error);
   }
 });
+
+// Helper function to get exchange balance
+async function getExchangeBalance(apiKey, apiSecret, symbol) {
+  try {
+    const timestamp = Date.now();
+    const queryString = `timestamp=${timestamp}`;
+    const signature = crypto
+      .createHmac('sha256', apiSecret)
+      .update(queryString)
+      .digest('hex');
+
+    const response = await axios.get(
+      `https://api.binance.com/api/v3/account?${queryString}&signature=${signature}`,
+      {
+        headers: {
+          'X-MBX-APIKEY': apiKey,
+        },
+        timeout: 10000,
+      }
+    );
+
+    // Get USDT balance (or quote currency)
+    const quoteCurrency = symbol.includes('USDT') ? 'USDT' : symbol.replace(/[A-Z]+$/, '');
+    const balance = response.data.balances.find(b => b.asset === quoteCurrency);
+    return balance ? parseFloat(balance.free) + parseFloat(balance.locked) : 0;
+  } catch (error) {
+    console.error(`[ALGO TRADING] ❌ Error getting exchange balance:`, error.message);
+    return 0;
+  }
+}
 
 // Stop algo trading
 router.post('/:userId/stop', async (req, res, next) => {
@@ -236,11 +369,14 @@ router.get('/:userId/trades', async (req, res, next) => {
 // Execute one step of algo trading
 async function executeAlgoTradingStep(trade) {
   try {
+    console.log(`[ALGO TRADING STEP] 🔄 Processing step for ${trade.symbol} (Level: ${trade.currentLevel}/${trade.numberOfLevels})`);
+    
     // Get current price and technical indicators
     const currentPrice = await getCurrentPrice(trade.symbol);
     
     if (trade.startPrice === 0) {
       trade.startPrice = currentPrice;
+      console.log(`[ALGO TRADING STEP] 📍 Start price set: \$${currentPrice.toFixed(8)}`);
     }
 
     // Get technical indicators
@@ -251,7 +387,7 @@ async function executeAlgoTradingStep(trade) {
 
     // If no strong signal, skip this cycle
     if (signal.strength !== 'strong') {
-      console.log(`[ALGO TRADING] ${trade.symbol}: ${signal.direction} signal (${signal.strength}) - Skipping`);
+      console.log(`[ALGO TRADING STEP] ⏭️ ${trade.symbol}: ${signal.direction} signal (${signal.strength}) - Skipping`);
       return;
     }
 
@@ -261,9 +397,11 @@ async function executeAlgoTradingStep(trade) {
       ? trade.totalInvested / (trade.orders.reduce((sum, o) => sum + parseFloat(o.quantity), 0) || 1)
       : currentPrice;
 
+    console.log(`[ALGO TRADING STEP] 📊 Current P&L: ${currentPnL.toFixed(2)}%, Price: \$${currentPrice.toFixed(8)}`);
+
     // Check stop conditions
     if (currentPnL >= trade.maxProfitBook) {
-      // Book profit
+      console.log(`[ALGO TRADING STEP] ✅ Profit target reached: ${currentPnL.toFixed(2)}% >= ${trade.maxProfitBook}%`);
       await closeAllPositions(trade, 'profit');
       return;
     }
@@ -272,6 +410,7 @@ async function executeAlgoTradingStep(trade) {
       // Max levels reached, check overall loss
       const overallLoss = ((avgPrice - trade.startPrice) / trade.startPrice) * 100;
       if (overallLoss <= -trade.maxLossOverall) {
+        console.log(`[ALGO TRADING STEP] ⛔ Max loss reached: ${overallLoss.toFixed(2)}% <= -${trade.maxLossOverall}%`);
         await closeAllPositions(trade, 'max_loss');
         return;
       }
@@ -279,16 +418,52 @@ async function executeAlgoTradingStep(trade) {
 
     // Check if we need to add more (averaging down)
     if (signal.direction === 'BUY' && currentPnL <= -trade.maxLossPerTrade && trade.currentLevel < trade.numberOfLevels) {
+      console.log(`[ALGO TRADING STEP] 📉 Loss threshold hit: ${currentPnL.toFixed(2)}% <= -${trade.maxLossPerTrade}%`);
+      
+      // Deduct platform wallet fee before placing order
+      const levelFee = trade.amountPerLevel * 0.03;
+      const user = await User.findOne({ userId: trade.userId }).select('wallet notifications');
+      
+      if (user) {
+        const walletBalances = user.wallet?.balances || [];
+        const usdtBalance = walletBalances.find(b => b.currency === 'USDT');
+        
+        if (usdtBalance && usdtBalance.amount >= levelFee) {
+          usdtBalance.amount = Math.max(0, usdtBalance.amount - levelFee);
+          trade.platformWalletFees.push(levelFee);
+          await user.save();
+          
+          console.log(`[ALGO TRADING STEP] 💰 Deducted platform wallet fee: \$${levelFee.toFixed(2)} (Level ${trade.currentLevel + 1})`);
+          
+          // Add notification
+          user.notifications.push({
+            title: `Algo Trading - Level ${trade.currentLevel + 1} 📈`,
+            message: `Level ${trade.currentLevel + 1} executed for ${trade.symbol}. Fee: \$${levelFee.toFixed(2)}`,
+            type: 'info',
+            read: false,
+            createdAt: new Date(),
+          });
+          await user.save();
+        } else {
+          console.error(`[ALGO TRADING STEP] ❌ Insufficient platform wallet for level fee: \$${levelFee.toFixed(2)}`);
+          await closeAllPositions(trade, 'insufficient_funds');
+          return;
+        }
+      }
+      
       // Place buy order
       await placeOrder(trade, 'BUY', currentPrice, trade.amountPerLevel);
       trade.currentLevel++;
+      console.log(`[ALGO TRADING STEP] ✅ Level ${trade.currentLevel} order placed`);
     } else if (signal.direction === 'SELL' && currentPnL >= trade.maxProfitBook) {
       // Place sell order to book profit
+      console.log(`[ALGO TRADING STEP] 💰 Profit target reached, closing positions`);
       await closeAllPositions(trade, 'profit');
     }
 
   } catch (error) {
-    console.error(`[ALGO TRADING] Error in trading step:`, error.message);
+    console.error(`[ALGO TRADING STEP] ❌ Error in trading step for ${trade.symbol}:`, error.message);
+    console.error(`[ALGO TRADING STEP] ❌ Stack:`, error.stack);
   }
 }
 
@@ -431,6 +606,8 @@ async function placeOrder(trade, side, price, amount) {
 // Close all positions
 async function closeAllPositions(trade, reason) {
   try {
+    console.log(`[ALGO TRADING CLOSE] 🔚 Closing positions for ${trade.symbol} (Reason: ${reason})`);
+    
     // Get account balance for the base asset
     const baseAsset = trade.symbol.replace('USDT', '').replace('BUSD', '');
     
@@ -455,7 +632,7 @@ async function closeAllPositions(trade, reason) {
       b => b.asset === baseAsset && parseFloat(b.free) > 0
     );
 
-    if (balance && parseFloat(balance.free) > 0) {
+    if (balance && parseFloat(b.free) > 0) {
       // Place market sell order
       const sellTimestamp = Date.now();
       const sellQueryString = `symbol=${trade.symbol}&side=SELL&type=MARKET&quantity=${parseFloat(balance.free).toFixed(8)}&timestamp=${sellTimestamp}`;
@@ -476,7 +653,7 @@ async function closeAllPositions(trade, reason) {
         }
       );
 
-      console.log(`[ALGO TRADING] ✅ Closed all positions for ${trade.symbol} (Reason: ${reason})`);
+      console.log(`[ALGO TRADING CLOSE] ✅ Closed all positions for ${trade.symbol} (Quantity: ${balance.free})`);
     }
 
     // Stop the trade
@@ -490,8 +667,40 @@ async function closeAllPositions(trade, reason) {
     const tradeKey = `${trade.userId}:${trade.symbol}`;
     activeTrades.delete(tradeKey);
 
+    // Add notification
+    const user = await User.findOne({ userId: trade.userId }).select('notifications');
+    if (user) {
+      const reasonMessages = {
+        'profit': 'Profit target reached',
+        'max_loss': 'Maximum loss limit reached',
+        'insufficient_funds': 'Insufficient platform wallet balance',
+      };
+      
+      user.notifications.push({
+        title: `Algo Trading Stopped - ${trade.symbol} 🛑`,
+        message: `${reasonMessages[reason] || reason}. Total levels: ${trade.currentLevel}, Total fees: \$${trade.platformWalletFees.reduce((a, b) => a + b, 0).toFixed(2)}`,
+        type: reason === 'profit' ? 'success' : reason === 'max_loss' ? 'warning' : 'error',
+        read: false,
+        createdAt: new Date(),
+      });
+      await user.save();
+      
+      console.log(`[ALGO TRADING CLOSE] 📬 Notification sent to user ${trade.userId}`);
+    }
+
+    const totalFees = trade.platformWalletFees.reduce((a, b) => a + b, 0);
+    console.log(`[ALGO TRADING CLOSE] 📊 Trade Summary:`, {
+      symbol: trade.symbol,
+      reason,
+      levels: trade.currentLevel,
+      totalInvested: trade.totalInvested.toFixed(2),
+      totalFees: totalFees.toFixed(2),
+      duration: Math.round((Date.now() - trade.startedAt.getTime()) / 1000 / 60), // minutes
+    });
+
   } catch (error) {
-    console.error(`[ALGO TRADING] ❌ Error closing positions:`, error.message);
+    console.error(`[ALGO TRADING CLOSE] ❌ Error closing positions:`, error.message);
+    console.error(`[ALGO TRADING CLOSE] ❌ Stack:`, error.stack);
   }
 }
 

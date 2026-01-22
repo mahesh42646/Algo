@@ -11,11 +11,13 @@ class AlgoTradingService {
   // Start algo trading
   Future<Map<String, dynamic>> startAlgoTrade({
     required String symbol,
+    required String apiId,
     required double maxLossPerTrade,
     required double maxLossOverall,
     required double maxProfitBook,
     required double amountPerLevel,
     required int numberOfLevels,
+    bool useMargin = false,
   }) async {
     if (_userId == null) {
       throw Exception('User not logged in');
@@ -26,11 +28,13 @@ class AlgoTradingService {
         '/algo-trading/$_userId/start',
         data: {
           'symbol': symbol,
+          'apiId': apiId,
           'maxLossPerTrade': maxLossPerTrade,
           'maxLossOverall': maxLossOverall,
           'maxProfitBook': maxProfitBook,
           'amountPerLevel': amountPerLevel,
           'numberOfLevels': numberOfLevels,
+          'useMargin': useMargin,
         },
       );
 
