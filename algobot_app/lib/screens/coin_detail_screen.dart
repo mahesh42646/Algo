@@ -185,15 +185,33 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
       ),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 4,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
         child: ElevatedButton(
           onPressed: () => _showTradingModeDialog(context),
           style: ElevatedButton.styleFrom(
             backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
           child: const Text(
             'Start Trading',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
         ),
       ),
@@ -866,35 +884,112 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
   void _showTradingModeDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      barrierDismissible: true,
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Select Trading Mode'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.auto_awesome, color: Colors.blue),
-              title: const Text('Algo Trading'),
-              subtitle: const Text('Automated trading with technical indicators'),
-              onTap: () {
-                Navigator.pop(context);
-                _navigateToAlgoConfig(context);
-              },
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.touch_app, color: Colors.green),
-              title: const Text('Manual Trade'),
-              subtitle: const Text('Place orders manually'),
-              onTap: () {
-                Navigator.pop(context);
-                _showManualTradeDialog(context);
-              },
-            ),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              InkWell(
+                onTap: () async {
+                  Navigator.pop(dialogContext);
+                  // Small delay to ensure dialog is fully closed
+                  await Future.delayed(const Duration(milliseconds: 100));
+                  if (context.mounted) {
+                    _navigateToAlgoConfig(context);
+                  }
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.auto_awesome, color: Colors.blue, size: 32),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Algo Trading',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Automated trading with technical indicators',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              InkWell(
+                onTap: () {
+                  Navigator.pop(dialogContext);
+                  _showManualTradeDialog(context);
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.touch_app, color: Colors.green, size: 32),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Manual Trade',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Place orders manually',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
         ],
@@ -903,32 +998,45 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
   }
 
   void _navigateToAlgoConfig(BuildContext context) async {
-    // Check if exchange is linked
-    final exchangeService = ExchangeService();
-    final isLinked = await exchangeService.isPlatformLinked('binance');
-    
-    if (!isLinked) {
+    try {
+      // Check if exchange is linked
+      final exchangeService = ExchangeService();
+      final isLinked = await exchangeService.isPlatformLinked('binance');
+      
+      if (!isLinked) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please link your Binance API first'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        return;
+      }
+
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please link your Binance API first'),
-            backgroundColor: Colors.red,
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AlgoTradingConfigScreen(
+              coin: widget.coin,
+              quoteCurrency: widget.quoteCurrency,
+            ),
           ),
         );
       }
-      return;
-    }
-
-    if (context.mounted) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => AlgoTradingConfigScreen(
-            coin: widget.coin,
-            quoteCurrency: widget.quoteCurrency,
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
           ),
-        ),
-      );
+        );
+      }
     }
   }
 
