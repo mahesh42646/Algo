@@ -101,7 +101,7 @@ export default function TutorialPage() {
                 <p className="text-muted mb-4">
                   Our support team is here to help you succeed. Reach out anytime!
                 </p>
-                <a href="/home/contact" className="btn btn-primary">
+                <a href="/contact" className="btn btn-primary">
                   Contact Support
                 </a>
               </div>

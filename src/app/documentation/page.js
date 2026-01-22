@@ -95,7 +95,7 @@ export default function DocumentationPage() {
                 <p className="text-muted mb-3">
                   Can't find what you're looking for? Our support team is here to help.
                 </p>
-                <a href="/home/contact" className="btn btn-outline-primary">Contact Support</a>
+                <a href="/contact" className="btn btn-outline-primary">Contact Support</a>
               </div>
             </div>
           </div>

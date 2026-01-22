@@ -84,7 +84,7 @@ export default function PricingPage() {
                       ))}
                     </ul>
                     <a
-                      href="/home/registration"
+                      href="/auth/registration"
                       className={`btn w-100 ${plan.popular ? 'btn-primary' : 'btn-outline-primary'}`}
                     >
                       Get Started
