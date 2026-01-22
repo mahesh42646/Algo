@@ -97,21 +97,25 @@ router.post('/:userId/start', async (req, res, next) => {
       });
     }
 
-    // Check exchange balance
+    // Calculate total trade amount for all levels
+    const totalTradeAmount = parseFloat(amountPerLevel) * parseInt(numberOfLevels);
+    
+    // Check exchange balance - must be sufficient for ALL levels
     const exchangeBalance = await getExchangeBalance(apiKey, apiSecret, symbol.toUpperCase());
-    if (exchangeBalance <= 0) {
-      console.error(`[ALGO TRADING START] ❌ Insufficient exchange balance: ${exchangeBalance}`);
+    if (exchangeBalance < totalTradeAmount) {
+      console.error(`[ALGO TRADING START] ❌ Insufficient exchange balance: ${exchangeBalance} < ${totalTradeAmount}`);
       return res.status(400).json({
         success: false,
         error: 'Insufficient exchange balance',
-        details: `Your ${api.platform} account has no balance. Please deposit funds first.`,
+        details: `You need at least \$${totalTradeAmount.toFixed(2)} in your ${api.platform} account for all ${numberOfLevels} levels. Current: \$${exchangeBalance.toFixed(2)}`,
+        required: totalTradeAmount,
+        current: exchangeBalance,
       });
     }
 
-    console.log(`[ALGO TRADING START] ✅ Exchange balance: \$${exchangeBalance.toFixed(2)}`);
+    console.log(`[ALGO TRADING START] ✅ Exchange balance: \$${exchangeBalance.toFixed(2)} (Required: \$${totalTradeAmount.toFixed(2)} for ${numberOfLevels} levels)`);
 
-    // Calculate required platform wallet balance (3% of total trade amount)
-    const totalTradeAmount = parseFloat(amountPerLevel) * parseInt(numberOfLevels);
+    // Calculate required platform wallet balance (3% of total trade amount for ALL levels)
     const requiredWalletBalance = totalTradeAmount * 0.03;
 
     // Check platform wallet balance
@@ -130,20 +134,13 @@ router.post('/:userId/start', async (req, res, next) => {
       });
     }
 
-    console.log(`[ALGO TRADING START] ✅ Platform wallet balance: \$${platformWalletBalance.toFixed(2)} (Required: \$${requiredWalletBalance.toFixed(2)})`);
+    console.log(`[ALGO TRADING START] ✅ Platform wallet balance: \$${platformWalletBalance.toFixed(2)} (Required: \$${requiredWalletBalance.toFixed(2)} for all levels)`);
 
-    // Deduct initial platform wallet fee (3% of first level)
-    const firstLevelFee = parseFloat(amountPerLevel) * 0.03;
-    if (usdtBalance) {
-      usdtBalance.amount = Math.max(0, usdtBalance.amount - firstLevelFee);
-    } else {
-      walletBalances.push({ currency: 'USDT', amount: -firstLevelFee });
-    }
-    await user.save();
+    // Reserve platform wallet balance (3% of total for all levels) - will be deducted at each level
+    // Don't deduct upfront, deduct at each level execution
+    console.log(`[ALGO TRADING START] 💰 Platform wallet balance reserved: \$${requiredWalletBalance.toFixed(2)} (will be deducted at each level)`);
 
-    console.log(`[ALGO TRADING START] 💰 Deducted platform wallet fee: \$${firstLevelFee.toFixed(2)}`);
-
-    // Create trade object
+    // Create trade object - starts in WAITING state until strong signal
     const trade = {
       userId,
       symbol: symbol.toUpperCase(),
@@ -162,10 +159,12 @@ router.post('/:userId/start', async (req, res, next) => {
       totalInvested: 0,
       orders: [],
       isActive: true,
+      isStarted: false, // New: track if trade has actually started (after strong signal)
+      tradeDirection: null, // 'BUY' or 'SELL' - set when first order is placed
       startedAt: new Date(),
       lastSignal: null,
       intervalId: null,
-      platformWalletFees: [firstLevelFee], // Track all fees
+      platformWalletFees: [], // Track all fees (deducted at each level)
     };
 
     // Start the algo trading loop
@@ -203,11 +202,13 @@ router.post('/:userId/start', async (req, res, next) => {
 
     res.json({
       success: true,
-      message: 'Algo trading started successfully',
+      message: 'Algo trading configured successfully. Waiting for strong signal to start...',
       data: {
         symbol: trade.symbol,
         startedAt: trade.startedAt,
-        platformWalletFee: firstLevelFee,
+        status: 'waiting_for_signal',
+        requiredWalletBalance: requiredWalletBalance,
+        totalTradeAmount: totalTradeAmount,
       },
     });
   } catch (error) {
@@ -369,35 +370,80 @@ router.get('/:userId/trades', async (req, res, next) => {
 // Execute one step of algo trading
 async function executeAlgoTradingStep(trade) {
   try {
-    console.log(`[ALGO TRADING STEP] 🔄 Processing step for ${trade.symbol} (Level: ${trade.currentLevel}/${trade.numberOfLevels})`);
+    const status = trade.isStarted ? 'ACTIVE' : 'WAITING';
+    console.log(`[ALGO TRADING STEP] 🔄 Processing step for ${trade.symbol} (Status: ${status}, Level: ${trade.currentLevel}/${trade.numberOfLevels})`);
     
-    // Get current price and technical indicators
+    // Get current price
     const currentPrice = await getCurrentPrice(trade.symbol);
     
-    if (trade.startPrice === 0) {
-      trade.startPrice = currentPrice;
-      console.log(`[ALGO TRADING STEP] 📍 Start price set: \$${currentPrice.toFixed(8)}`);
+    // If trade hasn't started yet, wait for strong signal
+    if (!trade.isStarted) {
+      console.log(`[ALGO TRADING STEP] ⏳ Waiting for strong signal to start trade...`);
+      
+      // Get technical indicators
+      const candles = await getCandlesticks(trade.symbol, '5m', 200);
+      const signal = await getTradingSignal(candles, currentPrice);
+      trade.lastSignal = signal;
+
+      // Wait for strong signal (either BUY or SELL)
+      if (signal.strength === 'strong' && (signal.direction === 'BUY' || signal.direction === 'SELL')) {
+        console.log(`[ALGO TRADING STEP] ✅ Strong ${signal.direction} signal detected - Starting trade!`);
+        
+        // Set start price and trade direction
+        trade.startPrice = currentPrice;
+        trade.tradeDirection = signal.direction;
+        trade.isStarted = true;
+        
+        // Deduct platform wallet fee for first level
+        const levelFee = trade.amountPerLevel * 0.03;
+        const user = await User.findOne({ userId: trade.userId }).select('wallet notifications');
+        
+        if (user) {
+          const walletBalances = user.wallet?.balances || [];
+          const usdtBalance = walletBalances.find(b => b.currency === 'USDT');
+          
+          if (usdtBalance && usdtBalance.amount >= levelFee) {
+            usdtBalance.amount = Math.max(0, usdtBalance.amount - levelFee);
+            trade.platformWalletFees.push(levelFee);
+            await user.save();
+            
+            console.log(`[ALGO TRADING STEP] 💰 Deducted platform wallet fee: \$${levelFee.toFixed(2)} (Level 1)`);
+            
+            // Add notification
+            user.notifications.push({
+              title: `Algo Trading Started - ${trade.symbol} 🚀`,
+              message: `Trade started with ${signal.direction} signal. Level 1 executed. Fee: \$${levelFee.toFixed(2)}`,
+              type: 'success',
+              read: false,
+              createdAt: new Date(),
+            });
+            await user.save();
+          } else {
+            console.error(`[ALGO TRADING STEP] ❌ Insufficient platform wallet for level fee: \$${levelFee.toFixed(2)}`);
+            await closeAllPositions(trade, 'insufficient_funds');
+            return;
+          }
+        }
+        
+        // Place first order
+        await placeOrder(trade, signal.direction, currentPrice, trade.amountPerLevel);
+        trade.currentLevel = 1;
+        console.log(`[ALGO TRADING STEP] ✅ Trade started! Level 1 ${signal.direction} order placed at \$${currentPrice.toFixed(8)}`);
+        return;
+      } else {
+        console.log(`[ALGO TRADING STEP] ⏭️ ${trade.symbol}: ${signal.direction} signal (${signal.strength}) - Still waiting for strong signal`);
+        return;
+      }
     }
 
-    // Get technical indicators
-    const candles = await getCandlesticks(trade.symbol, '5m', 200);
-    const signal = await getTradingSignal(candles, currentPrice);
-
-    trade.lastSignal = signal;
-
-    // If no strong signal, skip this cycle
-    if (signal.strength !== 'strong') {
-      console.log(`[ALGO TRADING STEP] ⏭️ ${trade.symbol}: ${signal.direction} signal (${signal.strength}) - Skipping`);
-      return;
-    }
-
+    // Trade has started - now handle loss adjustments and profit booking
     // Calculate current P&L
     const currentPnL = ((currentPrice - trade.startPrice) / trade.startPrice) * 100;
     const avgPrice = trade.totalInvested > 0 
       ? trade.totalInvested / (trade.orders.reduce((sum, o) => sum + parseFloat(o.quantity), 0) || 1)
       : currentPrice;
 
-    console.log(`[ALGO TRADING STEP] 📊 Current P&L: ${currentPnL.toFixed(2)}%, Price: \$${currentPrice.toFixed(8)}`);
+    console.log(`[ALGO TRADING STEP] 📊 Current P&L: ${currentPnL.toFixed(2)}%, Price: \$${currentPrice.toFixed(8)}, Direction: ${trade.tradeDirection}`);
 
     // Check stop conditions
     if (currentPnL >= trade.maxProfitBook) {
@@ -416,9 +462,11 @@ async function executeAlgoTradingStep(trade) {
       }
     }
 
-    // Check if we need to add more (averaging down)
-    if (signal.direction === 'BUY' && currentPnL <= -trade.maxLossPerTrade && trade.currentLevel < trade.numberOfLevels) {
+    // Check if we need to add more (averaging down) - NO SIGNAL CHECK, just check loss
+    // Loss adjustments are always in the SAME direction as initial trade
+    if (currentPnL <= -trade.maxLossPerTrade && trade.currentLevel < trade.numberOfLevels) {
       console.log(`[ALGO TRADING STEP] 📉 Loss threshold hit: ${currentPnL.toFixed(2)}% <= -${trade.maxLossPerTrade}%`);
+      console.log(`[ALGO TRADING STEP] 🔄 Adding level in same direction: ${trade.tradeDirection} (no signal check)`);
       
       // Deduct platform wallet fee before placing order
       const levelFee = trade.amountPerLevel * 0.03;
@@ -438,7 +486,7 @@ async function executeAlgoTradingStep(trade) {
           // Add notification
           user.notifications.push({
             title: `Algo Trading - Level ${trade.currentLevel + 1} 📈`,
-            message: `Level ${trade.currentLevel + 1} executed for ${trade.symbol}. Fee: \$${levelFee.toFixed(2)}`,
+            message: `Level ${trade.currentLevel + 1} executed for ${trade.symbol} (${trade.tradeDirection}). Fee: \$${levelFee.toFixed(2)}`,
             type: 'info',
             read: false,
             createdAt: new Date(),
@@ -451,14 +499,10 @@ async function executeAlgoTradingStep(trade) {
         }
       }
       
-      // Place buy order
-      await placeOrder(trade, 'BUY', currentPrice, trade.amountPerLevel);
+      // Place order in SAME direction as initial trade (no signal check)
+      await placeOrder(trade, trade.tradeDirection, currentPrice, trade.amountPerLevel);
       trade.currentLevel++;
-      console.log(`[ALGO TRADING STEP] ✅ Level ${trade.currentLevel} order placed`);
-    } else if (signal.direction === 'SELL' && currentPnL >= trade.maxProfitBook) {
-      // Place sell order to book profit
-      console.log(`[ALGO TRADING STEP] 💰 Profit target reached, closing positions`);
-      await closeAllPositions(trade, 'profit');
+      console.log(`[ALGO TRADING STEP] ✅ Level ${trade.currentLevel} ${trade.tradeDirection} order placed (loss adjustment)`);
     }
 
   } catch (error) {
