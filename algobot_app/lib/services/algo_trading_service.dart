@@ -122,4 +122,40 @@ class AlgoTradingService {
       return [];
     }
   }
+
+  // Get profit details
+  Future<Map<String, dynamic>> getProfitDetails({String period = '7d'}) async {
+    if (_userId == null) {
+      throw Exception('User not logged in');
+    }
+
+    try {
+      final response = await _apiHandler.get(
+        '/algo-trading/$_userId/profits?period=$period',
+      );
+
+      if (response.statusCode == 200) {
+        return response.data['data'] ?? {
+          'totalProfit': 0.0,
+          'todayProfit': 0.0,
+          'tradeHistory': [],
+        };
+      } else {
+        return {
+          'totalProfit': 0.0,
+          'todayProfit': 0.0,
+          'tradeHistory': [],
+        };
+      }
+    } catch (e) {
+      if (Env.enableApiLogs) {
+        print('Error getting profit details: $e');
+      }
+      return {
+        'totalProfit': 0.0,
+        'todayProfit': 0.0,
+        'tradeHistory': [],
+      };
+    }
+  }
 }

@@ -37,25 +37,15 @@ class _ProfitDetailsScreenState extends State<ProfitDetailsScreen> {
     });
 
     try {
-      final userId = _authService.currentUser?.uid;
-      if (userId != null) {
-        // Note: We need to add this endpoint to algo_trading_service
-        // For now, we'll calculate from active trades
-        final activeTrades = await _algoService.getActiveTrades();
-        
-        // Calculate profits (simplified - in production, get from backend)
-        double totalProfit = 0.0;
-        double todayProfit = 0.0;
-        final today = DateTime.now();
-        today.copyWith(hour: 0, minute: 0, second: 0, millisecond: 0);
-
-        if (mounted) {
-          setState(() {
-            _totalProfit = totalProfit;
-            _todayProfit = todayProfit;
-            _isLoading = false;
-          });
-        }
+      final profitData = await _algoService.getProfitDetails(period: _selectedPeriod == 'Last 7 days' ? '7d' : '30d');
+      
+      if (mounted) {
+        setState(() {
+          _totalProfit = (profitData['totalProfit'] ?? 0.0).toDouble();
+          _todayProfit = (profitData['todayProfit'] ?? 0.0).toDouble();
+          _tradeHistory = List<Map<String, dynamic>>.from(profitData['tradeHistory'] ?? []);
+          _isLoading = false;
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -464,9 +454,9 @@ class _ProfitDetailsScreenState extends State<ProfitDetailsScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
-              _buildPeriodButton('Last 7 days', true),
+              _buildPeriodButton('Last 7 days', _selectedPeriod == 'Last 7 days'),
               const SizedBox(width: 12),
-              _buildPeriodButton('1 month', false),
+              _buildPeriodButton('1 month', _selectedPeriod == '1 month'),
             ],
           ),
         ),
@@ -582,7 +572,12 @@ class _ProfitDetailsScreenState extends State<ProfitDetailsScreen> {
 
   Widget _buildPeriodButton(String label, bool isSelected) {
     return GestureDetector(
-      onTap: () => setState(() => _selectedPeriod = label),
+      onTap: () {
+        setState(() {
+          _selectedPeriod = label;
+        });
+        _loadProfitData();
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
