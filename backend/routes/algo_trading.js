@@ -301,8 +301,31 @@ router.post('/:userId/stop', async (req, res, next) => {
     // Mark as inactive
     trade.isActive = false;
     trade.stoppedAt = new Date();
+    trade.stopReason = 'user_stopped';
 
     activeTrades.delete(tradeKey);
+
+    // Update strategy status
+    const user = await User.findOne({ userId }).select('strategies notifications');
+    if (user) {
+      const strategy = user.strategies.find(
+        s => s.type === 'algo_trading' && s.symbol === symbol.toUpperCase() && s.status === 'active'
+      );
+      if (strategy) {
+        strategy.status = 'inactive';
+        console.log(`[ALGO TRADING STOP] 📝 Updated strategy status to inactive: ${strategy.name}`);
+      }
+
+      user.notifications.push({
+        title: `Algo Trading Stopped - ${symbol.toUpperCase()} 🛑`,
+        message: `You stopped the algo trade for ${symbol.toUpperCase()}.`,
+        type: 'info',
+        read: false,
+        createdAt: new Date(),
+      });
+
+      await user.save();
+    }
 
     console.log(`[ALGO TRADING] ⏹️ Stopped algo trading for ${symbol} (User: ${userId})`);
 
@@ -793,13 +816,14 @@ async function closeAllPositions(trade, reason) {
     const tradeKey = `${trade.userId}:${trade.symbol}`;
     activeTrades.delete(tradeKey);
 
-    // Add notification
-    const user = await User.findOne({ userId: trade.userId }).select('notifications');
+    // Add notification and update strategy status
+    const user = await User.findOne({ userId: trade.userId }).select('notifications strategies');
     if (user) {
       const reasonMessages = {
         'profit': 'Profit target reached',
         'max_loss': 'Maximum loss limit reached',
         'insufficient_funds': 'Insufficient platform wallet balance',
+        'admin_stopped': 'Stopped by administrator',
       };
       
       user.notifications.push({
@@ -809,6 +833,16 @@ async function closeAllPositions(trade, reason) {
         read: false,
         createdAt: new Date(),
       });
+
+      // Update strategy status to inactive
+      const strategy = user.strategies.find(
+        s => s.type === 'algo_trading' && s.symbol === trade.symbol && s.status === 'active'
+      );
+      if (strategy) {
+        strategy.status = 'inactive';
+        console.log(`[ALGO TRADING CLOSE] 📝 Updated strategy status to inactive: ${strategy.name}`);
+      }
+
       await user.save();
       
       console.log(`[ALGO TRADING CLOSE] 📬 Notification sent to user ${trade.userId}`);
