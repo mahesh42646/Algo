@@ -818,41 +818,61 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
   Widget _buildIndicatorRow(String label, String sentiment, Color sentimentColor, int sell, int neutral, int buy) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Expanded(
+        Flexible(
+          flex: 2,
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                '$label: ',
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: sentimentColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: sentimentColor.withOpacity(0.3)),
-                ),
+              Flexible(
                 child: Text(
-                  sentiment,
-                  style: TextStyle(
-                    color: sentimentColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+                  '$label: ',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: sentimentColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: sentimentColor.withOpacity(0.3)),
+                  ),
+                  child: Text(
+                    sentiment,
+                    style: TextStyle(
+                      color: sentimentColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),
             ],
           ),
         ),
-        Row(
-          children: [
-            _buildSignalBadge('Sell', sell, Colors.red),
-            const SizedBox(width: 8),
-            _buildSignalBadge('Neutral', neutral, Colors.grey),
-            const SizedBox(width: 8),
-            _buildSignalBadge('Buy', buy, Colors.green),
-          ],
+        Flexible(
+          flex: 3,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Flexible(
+                child: _buildSignalBadge('Sell', sell, Colors.red),
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: _buildSignalBadge('Neutral', neutral, Colors.grey),
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: _buildSignalBadge('Buy', buy, Colors.green),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -860,7 +880,7 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
 
   Widget _buildSignalBadge(String label, int value, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(8),
@@ -869,9 +889,10 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
         '$label$value',
         style: TextStyle(
           color: color,
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: FontWeight.w600,
         ),
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }
