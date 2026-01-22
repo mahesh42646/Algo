@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../config/env.dart';
 import '../models/crypto_coin.dart';
@@ -34,6 +35,8 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
   String _selectedTableTab = 'Moving Average';
   Map<int, Map<String, double>> _maValues = {}; // Store calculated MA values
   bool _isLoadingMA = false;
+  Timer? _indicatorUpdateTimer;
+  DateTime? _lastUpdateTime;
   final Map<String, String> _intervalMap = {
     '1m': '1',
     '3m': '3',
@@ -60,6 +63,23 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
   void initState() {
     super.initState();
     _loadData();
+    _startIndicatorUpdates();
+  }
+
+  @override
+  void dispose() {
+    _indicatorUpdateTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startIndicatorUpdates() {
+    // Update indicators every 5 seconds
+    _indicatorUpdateTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (mounted) {
+        final symbol = '${widget.coin.symbol}${widget.quoteCurrency}';
+        _loadMAData(symbol, silent: true); // Silent update without showing loading
+      }
+    });
   }
 
   Future<void> _loadData() async {
@@ -84,10 +104,20 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
     }
   }
 
-  Future<void> _loadMAData(String symbol) async {
-    setState(() {
-      _isLoadingMA = true;
-    });
+  Future<void> _loadMAData(String symbol, {bool silent = false}) async {
+    // Throttle API calls - don't update more than once every 3 seconds
+    if (_lastUpdateTime != null) {
+      final timeSinceLastUpdate = DateTime.now().difference(_lastUpdateTime!);
+      if (timeSinceLastUpdate.inSeconds < 3 && silent) {
+        return; // Skip if updated recently and this is a silent update
+      }
+    }
+
+    if (!silent) {
+      setState(() {
+        _isLoadingMA = true;
+      });
+    }
 
     try {
       // Get current interval for Binance API
@@ -104,9 +134,11 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
       );
 
       if (candles.isEmpty) {
-        setState(() {
-          _isLoadingMA = false;
-        });
+        if (!silent) {
+          setState(() {
+            _isLoadingMA = false;
+          });
+        }
         return;
       }
 
@@ -118,18 +150,23 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
       final currentPrice = widget.coin.currentPrice;
       final sentiment = TechnicalIndicators.calculateSentiment(currentPrice, maValues);
 
-      setState(() {
-        _maValues = maValues;
-        _sentiment = sentiment;
-        _isLoadingMA = false;
-      });
+      if (mounted) {
+        setState(() {
+          _maValues = maValues;
+          _sentiment = sentiment;
+          _isLoadingMA = false;
+          _lastUpdateTime = DateTime.now();
+        });
+      }
     } catch (e) {
       if (Env.enableApiLogs) {
         print('Error loading MA data: $e');
       }
-      setState(() {
-        _isLoadingMA = false;
-      });
+      if (!silent && mounted) {
+        setState(() {
+          _isLoadingMA = false;
+        });
+      }
     }
   }
 
@@ -460,55 +497,94 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
   }
 
   Widget _buildTechnicalIndicatorSection() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildTechnicalIndicatorHeader(),
-          const SizedBox(height: 16),
-          _buildSentimentGauge(),
-          const SizedBox(height: 16),
-          _buildSummaryBoxes(),
-          const SizedBox(height: 16),
-          _buildIndicatorSummary(),
-          const SizedBox(height: 16),
-          _buildMATable(),
-        ],
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            _buildTechnicalIndicatorHeader(),
+            const SizedBox(height: 24),
+            _buildSentimentGaugeCard(),
+            const SizedBox(height: 20),
+            _buildSummaryBoxesCard(),
+            const SizedBox(height: 20),
+            _buildIndicatorSummaryCard(),
+            const SizedBox(height: 20),
+            _buildMATableCard(),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildTechnicalIndicatorHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.settings, color: Colors.grey[600]),
-            const SizedBox(width: 8),
-            const Text(
-              '🛠️ Technical Indicator',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.analytics,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Technical Indicators',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
             ),
-          ],
-        ),
-        DropdownButton<String>(
-          value: _intervals.firstWhere((i) => _intervalMap[i] == _selectedInterval, orElse: () => '5m'),
-          items: _intervals.map((interval) {
-            return DropdownMenuItem(value: interval, child: Text(interval));
-          }).toList(),
-          onChanged: (value) {
-            if (value != null && _intervalMap.containsKey(value)) {
-              _onIntervalChanged(value);
-            }
-          },
-        ),
-      ],
+            child: DropdownButton<String>(
+              value: _intervals.firstWhere((i) => _intervalMap[i] == _selectedInterval, orElse: () => '5m'),
+              items: _intervals.map((interval) {
+                return DropdownMenuItem(value: interval, child: Text(interval));
+              }).toList(),
+              onChanged: (value) {
+                if (value != null && _intervalMap.containsKey(value)) {
+                  _onIntervalChanged(value);
+                }
+              },
+              underline: const SizedBox(),
+              icon: Icon(
+                Icons.arrow_drop_down,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildSentimentGauge() {
+  Widget _buildSentimentGaugeCard() {
     final total = _sentiment['buy']! + _sentiment['sell']! + _sentiment['neutral']!;
     final buyRatio = total > 0 ? _sentiment['buy']! / total : 0.0;
     final sellRatio = total > 0 ? _sentiment['sell']! / total : 0.0;
@@ -516,87 +592,156 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
     
     String sentiment = 'Neutral';
     Color sentimentColor = Colors.grey;
-    double needleAngle = 0.0; // 0 = center (Neutral), -1 = left (Sell), 1 = right (Buy)
+    double needleAngle = 0.0;
     
     if (buyRatio > sellRatio && buyRatio > neutralRatio) {
       sentiment = buyRatio > 0.6 ? 'Strong Buy' : 'Buy';
       sentimentColor = Colors.blue;
-      needleAngle = buyRatio * 0.5; // Point towards buy side
+      needleAngle = buyRatio * 0.5;
     } else if (sellRatio > buyRatio && sellRatio > neutralRatio) {
       sentiment = sellRatio > 0.6 ? 'Strong Sell' : 'Sell';
       sentimentColor = Colors.red;
-      needleAngle = -sellRatio * 0.5; // Point towards sell side
+      needleAngle = -sellRatio * 0.5;
     } else {
       sentiment = 'Neutral';
       sentimentColor = Colors.grey;
       needleAngle = 0.0;
     }
 
-    return Column(
-      children: [
-        SizedBox(
-          height: 120,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              CustomPaint(
-                size: const Size(300, 120),
-                painter: SentimentGaugePainter(
-                  buyRatio: buyRatio,
-                  sellRatio: sellRatio,
-                  neutralRatio: neutralRatio,
-                  sentiment: sentiment,
-                  needleAngle: needleAngle,
-                ),
-              ),
-              Positioned(
-                bottom: 20,
-                child: Text(
-                  sentiment,
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: sentimentColor,
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 15,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(
+          color: sentimentColor.withOpacity(0.2),
+          width: 2,
+        ),
+      ),
+      child: Column(
+        children: [
+          Text(
+            'Market Sentiment',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 140,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                CustomPaint(
+                  size: const Size(320, 140),
+                  painter: SentimentGaugePainter(
+                    buyRatio: buyRatio,
+                    sellRatio: sellRatio,
+                    neutralRatio: neutralRatio,
+                    sentiment: sentiment,
+                    needleAngle: needleAngle,
                   ),
                 ),
-              ),
-            ],
+                Positioned(
+                  bottom: 30,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: sentimentColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: sentimentColor.withOpacity(0.3),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Text(
+                      sentiment,
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: sentimentColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildSummaryBoxes() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: [
-        _buildSummaryBox('Sell', _sentiment['sell']!, Colors.red),
-        _buildSummaryBox('Neutral', _sentiment['neutral']!, Colors.grey),
-        _buildSummaryBox('Buy', _sentiment['buy']!, Colors.blue),
-      ],
+  Widget _buildSummaryBoxesCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 15,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Text(
+            'Signal Summary',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildSummaryBox('Sell', _sentiment['sell']!, Colors.red),
+              _buildSummaryBox('Neutral', _sentiment['neutral']!, Colors.grey),
+              _buildSummaryBox('Buy', _sentiment['buy']!, Colors.blue),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildSummaryBox(String label, int value, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.3), width: 1.5),
       ),
       child: Column(
         children: [
           Text(
             label,
-            style: TextStyle(color: color, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Text(
             '$value',
             style: TextStyle(
-              fontSize: 20,
+              fontSize: 28,
               fontWeight: FontWeight.bold,
               color: color,
             ),
@@ -606,7 +751,7 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
     );
   }
 
-  Widget _buildIndicatorSummary() {
+  Widget _buildIndicatorSummaryCard() {
     final maBuy = _sentiment['buy']!;
     final maSell = _sentiment['sell']!;
     final maNeutral = _sentiment['neutral']!;
@@ -621,118 +766,182 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
       maColor = Colors.red;
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 15,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Indicator Analysis',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildIndicatorRow(
+            'Moving Average',
+            maSentiment,
+            maColor,
+            maSell,
+            maNeutral,
+            maBuy,
+          ),
+          const SizedBox(height: 16),
+          const Divider(),
+          const SizedBox(height: 16),
+          _buildIndicatorRow(
+            'Technical Indicator',
+            'Neutral',
+            Colors.orange,
+            0,
+            3,
+            1,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIndicatorRow(String label, String sentiment, Color sentimentColor, int sell, int neutral, int buy) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                const Text('Moving Average: '),
-                Text(
-                  maSentiment,
-                  style: TextStyle(color: maColor, fontWeight: FontWeight.bold),
+        Expanded(
+          child: Row(
+            children: [
+              Text(
+                '$label: ',
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: sentimentColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: sentimentColor.withOpacity(0.3)),
                 ),
-              ],
-            ),
-            Row(
-              children: [
-                Text(
-                  'Sell$maSell',
-                  style: const TextStyle(color: Colors.red, fontSize: 12),
+                child: Text(
+                  sentiment,
+                  style: TextStyle(
+                    color: sentimentColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  'Neutral$maNeutral',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Buy$maBuy',
-                  style: const TextStyle(color: Colors.green, fontSize: 12),
-                ),
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 16),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              children: [
-                const Text('Technical Indicator: '),
-                Text(
-                  'Neutral',
-                  style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                const Text(
-                  'Sell0',
-                  style: TextStyle(color: Colors.red, fontSize: 12),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Neutral3',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                ),
-                const SizedBox(width: 8),
-                const Text(
-                  'Buy1',
-                  style: TextStyle(color: Colors.green, fontSize: 12),
-                ),
-              ],
-            ),
+            _buildSignalBadge('Sell', sell, Colors.red),
+            const SizedBox(width: 8),
+            _buildSignalBadge('Neutral', neutral, Colors.grey),
+            const SizedBox(width: 8),
+            _buildSignalBadge('Buy', buy, Colors.green),
           ],
         ),
       ],
     );
   }
 
-  Widget _buildMATable() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            _buildTableTab('Moving Average', 'Moving Average'),
-            _buildTableTab('Technical Indicator', 'Technical Indicator'),
-            _buildTableTab('Pivot Point', 'Pivot Point'),
-          ],
+  Widget _buildSignalBadge(String label, int value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        '$label$value',
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
         ),
-        const SizedBox(height: 8),
-        _buildMATableContent(),
-      ],
+      ),
+    );
+  }
+
+  Widget _buildMATableCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 15,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                _buildTableTab('Moving Average', 'Moving Average'),
+                _buildTableTab('Technical Indicator', 'Technical Indicator'),
+                _buildTableTab('Pivot Point', 'Pivot Point'),
+              ],
+            ),
+          ),
+          _buildMATableContent(),
+        ],
+      ),
     );
   }
 
   Widget _buildTableTab(String label, String value) {
     final isActive = _selectedTableTab == value;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedTableTab = value;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: isActive ? Theme.of(context).colorScheme.primary : Colors.transparent,
-              width: 2,
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _selectedTableTab = value;
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          margin: const EdgeInsets.only(right: 8),
+          decoration: BoxDecoration(
+            color: isActive
+                ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isActive
+                  ? Theme.of(context).colorScheme.primary
+                  : Colors.transparent,
+              width: 1.5,
             ),
           ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isActive ? Theme.of(context).colorScheme.primary : Colors.grey[600],
-            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isActive
+                  ? Theme.of(context).colorScheme.primary
+                  : Colors.grey[600],
+              fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+              fontSize: 13,
+            ),
           ),
         ),
       ),
@@ -742,8 +951,9 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
   Widget _buildMATableContent() {
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey[300]!),
-        borderRadius: BorderRadius.circular(8),
+        border: Border(
+          top: BorderSide(color: Colors.grey[300]!),
+        ),
       ),
       child: Column(
         children: [
@@ -756,16 +966,46 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
 
   Widget _buildTableHeader() {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey[100],
+        color: Colors.grey[100]!.withOpacity(0.5),
         border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
       ),
       child: Row(
         children: [
-          Expanded(flex: 2, child: Text('Name', style: TextStyle(fontWeight: FontWeight.bold))),
-          Expanded(flex: 3, child: Text('Standard (SMA)', style: TextStyle(fontWeight: FontWeight.bold))),
-          Expanded(flex: 3, child: Text('Move (EMA)', style: TextStyle(fontWeight: FontWeight.bold))),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Name',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: Colors.grey[700],
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              'Standard (SMA)',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: Colors.grey[700],
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              'Move (EMA)',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: Colors.grey[700],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -777,29 +1017,35 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
     
     if (_isLoadingMA || _maValues.isEmpty) {
       return periods.map((period) {
-        return Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
-          ),
-          child: Row(
-            children: [
-              Expanded(flex: 2, child: Text('MA($period)')),
-              Expanded(
-                flex: 3,
-                child: _isLoadingMA 
-                    ? const Center(child: CircularProgressIndicator())
-                    : const Text('Loading...', style: TextStyle(color: Colors.grey)),
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: Text(
+                'MA($period)',
+                style: const TextStyle(fontWeight: FontWeight.w500),
               ),
-              Expanded(
-                flex: 3,
-                child: _isLoadingMA 
-                    ? const SizedBox()
-                    : const Text('Loading...', style: TextStyle(color: Colors.grey)),
-              ),
-            ],
-          ),
-        );
+            ),
+            Expanded(
+              flex: 3,
+              child: _isLoadingMA
+                  ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Loading...', style: TextStyle(color: Colors.grey)),
+            ),
+            Expanded(
+              flex: 3,
+              child: _isLoadingMA
+                  ? const SizedBox()
+                  : const Text('Loading...', style: TextStyle(color: Colors.grey)),
+            ),
+          ],
+        ),
+      );
       }).toList();
     }
     
@@ -808,25 +1054,31 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
       final maData = _maValues[period];
       
       if (maData == null) {
-        return Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
-          ),
-          child: Row(
-            children: [
-              Expanded(flex: 2, child: Text('MA($period)')),
-              Expanded(
-                flex: 3,
-                child: const Text('N/A', style: TextStyle(color: Colors.grey)),
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: Text(
+                'MA($period)',
+                style: const TextStyle(fontWeight: FontWeight.w500),
               ),
-              Expanded(
-                flex: 3,
-                child: const Text('N/A', style: TextStyle(color: Colors.grey)),
-              ),
-            ],
-          ),
-        );
+            ),
+            Expanded(
+              flex: 3,
+              child: const Text('N/A', style: TextStyle(color: Colors.grey)),
+            ),
+            Expanded(
+              flex: 3,
+              child: const Text('N/A', style: TextStyle(color: Colors.grey)),
+            ),
+          ],
+        ),
+      );
       }
 
       final sma = maData['sma']!;
@@ -835,27 +1087,51 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
       final smaSignal = TechnicalIndicators.getMASignal(currentPrice, sma);
       final emaSignal = TechnicalIndicators.getMASignal(currentPrice, ema);
 
+      final smaColor = smaSignal == 'Buy' ? Colors.green : smaSignal == 'Sell' ? Colors.red : Colors.grey;
+      final emaColor = emaSignal == 'Buy' ? Colors.green : emaSignal == 'Sell' ? Colors.red : Colors.grey;
+
       return Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
         ),
         child: Row(
           children: [
-            Expanded(flex: 2, child: Text('MA($period)')),
+            Expanded(
+              flex: 2,
+              child: Text(
+                'MA($period)',
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ),
             Expanded(
               flex: 3,
               child: Row(
                 children: [
-                  Text(
-                    smaSignal,
-                    style: TextStyle(
-                      color: smaSignal == 'Buy' ? Colors.green : smaSignal == 'Sell' ? Colors.red : Colors.grey,
-                      fontWeight: FontWeight.w600,
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: smaColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: smaColor.withOpacity(0.3)),
+                    ),
+                    child: Text(
+                      smaSignal,
+                      style: TextStyle(
+                        color: smaColor,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Text(sma.toStringAsFixed(4)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      sma.toStringAsFixed(4),
+                      style: const TextStyle(fontSize: 13),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -863,15 +1139,30 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
               flex: 3,
               child: Row(
                 children: [
-                  Text(
-                    emaSignal,
-                    style: TextStyle(
-                      color: emaSignal == 'Buy' ? Colors.green : emaSignal == 'Sell' ? Colors.red : Colors.grey,
-                      fontWeight: FontWeight.w600,
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: emaColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: emaColor.withOpacity(0.3)),
+                    ),
+                    child: Text(
+                      emaSignal,
+                      style: TextStyle(
+                        color: emaColor,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Text(ema.toStringAsFixed(4)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      ema.toStringAsFixed(4),
+                      style: const TextStyle(fontSize: 13),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
             ),
