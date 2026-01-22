@@ -437,19 +437,10 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
                   items: _availableApis.map((api) {
                     return DropdownMenuItem(
                       value: api,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '${api.platform.toUpperCase()} - ${api.label}',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          Text(
-                            'Permissions: ${api.permissions.join(", ")}',
-                            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                          ),
-                        ],
+                      child: Text(
+                        '${api.platform.toUpperCase()} - ${api.label}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     );
                   }).toList(),

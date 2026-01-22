@@ -817,4 +817,7 @@ function calculateMACD(prices, fastPeriod = 12, slowPeriod = 26, signalPeriod = 
   };
 }
 
+// Export activeTrades map for admin access
+router.getActiveTrades = () => activeTrades;
+
 module.exports = router;
