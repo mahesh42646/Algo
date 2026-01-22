@@ -241,11 +241,11 @@ export default function CommunityPage() {
                   Be part of a growing community of traders sharing insights, strategies, and helping each other succeed.
                 </p>
                 <div className="d-flex gap-3 justify-content-center flex-wrap">
-                  <a href="/home/registration" className="btn btn-light btn-lg px-4 fw-semibold ">
+                  <a href="/auth/registration" className="btn btn-light btn-lg px-4 fw-semibold ">
                     <BootstrapIcon name="person-plus" className="me-2" />
                     Sign Up
                   </a>
-                  <a href="/home/login" className="btn btn-outline-light btn-lg px-4 fw-semibold ">
+                  <a href="/auth/login" className="btn btn-outline-light btn-lg px-4 fw-semibold ">
                     <BootstrapIcon name="box-arrow-in-right" className="me-2" />
                     Sign In
                   </a>

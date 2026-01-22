@@ -90,7 +90,7 @@ export default function PartnersPage() {
                   </ul>
                 </div>
                 <div className="text-center">
-                  <a href="/home/contact" className="btn btn-primary btn-lg">
+                  <a href="/contact" className="btn btn-primary btn-lg">
                     Get in Touch
                   </a>
                 </div>

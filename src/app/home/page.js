@@ -550,7 +550,7 @@ export default function HomePage() {
                 <div className="row mt-5">
                   <div className="col text-center">
                     <a
-                      href="/home/registration"
+                      href="/auth/registration"
                       className="btn btn-primary btn-lg px-5 py-2 rounded-3 fw-semibold shadow-card"
                     >
                       Create My Free Account
@@ -663,13 +663,13 @@ export default function HomePage() {
                 </ul>
                 <div className="text-center text-lg-start mt-auto">
                   <a
-                    href="/home/registration"
+                    href="/auth/registration"
                     className="btn btn-primary btn-lg px-4 fw-bold rounded-3 mb-3"
                   >
                     Get Started
                   </a>
                   <div className="small text-muted mb-2">
-                    Already a member? <a href="/login" className="text-decoration-underline">Sign in</a>
+                    Already a member? <a href="/auth/login" className="text-decoration-underline">Sign in</a>
                   </div>
                   <div className="alert alert-info d-inline-flex align-items-center py-2 px-3 mb-0" role="alert" style={{fontSize: '1rem'}}>
                     <i className="bi bi-shield-exclamation me-2"></i>
@@ -796,7 +796,7 @@ export default function HomePage() {
                         Advance affiliate levels and unlock even higher earnings as your team grows.
                       </p>
                       <a
-                        href="/register"
+                        href="/auth/register"
                         className="btn btn-primary btn-sm px-4 fw-semibold rounded-pill mt-1"
                       >
                         Start Earning Now
@@ -857,7 +857,7 @@ export default function HomePage() {
                 </div>
                 <div className="text-center mt-4">
                   <a
-                    href="/register"
+                    href="/auth/registration"
                     className="btn btn-primary btn-lg px-5 fw-semibold rounded-pill shadow-sm"
                   >
                     Join Now &amp; Start Earning
@@ -1060,7 +1060,7 @@ export default function HomePage() {
             </div>
             <div className="text-center mt-5">
               <a
-                href="/register"
+                href="/auth/registration"
                 className="btn btn-primary btn-lg px-5 fw-semibold rounded-pill shadow-card"
               >
                 Become a Satisfied Trader&nbsp;
@@ -1096,7 +1096,7 @@ export default function HomePage() {
                   </div>
                 </div>
                 <a
-                  href="/home/registration"
+                  href="/auth/registration"
                   className="btn btn-primary btn-lg rounded-pill fw-semibold px-4 shadow-card mt-3"
                 >
                   Try AlgoBot Now <i className="bi bi-arrow-right-short fs-4 ms-1" />
@@ -1340,7 +1340,7 @@ export default function HomePage() {
                   No coding. No prior trading experience needed.
                 </p>
                 <a
-                  href="/home/registration"
+                  href="/auth/registration"
                   className="btn btn-primary btn-lg px-5 fw-semibold rounded-pill shadow-card"
                 >
                   Get Started Now&nbsp;
