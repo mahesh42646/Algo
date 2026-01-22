@@ -201,15 +201,16 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
         return;
       }
 
-      // Check platform wallet balance
+      // Check platform wallet balance (3% of ALL levels total)
       if (_platformWalletBalance < requiredWalletBalance) {
         setState(() {
           _validationError = 'Insufficient Platform Wallet Balance';
           _validationDetails = {
-            'message': 'You need at least 3% of total trade amount in platform wallet.',
-            'required': '\$${requiredWalletBalance.toStringAsFixed(2)}',
+            'message': 'You need at least 3% of total trade amount (for all $numberOfLevels levels) in platform wallet.',
+            'required': '\$${requiredWalletBalance.toStringAsFixed(2)} (3% of \$${totalTradeAmount.toStringAsFixed(2)})',
             'current': '\$${_platformWalletBalance.toStringAsFixed(2)}',
             'totalTradeAmount': '\$${totalTradeAmount.toStringAsFixed(2)}',
+            'numberOfLevels': '$numberOfLevels levels',
           };
         });
         return;
@@ -580,7 +581,7 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Required: 3% of total trade amount',
+                            'Required: 3% of total trade amount (all levels)',
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.grey[600],
@@ -833,11 +834,12 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            '• The algorithm places limit orders based on strong technical indicator signals\n'
-            '• If loss hits your "Max Loss Per Trade" (e.g., 3%), it adds more funds (Amount Per Level)\n'
-            '• If profit hits your "Max Profit Book" (e.g., 3%), it books profit and stops\n'
+            '• The algorithm waits for a strong signal (BUY or SELL) before starting\n'
+            '• Once started, if loss hits "Max Loss Per Trade" (e.g., 3%), it adds more funds in the same direction\n'
+            '• Loss adjustments don\'t check signals - they automatically add funds when loss threshold is hit\n'
+            '• If profit hits "Max Profit Book" (e.g., 3%), it books profit and stops\n'
             '• If max levels are reached, it books overall loss and stops\n'
-            '• 3% platform wallet fee is deducted at each level',
+            '• 3% platform wallet fee is deducted at each level (must have 3% of total for all levels upfront)',
             style: TextStyle(
               fontSize: 12,
               color: Colors.grey[700],
