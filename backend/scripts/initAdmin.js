@@ -15,8 +15,8 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/algobo
 // Default admin credentials (change these after first login!)
 const DEFAULT_ADMIN = {
   username: 'admin',
-  password: 'admin123', // Change this immediately after first login!
-  email: 'admin@dashboard.com',
+  password: 'algobot@1235', 
+  email: 'admin@algobot.com',
   isActive: true,
 };
 
