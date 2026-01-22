@@ -200,7 +200,7 @@ class _PaymentGatewayContentState extends State<_PaymentGatewayContent> {
       if (Env.enableApiLogs) {
         print('Payment check failed');
       }
-      // Don't change status to failed unless it's a critical error
+      // Don't change status to failed unless it's a critical error.
     }
   }
 
