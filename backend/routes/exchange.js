@@ -372,8 +372,20 @@ router.post('/:userId/:platform/verify', async (req, res, next) => {
     }
 
     // Decrypt credentials (will be sanitized in logs)
-    const apiKey = decrypt(api.apiKey);
-    const apiSecret = decrypt(api.apiSecret);
+    let apiKey, apiSecret;
+    try {
+      apiKey = decrypt(api.apiKey);
+      apiSecret = decrypt(api.apiSecret);
+      console.log(`[EXCHANGE API VERIFY] ✅ Credentials decrypted successfully`);
+      console.log(`[EXCHANGE API VERIFY] 📝 API Key (masked): ${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}`);
+    } catch (decryptError) {
+      console.error(`[EXCHANGE API VERIFY] ❌ Decryption failed:`, decryptError.message);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to decrypt API credentials. Please re-add your API key and secret.',
+        details: 'Encryption key mismatch or corrupted data',
+      });
+    }
 
     // Verify with Binance API
     if (platform.toLowerCase() === 'binance') {
@@ -381,12 +393,24 @@ router.post('/:userId/:platform/verify', async (req, res, next) => {
       const timestamp = Date.now();
       const queryString = `timestamp=${timestamp}`;
       
-      const signature = crypto
-        .createHmac('sha256', apiSecret)
-        .update(queryString)
-        .digest('hex');
-
-      // Get server's public IP address for whitelisting
+      // Validate API key and secret format
+      if (!apiKey || apiKey.length < 20) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid API Key',
+          details: 'API key appears to be invalid or corrupted',
+        });
+      }
+      
+      if (!apiSecret || apiSecret.length < 20) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid API Secret',
+          details: 'API secret appears to be invalid or corrupted',
+        });
+      }
+      
+      // Get server's public IP address for whitelisting (do this first)
       let serverPublicIP = 'Unknown';
       try {
         const ipResponse = await axios.get('https://api.ipify.org?format=json', { timeout: 5000 });
@@ -404,16 +428,37 @@ router.post('/:userId/:platform/verify', async (req, res, next) => {
         }
       }
 
+      const signature = crypto
+        .createHmac('sha256', apiSecret)
+        .update(queryString)
+        .digest('hex');
+      
+      console.log(`[EXCHANGE API VERIFY] 🔐 Signature generated (length: ${signature.length})`);
+      console.log(`[EXCHANGE API VERIFY] 📡 Making request to Binance API...`);
+      console.log(`[EXCHANGE API VERIFY] 🔑 API Key (first 8 chars): ${apiKey.substring(0, 8)}...`);
+      console.log(`[EXCHANGE API VERIFY] 🌐 Request will come from IP: ${serverPublicIP}`);
+
       try {
-        const response = await axios.get(
-          `https://api.binance.com/api/v3/account?${queryString}&signature=${signature}`,
-          {
-            headers: {
-              'X-MBX-APIKEY': apiKey,
+        const binanceUrl = `https://api.binance.com/api/v3/account?${queryString}&signature=${signature}`;
+        console.log(`[EXCHANGE API VERIFY] 📤 Request URL: https://api.binance.com/api/v3/account?timestamp=${timestamp}&signature=[REDACTED]`);
+        
+        const response = await axios.get(binanceUrl, {
+          headers: {
+            'X-MBX-APIKEY': apiKey,
+          },
+          timeout: 10000,
+          validateStatus: (status) => status < 500, // Don't throw on 4xx errors
+        });
+        
+        // Check if response indicates an error
+        if (response.status !== 200 || response.data.code) {
+          throw {
+            response: {
+              status: response.status,
+              data: response.data,
             },
-            timeout: 10000,
-          }
-        );
+          };
+        }
 
         // Update last used
         api.lastUsed = new Date();
@@ -444,7 +489,28 @@ router.post('/:userId/:platform/verify', async (req, res, next) => {
         console.error(`   Status Code: ${statusCode || 'N/A'}`);
         console.error(`   Error Message: ${binanceError}`);
         console.error(`   Server Public IP: ${serverPublicIP}`);
+        console.error(`   API Key (first 8): ${apiKey.substring(0, 8)}...`);
         console.error(`   ⚠️ If IP restriction error, add this IP to Binance whitelist: ${serverPublicIP}`);
+        console.error(`   ⚠️ If you already added the IP, wait 2-5 minutes for Binance to update`);
+        
+        // Additional diagnostics for -2015
+        if (errorCode === -2015) {
+          console.error(`   🔍 Error -2015 Diagnostics:`);
+          console.error(`      - This error can mean: Invalid API key, IP restriction, or permissions`);
+          console.error(`      - Server IP detected: ${serverPublicIP}`);
+          console.error(`      - API Key length: ${apiKey.length} characters (expected: 64+)`);
+          console.error(`      - API Secret length: ${apiSecret.length} characters (expected: 64+)`);
+          console.error(`      - API Key starts with: ${apiKey.substring(0, 8)}...`);
+          console.error(`      - Check if IP ${serverPublicIP} is in Binance whitelist`);
+          console.error(`      - ⏰ IMPORTANT: Wait 2-5 minutes after adding IP before retrying`);
+          console.error(`      - Verify API key and secret are correct in Binance`);
+          console.error(`      - Check that "Enable Reading" permission is enabled`);
+          
+          // Validate credentials format
+          if (apiKey.length < 50 || apiSecret.length < 50) {
+            console.error(`      ⚠️ WARNING: API credentials seem too short - may be corrupted`);
+          }
+        }
 
         // Build detailed error response
         let errorMessage = 'API verification failed';
@@ -468,14 +534,59 @@ router.post('/:userId/:platform/verify', async (req, res, next) => {
             'Check if the API key is active in Binance',
             'Make sure you copied the complete key'
           ];
-        } else if (binanceError.includes('IP') || binanceError.includes('restriction') || errorCode === -2015) {
+        } else if (errorCode === -2015) {
+          // Error -2015 can mean: Invalid API-key, IP restriction, or permissions
+          // Check if IP restriction is likely the issue
+          if (binanceError.includes('IP') || binanceError.toLowerCase().includes('ip')) {
+          errorMessage = 'IP Address Restriction';
+          errorDetails = `Your API key has IP restrictions enabled. The server IP must be whitelisted in Binance.`;
+          troubleshooting = [
+            `✅ IP to whitelist: ${serverPublicIP}`,
+            'Go to Binance → API Management → Edit API → IP Access Restriction',
+            'Make sure "Restrict access to trusted IPs only" is selected',
+            `Add this exact IP: ${serverPublicIP}`,
+            '',
+            '⚠️ IMPORTANT: IP Propagation Delay',
+            'After adding the IP to Binance whitelist, you MUST wait:',
+            '  • Minimum: 2-3 minutes',
+            '  • Recommended: 5 minutes',
+            '  • Maximum: Up to 10 minutes',
+            '',
+            'Binance needs time to propagate the IP whitelist change across their servers.',
+            'If you just added the IP, please wait and try again in a few minutes.',
+            '',
+            '💡 Tip: Check Binance API Management page to confirm the IP is saved correctly.',
+          ];
+          } else {
+            // Could be API key or permissions issue
+            errorMessage = 'API Authentication Failed';
+            errorDetails = `Binance returned error -2015. This can mean: Invalid API key, IP restriction, or insufficient permissions.`;
+            troubleshooting = [
+              '1. Verify API Key:',
+              '   - Check that your API key is correct in Binance',
+              '   - Make sure the API key is active and not deleted',
+              '',
+              '2. Check IP Restrictions:',
+              `   - Add this IP to Binance whitelist: ${serverPublicIP}`,
+              '   - Wait 2-5 minutes after adding IP',
+              '',
+              '3. Verify Permissions:',
+              '   - Enable "Enable Reading" permission',
+              '   - Enable "Enable Spot & Margin Trading" (if needed)',
+              '',
+              '4. Check API Secret:',
+              '   - Verify your API secret is correct',
+              '   - Make sure there are no extra spaces',
+            ];
+          }
+        } else if (binanceError.includes('IP') || binanceError.includes('restriction')) {
           errorMessage = 'IP Address Restriction';
           errorDetails = `Your API key has IP restrictions enabled. Binance requires the server IP to be whitelisted.`;
           troubleshooting = [
             `Add this IP address to your Binance API whitelist: ${serverPublicIP}`,
             'Go to Binance → API Management → Edit API → IP Access Restriction',
             'Add the IP address shown above',
-            'Save and wait 1-2 minutes for changes to take effect',
+            'Save and wait 2-5 minutes for changes to take effect',
             'Then try verifying again'
           ];
         } else if (binanceError.includes('Permission') || errorCode === -2010) {
@@ -553,20 +664,43 @@ router.get('/:userId/:platform/balance', async (req, res, next) => {
     }
 
     // Decrypt credentials (will be sanitized in logs)
-    const apiKey = decrypt(api.apiKey);
-    const apiSecret = decrypt(api.apiSecret);
+    let apiKey, apiSecret;
+    try {
+      apiKey = decrypt(api.apiKey);
+      apiSecret = decrypt(api.apiSecret);
+      console.log(`[EXCHANGE BALANCE] ✅ Credentials decrypted successfully`);
+    } catch (decryptError) {
+      console.error(`[EXCHANGE BALANCE] ❌ Decryption failed:`, decryptError.message);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to decrypt API credentials. Please re-add your API key and secret.',
+        details: 'Encryption key mismatch or corrupted data',
+      });
+    }
 
     if (platform.toLowerCase() === 'binance') {
       const axios = require('axios');
       const timestamp = Date.now();
       const queryString = `timestamp=${timestamp}`;
       
-      const signature = crypto
-        .createHmac('sha256', apiSecret)
-        .update(queryString)
-        .digest('hex');
+      // Validate API key and secret format
+      if (!apiKey || apiKey.length < 20) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid API Key',
+          details: 'API key appears to be invalid or corrupted',
+        });
+      }
+      
+      if (!apiSecret || apiSecret.length < 20) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid API Secret',
+          details: 'API secret appears to be invalid or corrupted',
+        });
+      }
 
-      // Get server's public IP address for whitelisting
+      // Get server's public IP address for whitelisting (do this first)
       let serverPublicIP = 'Unknown';
       try {
         const ipResponse = await axios.get('https://api.ipify.org?format=json', { timeout: 5000 });
@@ -582,17 +716,38 @@ router.get('/:userId/:platform/balance', async (req, res, next) => {
           console.warn(`[EXCHANGE BALANCE] ⚠️ Alternative IP fetch failed`);
         }
       }
+      
+      const signature = crypto
+        .createHmac('sha256', apiSecret)
+        .update(queryString)
+        .digest('hex');
+      
+      console.log(`[EXCHANGE BALANCE] 🔐 Signature generated (length: ${signature.length})`);
+      console.log(`[EXCHANGE BALANCE] 📡 Making request to Binance API...`);
+      console.log(`[EXCHANGE BALANCE] 🔑 API Key (first 8 chars): ${apiKey.substring(0, 8)}...`);
+      console.log(`[EXCHANGE BALANCE] 🌐 Request will come from IP: ${serverPublicIP}`);
 
       try {
-        const response = await axios.get(
-          `https://api.binance.com/api/v3/account?${queryString}&signature=${signature}`,
-          {
-            headers: {
-              'X-MBX-APIKEY': apiKey,
+        const binanceUrl = `https://api.binance.com/api/v3/account?${queryString}&signature=${signature}`;
+        console.log(`[EXCHANGE BALANCE] 📤 Request URL: https://api.binance.com/api/v3/account?timestamp=${timestamp}&signature=[REDACTED]`);
+        
+        const response = await axios.get(binanceUrl, {
+          headers: {
+            'X-MBX-APIKEY': apiKey,
+          },
+          timeout: 10000,
+          validateStatus: (status) => status < 500, // Don't throw on 4xx errors
+        });
+        
+        // Check if response indicates an error
+        if (response.status !== 200 || response.data.code) {
+          throw {
+            response: {
+              status: response.status,
+              data: response.data,
             },
-            timeout: 10000,
-          }
-        );
+          };
+        }
 
         const balances = response.data.balances
           .filter(b => parseFloat(b.free) > 0 || parseFloat(b.locked) > 0)
@@ -621,26 +776,92 @@ router.get('/:userId/:platform/balance', async (req, res, next) => {
         console.error(`   Error Code: ${errorCode || 'N/A'}`);
         console.error(`   Error Message: ${binanceError}`);
         console.error(`   Server Public IP: ${serverPublicIP}`);
+        console.error(`   API Key (first 8): ${apiKey.substring(0, 8)}...`);
         console.error(`   ⚠️ If IP restriction error, add this IP to Binance whitelist: ${serverPublicIP}`);
+        console.error(`   ⚠️ If you already added the IP, wait 2-5 minutes for Binance to update`);
+        
+        // Additional diagnostics for -2015
+        if (errorCode === -2015) {
+          console.error(`   🔍 Error -2015 Diagnostics:`);
+          console.error(`      - This error can mean: Invalid API key, IP restriction, or permissions`);
+          console.error(`      - Server IP detected: ${serverPublicIP}`);
+          console.error(`      - API Key length: ${apiKey.length} characters (expected: 64+)`);
+          console.error(`      - API Secret length: ${apiSecret.length} characters (expected: 64+)`);
+          console.error(`      - API Key starts with: ${apiKey.substring(0, 8)}...`);
+          console.error(`      - Check if IP ${serverPublicIP} is in Binance whitelist`);
+          console.error(`      - ⏰ IMPORTANT: Wait 2-5 minutes after adding IP before retrying`);
+          console.error(`      - Verify API key and secret are correct in Binance`);
+          console.error(`      - Check that "Enable Reading" permission is enabled`);
+          
+          // Validate credentials format
+          if (apiKey.length < 50 || apiSecret.length < 50) {
+            console.error(`      ⚠️ WARNING: API credentials seem too short - may be corrupted`);
+          }
+        }
 
         let errorMessage = 'Failed to get balance from Binance';
         let errorDetails = binanceError;
         let troubleshooting = [];
 
-        if (binanceError.includes('IP') || binanceError.includes('restriction') || errorCode === -2015) {
+        if (errorCode === -2015) {
+          // Error -2015 can mean: Invalid API-key, IP restriction, or permissions
+          if (binanceError.includes('IP') || binanceError.toLowerCase().includes('ip')) {
+            errorMessage = 'IP Address Restriction';
+            errorDetails = `Your API key has IP restrictions. The server IP must be whitelisted.`;
+            troubleshooting = [
+              `✅ IP to whitelist: ${serverPublicIP}`,
+              'Go to Binance → API Management → Edit API → IP Access Restriction',
+              `Add this exact IP: ${serverPublicIP}`,
+              '',
+              '⚠️ IMPORTANT: IP Propagation Delay',
+              'After adding the IP to Binance whitelist, you MUST wait:',
+              '  • Minimum: 2-3 minutes',
+              '  • Recommended: 5 minutes',
+              '  • Maximum: Up to 10 minutes',
+              '',
+              'Binance needs time to propagate the IP whitelist change across their servers.',
+              'If you just added the IP, please wait and try again in a few minutes.',
+              '',
+              '💡 Tip: Check Binance API Management page to confirm the IP is saved correctly.',
+            ];
+          } else {
+            errorMessage = 'API Authentication Failed';
+            errorDetails = `Binance returned error -2015. This can mean: Invalid API key, IP restriction, or insufficient permissions.`;
+            troubleshooting = [
+              '1. Verify API Key and Secret are correct',
+              '2. Check IP Restrictions:',
+              `   - Add this IP to Binance whitelist: ${serverPublicIP}`,
+              '   - Wait 2-5 minutes after adding IP',
+              '3. Verify Permissions:',
+              '   - Enable "Enable Reading" permission',
+            ];
+          }
+        } else if (binanceError.includes('IP') || binanceError.includes('restriction')) {
           errorMessage = 'IP Address Restriction';
           errorDetails = `Your API key has IP restrictions. Add this IP to Binance whitelist: ${serverPublicIP}`;
           troubleshooting = [
             `Add this IP to Binance API whitelist: ${serverPublicIP}`,
             'Go to Binance → API Management → Edit API → IP Access Restriction',
-            'Save and wait 1-2 minutes, then try again'
+            'Save and wait 2-5 minutes, then try again'
           ];
         } else if (binanceError.includes('Invalid signature')) {
           errorMessage = 'Invalid API Secret';
           errorDetails = 'The API secret does not match the API key.';
-        } else if (binanceError.includes('Invalid API-key')) {
+          troubleshooting = [
+            'Verify that your API secret is correct',
+            'Make sure you copied the complete secret key',
+            'Check for any extra spaces or characters',
+            'Try re-adding the API credentials',
+          ];
+        } else if (binanceError.includes('Invalid API-key') || binanceError.includes('Invalid API key')) {
           errorMessage = 'Invalid API Key';
-          errorDetails = 'The API key is incorrect.';
+          errorDetails = 'The API key is incorrect or does not exist.';
+          troubleshooting = [
+            'Verify that your API key is correct',
+            'Check if the API key is active in Binance',
+            'Make sure you copied the complete key',
+            'Try creating a new API key if needed',
+          ];
         }
 
         return res.status(400).json({
