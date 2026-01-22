@@ -1051,4 +1051,257 @@ router.post('/:userId/:platform/order', async (req, res, next) => {
   }
 });
 
+// Diagnostic endpoint to test Binance API connection step by step
+router.get('/:userId/:platform/diagnose', async (req, res, next) => {
+  try {
+    const { userId, platform } = req.params;
+
+    if (platform.toLowerCase() !== 'binance') {
+      return res.status(400).json({
+        success: false,
+        error: 'Diagnostics only available for Binance',
+      });
+    }
+
+    const user = await User.findOne({ userId }).select('exchangeApis');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    const api = user.exchangeApis.find(
+      a => a.platform === platform.toLowerCase() && a.isActive
+    );
+
+    if (!api) {
+      return res.status(404).json({
+        success: false,
+        error: `No active API found for ${platform}`,
+      });
+    }
+
+    const axios = require('axios');
+    const diagnostics = {
+      step1_credentials: { status: 'pending', message: '' },
+      step2_ip_detection: { status: 'pending', message: '', ip: '' },
+      step3_ping_test: { status: 'pending', message: '' },
+      step4_time_test: { status: 'pending', message: '' },
+      step5_account_test: { status: 'pending', message: '' },
+      recommendations: [],
+    };
+
+    // Step 1: Decrypt and validate credentials
+    try {
+      const apiKey = decrypt(api.apiKey);
+      const apiSecret = decrypt(api.apiSecret);
+
+      if (!apiKey || apiKey.length < 50) {
+        diagnostics.step1_credentials = {
+          status: 'failed',
+          message: `API key too short (${apiKey.length} chars, expected 64+)`,
+        };
+        diagnostics.recommendations.push('API key appears invalid - verify in Binance');
+        return res.json({ success: false, diagnostics });
+      }
+
+      if (!apiSecret || apiSecret.length < 50) {
+        diagnostics.step1_credentials = {
+          status: 'failed',
+          message: `API secret too short (${apiSecret.length} chars, expected 64+)`,
+        };
+        diagnostics.recommendations.push('API secret appears invalid - verify in Binance');
+        return res.json({ success: false, diagnostics });
+      }
+
+      diagnostics.step1_credentials = {
+        status: 'passed',
+        message: `Credentials decrypted: Key (${apiKey.length} chars), Secret (${apiSecret.length} chars)`,
+      };
+
+      // Step 2: Detect server IP
+      let serverPublicIP = 'Unknown';
+      try {
+        const ipResponse = await axios.get('https://api.ipify.org?format=json', { timeout: 5000 });
+        serverPublicIP = ipResponse.data.ip;
+        diagnostics.step2_ip_detection = {
+          status: 'passed',
+          message: `Server IP detected: ${serverPublicIP}`,
+          ip: serverPublicIP,
+        };
+      } catch (ipError) {
+        try {
+          const altResponse = await axios.get('https://ifconfig.me/ip', { timeout: 5000 });
+          serverPublicIP = altResponse.data.trim();
+          diagnostics.step2_ip_detection = {
+            status: 'passed',
+            message: `Server IP detected (alt): ${serverPublicIP}`,
+            ip: serverPublicIP,
+          };
+        } catch (altError) {
+          diagnostics.step2_ip_detection = {
+            status: 'failed',
+            message: 'Could not detect server IP',
+          };
+          diagnostics.recommendations.push('Unable to detect server IP - check network connectivity');
+        }
+      }
+
+      // Step 3: Test connectivity with ping (no auth required)
+      try {
+        const pingResponse = await axios.get('https://api.binance.com/api/v3/ping', { timeout: 5000 });
+        diagnostics.step3_ping_test = {
+          status: 'passed',
+          message: 'Binance API is reachable',
+        };
+      } catch (pingError) {
+        diagnostics.step3_ping_test = {
+          status: 'failed',
+          message: `Cannot reach Binance API: ${pingError.message}`,
+        };
+        diagnostics.recommendations.push('Network connectivity issue - check firewall/proxy settings');
+        return res.json({ success: false, diagnostics });
+      }
+
+      // Step 4: Test authentication with time endpoint (simpler than account)
+      try {
+        const timestamp = Date.now();
+        const queryString = `timestamp=${timestamp}`;
+        const signature = crypto
+          .createHmac('sha256', apiSecret)
+          .update(queryString)
+          .digest('hex');
+
+        const timeResponse = await axios.get(
+          `https://api.binance.com/api/v3/time?${queryString}&signature=${signature}`,
+          {
+            headers: {
+              'X-MBX-APIKEY': apiKey,
+            },
+            timeout: 10000,
+            validateStatus: (status) => status < 500,
+          }
+        );
+
+        if (timeResponse.status === 200 && !timeResponse.data.code) {
+          diagnostics.step4_time_test = {
+            status: 'passed',
+            message: 'API authentication successful - credentials are valid',
+          };
+        } else {
+          const errorCode = timeResponse.data?.code;
+          const errorMsg = timeResponse.data?.msg || 'Unknown error';
+          
+          diagnostics.step4_time_test = {
+            status: 'failed',
+            message: `Auth failed: ${errorMsg} (Code: ${errorCode})`,
+          };
+
+          if (errorCode === -2015) {
+            diagnostics.recommendations.push(`IP restriction: Add ${serverPublicIP} to Binance whitelist`);
+            diagnostics.recommendations.push('Wait 2-5 minutes after adding IP before retrying');
+            diagnostics.recommendations.push('Verify API key and secret are correct');
+            diagnostics.recommendations.push('Check that "Enable Reading" permission is enabled');
+          } else if (errorCode === -1022) {
+            diagnostics.recommendations.push('Invalid signature - API secret may be incorrect');
+          } else if (errorCode === -2010) {
+            diagnostics.recommendations.push('Invalid API key - verify the key is correct');
+          }
+        }
+      } catch (timeError) {
+        const errorCode = timeError.response?.data?.code;
+        const errorMsg = timeError.response?.data?.msg || timeError.message;
+        
+        diagnostics.step4_time_test = {
+          status: 'failed',
+          message: `Auth test failed: ${errorMsg} (Code: ${errorCode || 'N/A'})`,
+        };
+
+        if (errorCode === -2015) {
+          diagnostics.recommendations.push(`IP restriction: Add ${serverPublicIP} to Binance whitelist`);
+          diagnostics.recommendations.push('Wait 2-5 minutes after adding IP');
+        }
+      }
+
+      // Step 5: Test account endpoint (full test)
+      try {
+        const timestamp = Date.now();
+        const queryString = `timestamp=${timestamp}`;
+        const signature = crypto
+          .createHmac('sha256', apiSecret)
+          .update(queryString)
+          .digest('hex');
+
+        const accountResponse = await axios.get(
+          `https://api.binance.com/api/v3/account?${queryString}&signature=${signature}`,
+          {
+            headers: {
+              'X-MBX-APIKEY': apiKey,
+            },
+            timeout: 10000,
+            validateStatus: (status) => status < 500,
+          }
+        );
+
+        if (accountResponse.status === 200 && !accountResponse.data.code) {
+          diagnostics.step5_account_test = {
+            status: 'passed',
+            message: 'Account access successful - API fully functional',
+          };
+          diagnostics.recommendations.push('✅ All tests passed - API is working correctly');
+        } else {
+          const errorCode = accountResponse.data?.code;
+          const errorMsg = accountResponse.data?.msg || 'Unknown error';
+          
+          diagnostics.step5_account_test = {
+            status: 'failed',
+            message: `Account access failed: ${errorMsg} (Code: ${errorCode})`,
+          };
+
+          if (errorCode === -2015) {
+            diagnostics.recommendations.push(`IP restriction: Add ${serverPublicIP} to Binance whitelist`);
+            diagnostics.recommendations.push('Wait 2-5 minutes after adding IP');
+            diagnostics.recommendations.push('Check permissions: Enable "Enable Reading"');
+          }
+        }
+      } catch (accountError) {
+        const errorCode = accountError.response?.data?.code;
+        const errorMsg = accountError.response?.data?.msg || accountError.message;
+        
+        diagnostics.step5_account_test = {
+          status: 'failed',
+          message: `Account test failed: ${errorMsg} (Code: ${errorCode || 'N/A'})`,
+        };
+
+        if (errorCode === -2015) {
+          diagnostics.recommendations.push(`IP restriction: Add ${serverPublicIP} to Binance whitelist`);
+          diagnostics.recommendations.push('Wait 2-5 minutes after adding IP');
+        }
+      }
+
+      const allPassed = Object.values(diagnostics)
+        .filter(v => typeof v === 'object' && v.status)
+        .every(v => v.status === 'passed');
+
+      res.json({
+        success: allPassed,
+        diagnostics,
+        serverIP: serverPublicIP,
+      });
+    } catch (decryptError) {
+      diagnostics.step1_credentials = {
+        status: 'failed',
+        message: `Decryption failed: ${decryptError.message}`,
+      };
+      diagnostics.recommendations.push('Credentials may be corrupted - try re-adding API key and secret');
+      return res.json({ success: false, diagnostics });
+    }
+  } catch (error) {
+    console.error(`[EXCHANGE DIAGNOSE] ❌ Error:`, error.message);
+    next(error);
+  }
+});
+
 module.exports = router;
