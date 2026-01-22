@@ -188,14 +188,16 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
       final totalTradeAmount = amountPerLevel * numberOfLevels;
       final requiredWalletBalance = totalTradeAmount * 0.03; // 3% of total trade amount
 
-      // Check API balance
-      if (_apiBalance == null || (_apiBalance!['total'] ?? 0.0) <= 0) {
+      // Check API balance - must be sufficient for ALL levels
+      final apiTotalBalance = (_apiBalance?['total'] ?? 0.0).toDouble();
+      if (apiTotalBalance < totalTradeAmount) {
         setState(() {
           _validationError = 'Insufficient Exchange Balance';
           _validationDetails = {
-            'message': 'Your ${_selectedApi!.platform} account has no balance.',
-            'required': 'Balance > 0',
-            'current': '0.0',
+            'message': 'You need sufficient balance in your ${_selectedApi!.platform} account for all $numberOfLevels levels.',
+            'required': '\$${totalTradeAmount.toStringAsFixed(2)} (for all levels)',
+            'current': '\$${apiTotalBalance.toStringAsFixed(2)}',
+            'numberOfLevels': '$numberOfLevels levels',
           };
         });
         return;
