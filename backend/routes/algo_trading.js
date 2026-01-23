@@ -41,7 +41,7 @@ router.post('/:userId/start', async (req, res, next) => {
       });
     }
 
-    const user = await User.findOne({ userId }).select('exchangeApis wallet notifications');
+    const user = await User.findOne({ userId }).select('exchangeApis wallet notifications strategies');
 
     if (!user) {
       console.error(`[ALGO TRADING START] ❌ User not found: ${userId}`);
