@@ -574,9 +574,17 @@ async function executeAlgoTradingStep(trade) {
         }
         
         // Place first order
-        await placeOrder(trade, signal.direction, currentPrice, trade.amountPerLevel);
-        trade.currentLevel = 1;
-        console.log(`[ALGO TRADING STEP] ✅ Trade started! Level 1 ${signal.direction} order placed at \$${currentPrice.toFixed(8)}`);
+        try {
+          await placeOrder(trade, signal.direction, currentPrice, trade.amountPerLevel);
+          trade.currentLevel = 1;
+          console.log(`[ALGO TRADING STEP] ✅ Trade started! Level 1 ${signal.direction} order placed at \$${currentPrice.toFixed(8)}`);
+        } catch (orderError) {
+          console.error(`[ALGO TRADING STEP] ❌ Failed to place initial order:`, orderError.message);
+          // Reset isStarted so it can retry on next check
+          trade.isStarted = false;
+          trade.tradeDirection = null;
+          console.log(`[ALGO TRADING STEP] ⏳ Will retry order placement on next check`);
+        }
         return;
       } else {
         // If NEUTRAL, wait for a signal
@@ -659,9 +667,14 @@ async function executeAlgoTradingStep(trade) {
       }
       
       // Place order in SAME direction as initial trade (no signal check)
-      await placeOrder(trade, trade.tradeDirection, currentPrice, trade.amountPerLevel);
-      trade.currentLevel++;
-      console.log(`[ALGO TRADING STEP] ✅ Level ${trade.currentLevel} ${trade.tradeDirection} order placed (loss adjustment)`);
+      try {
+        await placeOrder(trade, trade.tradeDirection, currentPrice, trade.amountPerLevel);
+        trade.currentLevel++;
+        console.log(`[ALGO TRADING STEP] ✅ Level ${trade.currentLevel} ${trade.tradeDirection} order placed (loss adjustment)`);
+      } catch (orderError) {
+        console.error(`[ALGO TRADING STEP] ❌ Failed to place level ${trade.currentLevel + 1} order:`, orderError.message);
+        // Don't increment level if order failed - will retry on next check
+      }
     }
 
   } catch (error) {
