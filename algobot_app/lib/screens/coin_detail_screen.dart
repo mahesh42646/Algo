@@ -1555,6 +1555,104 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
               minHeight: 8,
             ),
           ),
+          // Show orders/positions if available
+          if (_activeTrade!['orders'] != null && (_activeTrade!['orders'] as List).isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 12),
+            Text(
+              'Positions',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...(_activeTrade!['orders'] as List).take(5).map((order) {
+              final orderPrice = double.tryParse(order['price']?.toString() ?? '0') ?? 0.0;
+              final orderQty = double.tryParse(order['quantity']?.toString() ?? '0') ?? 0.0;
+              final orderSide = order['side'] ?? 'N/A';
+              final orderPnL = orderSide == 'BUY'
+                ? (currentPrice - orderPrice) * orderQty
+                : (orderPrice - currentPrice) * orderQty;
+              final orderPnLPercent = orderPrice > 0
+                ? ((currentPrice - orderPrice) / orderPrice) * 100
+                : 0.0;
+              
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: orderPnL >= 0 
+                    ? Colors.green.withOpacity(0.1)
+                    : Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: orderPnL >= 0 ? Colors.green : Colors.red,
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: orderSide == 'BUY' ? Colors.green : Colors.red,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                orderSide,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${orderQty.toStringAsFixed(8)} @ \$${orderPrice.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '${orderPnL >= 0 ? "+" : ""}\$${orderPnL.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: orderPnL >= 0 ? Colors.green : Colors.red,
+                          ),
+                        ),
+                        Text(
+                          '${orderPnLPercent >= 0 ? "+" : ""}${orderPnLPercent.toStringAsFixed(2)}%',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: orderPnL >= 0 ? Colors.green : Colors.red,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ],
         ],
       ),
     );
