@@ -602,13 +602,20 @@ async function executeAlgoTradingStep(trade) {
     }
 
     // Trade has started - now handle loss adjustments and profit booking
-    // Calculate current P&L
-    const currentPnL = ((currentPrice - trade.startPrice) / trade.startPrice) * 100;
+    // Calculate current P&L (price movement percentage)
+    const priceMovement = ((currentPrice - trade.startPrice) / trade.startPrice) * 100;
+    
+    // For margin trading with leverage, P&L is amplified by leverage
+    // If price moves 1% and leverage is 10x, position P&L is 10%
+    const currentPnL = trade.useMargin && trade.leverage > 1
+      ? priceMovement * trade.leverage
+      : priceMovement;
+    
     const avgPrice = trade.totalInvested > 0 
       ? trade.totalInvested / (trade.orders.reduce((sum, o) => sum + parseFloat(o.quantity), 0) || 1)
       : currentPrice;
 
-    console.log(`[ALGO TRADING STEP] 📊 Current P&L: ${currentPnL.toFixed(2)}%, Price: \$${currentPrice.toFixed(8)}, Direction: ${trade.tradeDirection}`);
+    console.log(`[ALGO TRADING STEP] 📊 Current P&L: ${currentPnL.toFixed(2)}% (Price: \$${currentPrice.toFixed(8)}, Direction: ${trade.tradeDirection}${trade.useMargin && trade.leverage > 1 ? `, Leverage: ${trade.leverage}x` : ''})`);
 
     // Check stop conditions
     if (currentPnL >= trade.maxProfitBook) {
@@ -619,7 +626,10 @@ async function executeAlgoTradingStep(trade) {
 
     if (trade.currentLevel >= trade.numberOfLevels) {
       // Max levels reached, check overall loss
-      const overallLoss = ((avgPrice - trade.startPrice) / trade.startPrice) * 100;
+      const avgPriceMovement = ((avgPrice - trade.startPrice) / trade.startPrice) * 100;
+      const overallLoss = trade.useMargin && trade.leverage > 1
+        ? avgPriceMovement * trade.leverage
+        : avgPriceMovement;
       if (overallLoss <= -trade.maxLossOverall) {
         console.log(`[ALGO TRADING STEP] ⛔ Max loss reached: ${overallLoss.toFixed(2)}% <= -${trade.maxLossOverall}%`);
         await closeAllPositions(trade, 'max_loss');
@@ -629,12 +639,7 @@ async function executeAlgoTradingStep(trade) {
 
     // Check if we need to add more (averaging down) - NO SIGNAL CHECK, just check loss
     // Loss adjustments are always in the SAME direction as initial trade
-    // For margin trading with leverage, adjust threshold (leverage makes moves faster)
-    const lossThreshold = trade.useMargin && trade.leverage > 1
-      ? trade.maxLossPerTrade / trade.leverage // Lower threshold = triggers faster
-      : trade.maxLossPerTrade;
-    
-    if (currentPnL <= -lossThreshold && trade.currentLevel < trade.numberOfLevels) {
+    if (currentPnL <= -trade.maxLossPerTrade && trade.currentLevel < trade.numberOfLevels) {
       console.log(`[ALGO TRADING STEP] 📉 Loss threshold hit: ${currentPnL.toFixed(2)}% <= -${trade.maxLossPerTrade}%`);
       console.log(`[ALGO TRADING STEP] 🔄 Adding level in same direction: ${trade.tradeDirection} (no signal check)`);
       
