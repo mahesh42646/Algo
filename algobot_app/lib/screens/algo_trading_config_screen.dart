@@ -206,6 +206,7 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
 
       // Check platform wallet balance (fee depends on test/real key)
       final feePercentage = _selectedApi!.isTest ? 0.03 : 0.003; // 3% for test, 0.3% for demo
+      final requiredWalletBalance = totalTradeAmount * feePercentage;
       
       if (_platformWalletBalance < requiredWalletBalance) {
         setState(() {
