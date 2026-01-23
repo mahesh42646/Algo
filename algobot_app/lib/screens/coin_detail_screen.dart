@@ -1681,6 +1681,7 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
       ],
     );
   }
+}
 
 class SentimentGaugePainter extends CustomPainter {
   final double buyRatio;
