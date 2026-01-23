@@ -106,14 +106,18 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
         }
       }
     } catch (e) {
+      print('[ALGO CONFIG] Error in _loadData: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
+          // Even on error, show empty list so UI can render
+          _availableApis = [];
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error loading data: ${e.toString()}'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
           ),
         );
       }
