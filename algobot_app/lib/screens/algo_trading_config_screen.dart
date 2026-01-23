@@ -498,35 +498,10 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
                   items: _availableApis.map((api) {
                     return DropdownMenuItem(
                       value: api,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              '${api.platform.toUpperCase()} - ${api.label}',
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: api.isTest 
-                                  ? Colors.orange.withOpacity(0.2)
-                                  : Colors.green.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              api.isTest ? 'TEST' : 'REAL',
-                              style: TextStyle(
-                                color: api.isTest ? Colors.orange[700] : Colors.green[700],
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        '${api.platform.toUpperCase()} - ${api.label} ${api.isTest ? "(TEST)" : "(REAL)"}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     );
                   }).toList(),
@@ -556,36 +531,35 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
                             : Colors.red,
                       ),
                     ),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                          (_apiBalance!['total'] ?? 0.0) > 0
-                              ? Icons.check_circle
-                              : Icons.error,
-                          color: (_apiBalance!['total'] ?? 0.0) > 0
-                              ? Colors.green
-                              : Colors.red,
+                        Row(
+                          children: [
+                            Icon(
+                              (_apiBalance!['total'] ?? 0.0) > 0
+                                  ? Icons.check_circle
+                                  : Icons.error,
+                              color: (_apiBalance!['total'] ?? 0.0) > 0
+                                  ? Colors.green
+                                  : Colors.red,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${_apiBalance!['platform'].toUpperCase()} Balance',
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${_apiBalance!['platform'].toUpperCase()} Balance',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              Text(
-                                '\$${(_apiBalance!['total'] ?? 0.0).toStringAsFixed(2)}',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: (_apiBalance!['total'] ?? 0.0) > 0
-                                      ? Colors.green
-                                      : Colors.red,
-                                ),
-                              ),
-                            ],
+                        const SizedBox(height: 8),
+                        Text(
+                          '\$${(_apiBalance!['total'] ?? 0.0).toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: (_apiBalance!['total'] ?? 0.0) > 0
+                                ? Colors.green
+                                : Colors.red,
                           ),
                         ),
                       ],
