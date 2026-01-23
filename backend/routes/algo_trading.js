@@ -199,6 +199,10 @@ router.post('/:userId/start', async (req, res, next) => {
 
     // Save as strategy
     const strategyName = `Algo Trade - ${trade.symbol}`;
+    // Ensure strategies array exists
+    if (!user.strategies) {
+      user.strategies = [];
+    }
     user.strategies.push({
       strategyId: null, // Algo trades don't use Strategy model
       name: strategyName,
@@ -326,6 +330,9 @@ router.post('/:userId/stop', async (req, res, next) => {
         console.log(`[ALGO TRADING STOP] 📝 Updated strategy status to inactive: ${strategy.name}`);
       }
 
+      if (!user.notifications) {
+        user.notifications = [];
+      }
       user.notifications.push({
         title: `Algo Trading Stopped - ${symbol.toUpperCase()} 🛑`,
         message: `You stopped the algo trade for ${symbol.toUpperCase()}.`,
@@ -526,6 +533,9 @@ async function executeAlgoTradingStep(trade) {
             console.log(`[ALGO TRADING STEP] 💰 Deducted platform wallet fee: \$${levelFee.toFixed(2)} (Level 1)`);
             
             // Add notification
+            if (!user.notifications) {
+              user.notifications = [];
+            }
             user.notifications.push({
               title: `Algo Trading Started - ${trade.symbol} 🚀`,
               message: `Trade started with ${signal.direction} signal. Level 1 executed. Fee: \$${levelFee.toFixed(2)}`,
@@ -601,6 +611,9 @@ async function executeAlgoTradingStep(trade) {
           console.log(`[ALGO TRADING STEP] 💰 Deducted platform wallet fee: \$${levelFee.toFixed(2)} (Level ${trade.currentLevel + 1})`);
           
           // Add notification
+          if (!user.notifications) {
+            user.notifications = [];
+          }
           user.notifications.push({
             title: `Algo Trading - Level ${trade.currentLevel + 1} 📈`,
             message: `Level ${trade.currentLevel + 1} executed for ${trade.symbol} (${trade.tradeDirection}). Fee: \$${levelFee.toFixed(2)}`,
@@ -878,6 +891,9 @@ async function closeAllPositions(trade, reason) {
         'admin_stopped': 'Stopped by administrator',
       };
       
+      if (!user.notifications) {
+        user.notifications = [];
+      }
       user.notifications.push({
         title: `Algo Trading Stopped - ${trade.symbol} 🛑`,
         message: `${reasonMessages[reason] || reason}. Total levels: ${trade.currentLevel}, Total fees: \$${trade.platformWalletFees.reduce((a, b) => a + b, 0).toFixed(2)}`,
