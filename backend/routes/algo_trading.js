@@ -669,7 +669,24 @@ async function executeAlgoTradingStep(trade) {
       ? trade.totalInvested / (trade.orders.reduce((sum, o) => sum + parseFloat(o.quantity), 0) || 1)
       : currentPrice;
 
-    console.log(`[ALGO TRADING STEP] 📊 Current P&L: ${currentPnL.toFixed(2)}% (Price: \$${currentPrice.toFixed(8)}, Direction: ${trade.tradeDirection}${trade.useMargin && trade.leverage > 1 ? `, Leverage: ${trade.leverage}x` : ''})`);
+    // Calculate detailed position info
+    const totalQuantity = trade.orders && trade.orders.length > 0
+      ? trade.orders.reduce((sum, o) => sum + parseFloat(o.quantity || 0), 0)
+      : 0;
+    const avgEntryPrice = totalQuantity > 0 ? trade.totalInvested / totalQuantity : trade.startPrice;
+    const positionValue = totalQuantity * currentPrice;
+    const unrealizedPnL = trade.tradeDirection === 'BUY'
+      ? (currentPrice - avgEntryPrice) * totalQuantity
+      : (avgEntryPrice - currentPrice) * totalQuantity;
+    const totalBalance = trade.totalInvested + unrealizedPnL;
+    
+    console.log(`[ALGO TRADING STEP] 📊 ${trade.symbol} - Level ${trade.currentLevel}/${trade.numberOfLevels}`);
+    console.log(`[ALGO TRADING STEP]    💰 Price: \$${currentPrice.toFixed(8)} | Entry: \$${avgEntryPrice.toFixed(8)} | Direction: ${trade.tradeDirection}`);
+    console.log(`[ALGO TRADING STEP]    📈 P&L: ${currentPnL >= 0 ? '+' : ''}${currentPnL.toFixed(2)}% | Unrealized: \$${unrealizedPnL >= 0 ? '+' : ''}${unrealizedPnL.toFixed(2)}`);
+    console.log(`[ALGO TRADING STEP]    💵 Invested: \$${trade.totalInvested.toFixed(2)} | Balance: \$${totalBalance.toFixed(2)} | Quantity: ${totalQuantity.toFixed(8)}`);
+    if (trade.useMargin && trade.leverage > 1) {
+      console.log(`[ALGO TRADING STEP]    ⚡ Margin: ${trade.leverage}x Leverage`);
+    }
 
     // Check stop conditions
     if (currentPnL >= trade.maxProfitBook) {
