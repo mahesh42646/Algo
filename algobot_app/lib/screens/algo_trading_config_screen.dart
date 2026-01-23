@@ -499,8 +499,9 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
                     return DropdownMenuItem(
                       value: api,
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Expanded(
+                          Flexible(
                             child: Text(
                               '${api.platform.toUpperCase()} - ${api.label}',
                               style: const TextStyle(fontWeight: FontWeight.bold),
