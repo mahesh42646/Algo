@@ -627,7 +627,12 @@ async function executeAlgoTradingStep(trade) {
 
     // Check if we need to add more (averaging down) - NO SIGNAL CHECK, just check loss
     // Loss adjustments are always in the SAME direction as initial trade
-    if (currentPnL <= -trade.maxLossPerTrade && trade.currentLevel < trade.numberOfLevels) {
+    // For margin trading with leverage, adjust threshold (leverage makes moves faster)
+    const lossThreshold = trade.useMargin && trade.leverage > 1
+      ? trade.maxLossPerTrade / trade.leverage // Lower threshold = triggers faster
+      : trade.maxLossPerTrade;
+    
+    if (currentPnL <= -lossThreshold && trade.currentLevel < trade.numberOfLevels) {
       console.log(`[ALGO TRADING STEP] 📉 Loss threshold hit: ${currentPnL.toFixed(2)}% <= -${trade.maxLossPerTrade}%`);
       console.log(`[ALGO TRADING STEP] 🔄 Adding level in same direction: ${trade.tradeDirection} (no signal check)`);
       
@@ -903,8 +908,13 @@ async function placeOrder(trade, side, price, amount) {
     // Get symbol info to adjust price and quantity according to Binance filters
     const symbolInfo = await getSymbolInfo(trade.symbol, trade.isTest);
     
+    // Apply leverage multiplier for margin trading (faster execution)
+    const effectiveAmount = trade.useMargin && trade.leverage > 1 
+      ? amount * trade.leverage 
+      : amount;
+    
     // Calculate base quantity
-    let quantity = amount / price;
+    let quantity = effectiveAmount / price;
     
     // Adjust quantity to match step size if available
     if (symbolInfo?.lotSizeFilter) {

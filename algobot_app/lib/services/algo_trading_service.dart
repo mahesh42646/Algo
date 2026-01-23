@@ -18,6 +18,7 @@ class AlgoTradingService {
     required double amountPerLevel,
     required int numberOfLevels,
     bool useMargin = false,
+    int leverage = 1,
   }) async {
     if (_userId == null) {
       throw Exception('User not logged in');
@@ -35,6 +36,7 @@ class AlgoTradingService {
           'amountPerLevel': amountPerLevel,
           'numberOfLevels': numberOfLevels,
           'useMargin': useMargin,
+          'leverage': leverage,
         },
       );
 

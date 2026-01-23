@@ -37,6 +37,7 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
   bool _isValidating = false;
   bool _hasActiveTrade = false;
   bool _useMargin = false;
+  int _leverage = 1; // Default leverage for margin trading
   
   // API and balance data
   List<ExchangeApi> _availableApis = [];
@@ -463,6 +464,7 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
         amountPerLevel: double.parse(_amountPerLevelController.text),
         numberOfLevels: int.parse(_numberOfLevelsController.text),
         useMargin: _useMargin,
+        leverage: _useMargin ? _leverage : 1,
       );
 
       if (mounted) {
@@ -759,14 +761,43 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
               // Margin Trading Toggle
               SwitchListTile(
                 title: const Text('Margin Trading'),
-                subtitle: const Text('Enable margin trading (requires margin permissions)'),
+                subtitle: const Text('Enable margin trading (requires margin permissions) - Faster execution with leverage'),
                 value: _useMargin,
                 onChanged: (value) {
                   setState(() {
                     _useMargin = value;
+                    if (!value) {
+                      _leverage = 1; // Reset leverage when margin is disabled
+                    }
                   });
                 },
               ),
+              // Leverage selector (only show when margin is enabled)
+              if (_useMargin) ...[
+                const SizedBox(height: 8),
+                DropdownButtonFormField<int>(
+                  value: _leverage,
+                  decoration: InputDecoration(
+                    labelText: 'Leverage',
+                    prefixIcon: const Icon(Icons.trending_up),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    helperText: 'Higher leverage = faster level execution (more risk)',
+                  ),
+                  items: [1, 2, 3, 5, 10, 20].map((lev) {
+                    return DropdownMenuItem(
+                      value: lev,
+                      child: Text('${lev}x'),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _leverage = value ?? 1;
+                    });
+                  },
+                ),
+              ],
               const SizedBox(height: 16),
 
               // Validation Error Display

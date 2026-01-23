@@ -359,7 +359,7 @@ class _StrategyPageState extends State<StrategyPage> {
                         ),
                       ],
                     ),
-                    if (symbol) ...[
+                    if (symbol != null && symbol.toString().isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(
                         '$symbol on ${platform?.toUpperCase() ?? "Unknown"}',
@@ -410,7 +410,7 @@ class _StrategyPageState extends State<StrategyPage> {
                 _buildConfigItem('Profit Target', '${config['maxProfitBook'] ?? 'N/A'}%'),
                 _buildConfigItem('Amount/Level', '\$${config['amountPerLevel'] ?? 'N/A'}'),
                 _buildConfigItem('Levels', '${config['numberOfLevels'] ?? 'N/A'}'),
-                _buildConfigItem('Mode', config['useMargin'] == true ? 'Margin' : 'Spot'),
+                _buildConfigItem('Mode', (config['useMargin'] == true || config['useMargin'] == 'true') ? 'Margin' : 'Spot'),
               ],
             ),
           ],
