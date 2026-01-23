@@ -25,15 +25,15 @@ class InviteFriendsScreen extends StatelessWidget {
             children: [
               _buildHeader(),
               const SizedBox(height: 24),
-              _buildInvitationCode(),
+              _buildInvitationCode(context),
               const SizedBox(height: 16),
-              _buildInvitationLink(),
+              _buildInvitationLink(context),
               const SizedBox(height: 16),
               _buildQRCodeSection(context),
               const SizedBox(height: 16),
               _buildActivationBanner(),
               const SizedBox(height: 24),
-              _buildDescriptionCard(),
+              _buildDescriptionCard(context),
             ],
           ),
         ),
@@ -114,7 +114,7 @@ class InviteFriendsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildInvitationCode() {
+  Widget _buildInvitationCode(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     
@@ -151,7 +151,7 @@ class InviteFriendsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildInvitationLink() {
+  Widget _buildInvitationLink(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     
@@ -286,7 +286,7 @@ class InviteFriendsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildDescriptionCard() {
+  Widget _buildDescriptionCard(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     
