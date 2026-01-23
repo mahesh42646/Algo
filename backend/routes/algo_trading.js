@@ -239,6 +239,7 @@ router.post('/:userId/start', async (req, res, next) => {
       symbol: trade.symbol,
       platform: trade.platform,
       useMargin: trade.useMargin,
+      leverage: trade.leverage || 1,
       totalTradeAmount: totalTradeAmount.toFixed(2),
       numberOfLevels: trade.numberOfLevels,
       amountPerLevel: trade.amountPerLevel.toFixed(2),
