@@ -502,8 +502,8 @@ async function executeAlgoTradingStep(trade) {
     if (!trade.isStarted) {
       console.log(`[ALGO TRADING STEP] ⏳ Waiting for strong signal to start trade...`);
       
-      // Get technical indicators
-      const candles = await getCandlesticks(trade.symbol, '5m', 200, trade.isTest);
+      // Get technical indicators using 1-minute timeframe (same as coin detail screen)
+      const candles = await getCandlesticks(trade.symbol, '1m', 500, trade.isTest);
       const signal = await getTradingSignal(candles, currentPrice);
       trade.lastSignal = signal;
 
@@ -669,58 +669,65 @@ async function getCandlesticks(symbol, interval, limit, isTest = false) {
   }
 }
 
-// Get trading signal from technical indicators
+// Get trading signal from technical indicators (using same logic as frontend)
 async function getTradingSignal(candles, currentPrice) {
   try {
     const closes = candles.map(c => parseFloat(c[4])); // Close prices
     
-    // Calculate MAs
-    const ma20 = calculateSMA(closes, 20);
-    const ma50 = calculateSMA(closes, 50);
-    const ma200 = calculateSMA(closes, 200);
+    // Use same MA periods as frontend: 5, 10, 20, 30, 50, 100, 200
+    const periods = [5, 10, 20, 30, 50, 100, 200];
+    const maValues = {};
     
-    if (ma20.length === 0 || ma50.length === 0 || ma200.length === 0) {
+    // Calculate SMA and EMA for each period
+    for (const period of periods) {
+      if (closes.length >= period) {
+        const sma = calculateSMA(closes, period);
+        const ema = calculateEMA(closes, period);
+        
+        if (sma.length > 0 && ema.length > 0) {
+          maValues[period] = {
+            sma: sma[sma.length - 1],
+            ema: ema[ema.length - 1],
+          };
+        }
+      }
+    }
+    
+    if (Object.keys(maValues).length === 0) {
       return { direction: 'NEUTRAL', strength: 'weak' };
     }
 
-    const ma20Value = ma20[ma20.length - 1];
-    const ma50Value = ma50[ma50.length - 1];
-    const ma200Value = ma200[ma200.length - 1];
-
-    // Calculate MACD
-    const macd = calculateMACD(closes);
-    const macdLine = macd.macd[macd.macd.length - 1];
-    const signalLine = macd.signal[macd.signal.length - 1];
-
-    // Determine signal strength
-    let buySignals = 0;
-    let sellSignals = 0;
-
-    // MA signals
-    if (currentPrice > ma20Value && ma20Value > ma50Value && ma50Value > ma200Value) {
-      buySignals += 2; // Strong buy
-    } else if (currentPrice < ma20Value && ma20Value < ma50Value && ma50Value < ma200Value) {
-      sellSignals += 2; // Strong sell
+    // Calculate sentiment (same as frontend TechnicalIndicators.calculateSentiment)
+    let buyCount = 0;
+    let sellCount = 0;
+    let neutralCount = 0;
+    
+    for (const period in maValues) {
+      const { sma, ema } = maValues[period];
+      
+      // SMA signal
+      if (currentPrice > sma) buyCount++;
+      else if (currentPrice < sma) sellCount++;
+      else neutralCount++;
+      
+      // EMA signal
+      if (currentPrice > ema) buyCount++;
+      else if (currentPrice < ema) sellCount++;
+      else neutralCount++;
     }
-
-    if (currentPrice > ma20Value) buySignals++;
-    else if (currentPrice < ma20Value) sellSignals++;
-
-    // MACD signals
-    if (macdLine > signalLine && macdLine > 0) {
-      buySignals++;
-    } else if (macdLine < signalLine && macdLine < 0) {
-      sellSignals++;
-    }
-
-    // Determine direction and strength
-    if (buySignals >= 3) {
+    
+    // Determine direction and strength based on sentiment counts
+    // Strong signal: at least 10 out of 14 signals agree (70%+)
+    const totalSignals = buyCount + sellCount + neutralCount;
+    const strongThreshold = Math.floor(totalSignals * 0.7);
+    
+    if (buyCount >= strongThreshold) {
       return { direction: 'BUY', strength: 'strong' };
-    } else if (sellSignals >= 3) {
+    } else if (sellCount >= strongThreshold) {
       return { direction: 'SELL', strength: 'strong' };
-    } else if (buySignals > sellSignals) {
+    } else if (buyCount > sellCount) {
       return { direction: 'BUY', strength: 'weak' };
-    } else if (sellSignals > buySignals) {
+    } else if (sellCount > buyCount) {
       return { direction: 'SELL', strength: 'weak' };
     }
 

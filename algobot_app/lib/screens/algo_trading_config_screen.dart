@@ -187,6 +187,66 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
     super.dispose();
   }
 
+  Future<void> _stopActiveTrade() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Stop Algo Trade?'),
+        content: const Text(
+          'Are you sure you want to stop the active algo trade? This will close all positions and stop the bot.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Stop'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final symbol = '${widget.coin.symbol}${widget.quoteCurrency}';
+      await _algoService.stopAlgoTrade(symbol);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Algo trade stopped successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Reload data to update UI
+        await _loadData();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error stopping trade: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   Future<void> _validateBeforeStart() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -463,14 +523,36 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: Colors.orange),
                   ),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.warning, color: Colors.orange),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'You have an active algo trade for this pair. Starting a new one will stop the existing trade.',
-                          style: TextStyle(color: Colors.orange[800]),
+                      Row(
+                        children: [
+                          const Icon(Icons.warning, color: Colors.orange),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'You have an active algo trade for this pair.',
+                              style: TextStyle(
+                                color: Colors.orange[800],
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _isLoading ? null : _stopActiveTrade,
+                          icon: const Icon(Icons.stop_circle),
+                          label: const Text('Stop Active Trade'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
                         ),
                       ),
                     ],
