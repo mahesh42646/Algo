@@ -342,9 +342,10 @@ class _ApiBindingScreenState extends State<ApiBindingScreen> {
                     ...(result['balances'] as List).take(5).map((balance) {
                       final asset = balance['asset'] ?? '';
                       final free = balance['free'] ?? 0;
+                      final freeValue = free is String ? double.tryParse(free) ?? 0.0 : (free is num ? free.toDouble() : 0.0);
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Text('$asset: ${free.toStringAsFixed(8)}'),
+                        child: Text('$asset: ${freeValue.toStringAsFixed(8)}'),
                       );
                     }).toList(),
                   ],
