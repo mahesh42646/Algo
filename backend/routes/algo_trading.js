@@ -17,7 +17,7 @@ function getBinanceApiUrl(isTest = false) {
 router.post('/:userId/start', async (req, res, next) => {
   const startTime = Date.now();
   const { userId } = req.params;
-  const { symbol, apiId, maxLossPerTrade, maxLossOverall, maxProfitBook, amountPerLevel, numberOfLevels, useMargin } = req.body;
+  const { symbol, apiId, maxLossPerTrade, maxLossOverall, maxProfitBook, amountPerLevel, numberOfLevels, useMargin, leverage } = req.body;
 
   console.log(`[ALGO TRADING START] 📊 Request from user ${userId}`);
   console.log(`[ALGO TRADING START] 📋 Parameters:`, {
@@ -29,6 +29,7 @@ router.post('/:userId/start', async (req, res, next) => {
     amountPerLevel,
     numberOfLevels,
     useMargin,
+    leverage: leverage || 1,
   });
 
   try {
@@ -161,6 +162,7 @@ router.post('/:userId/start', async (req, res, next) => {
       amountPerLevel: parseFloat(amountPerLevel),
       numberOfLevels: parseInt(numberOfLevels),
       useMargin: useMargin === true,
+      leverage: Math.max(1, Math.min(20, parseInt(leverage) || 1)), // Clamp between 1-20x
       apiKey,
       apiSecret,
       startPrice: 0,
@@ -174,8 +176,6 @@ router.post('/:userId/start', async (req, res, next) => {
       lastSignal: null,
       intervalId: null,
       platformWalletFees: [], // Track all fees (deducted at each level)
-      orders: [], // Track all orders placed
-      totalInvested: 0, // Track total amount invested
     };
 
     // Start the algo trading loop
@@ -226,6 +226,7 @@ router.post('/:userId/start', async (req, res, next) => {
         amountPerLevel: trade.amountPerLevel,
         numberOfLevels: trade.numberOfLevels,
         useMargin: trade.useMargin,
+        leverage: trade.leverage || 1,
       },
     });
     await user.save();
