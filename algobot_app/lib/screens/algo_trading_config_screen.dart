@@ -118,7 +118,7 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
 
   Future<void> _loadApiBalance(ExchangeApi api) async {
     try {
-      final balance = await _exchangeService.getBalance(api.platform);
+      final balance = await _exchangeService.getBalance(api.platform, apiId: api.id);
       final totalBalance = balance.fold<double>(
         0.0,
         (sum, b) => sum + (b.total * (b.asset == widget.quoteCurrency ? 1.0 : 0.0)),
