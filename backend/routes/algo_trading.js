@@ -511,9 +511,19 @@ async function executeAlgoTradingStep(trade) {
       const signal = await getTradingSignal(candles, currentPrice);
       trade.lastSignal = signal;
 
-      // Wait for strong signal (either BUY or SELL)
-      if (signal.strength === 'strong' && (signal.direction === 'BUY' || signal.direction === 'SELL')) {
-        console.log(`[ALGO TRADING STEP] ✅ Strong ${signal.direction} signal detected - Starting trade!`);
+      // Wait for signal (strong preferred, but can start with weak if available)
+      // If strong signal, start immediately
+      // If weak signal and no strong signal after waiting, start with weak signal
+      const canStart = (signal.strength === 'strong' && (signal.direction === 'BUY' || signal.direction === 'SELL')) ||
+                      (signal.direction !== 'NEUTRAL' && signal.strength === 'weak');
+      
+      if (canStart) {
+        // Prefer strong signals, but allow weak signals if no strong signal available
+        if (signal.strength === 'strong') {
+          console.log(`[ALGO TRADING STEP] ✅ Strong ${signal.direction} signal detected - Starting trade!`);
+        } else {
+          console.log(`[ALGO TRADING STEP] 📊 ${signal.direction} signal detected (${signal.strength}) - Starting trade with current direction!`);
+        }
         
         // Set start price and trade direction
         trade.startPrice = currentPrice;
@@ -561,7 +571,14 @@ async function executeAlgoTradingStep(trade) {
         console.log(`[ALGO TRADING STEP] ✅ Trade started! Level 1 ${signal.direction} order placed at \$${currentPrice.toFixed(8)}`);
         return;
       } else {
-        console.log(`[ALGO TRADING STEP] ⏭️ ${trade.symbol}: ${signal.direction} signal (${signal.strength}) - Still waiting for strong signal`);
+        // If NEUTRAL, wait for a signal
+        if (signal.direction === 'NEUTRAL') {
+          console.log(`[ALGO TRADING STEP] ⏭️ ${trade.symbol}: ${signal.direction} signal (${signal.strength}) - Waiting for signal...`);
+        } else {
+          // Weak signal available but prefer to wait a bit for strong signal
+          // Will start on next check if still weak
+          console.log(`[ALGO TRADING STEP] ⏭️ ${trade.symbol}: ${signal.direction} signal (${signal.strength}) - Will start if no strong signal appears`);
+        }
         return;
       }
     }
