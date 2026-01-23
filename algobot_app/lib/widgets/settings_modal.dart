@@ -114,7 +114,7 @@ class SettingsModal extends StatelessWidget {
               'Enable or disable push notifications',
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.grey,
+                color: Theme.of(context).textTheme.bodySmall?.color,
               ),
             ),
           ],
@@ -191,20 +191,29 @@ class SettingsModal extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.grey[100],
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.grey[800]
+                : Colors.grey[100],
             borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: Theme.of(context).dividerColor,
+            ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 Env.appVersion,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
+                  color: Theme.of(context).textTheme.bodyMedium?.color,
                 ),
               ),
-              Icon(Icons.info_outline, color: Colors.grey[600]),
+              Icon(
+                Icons.info_outline,
+                color: Theme.of(context).textTheme.bodySmall?.color,
+              ),
             ],
           ),
         ),

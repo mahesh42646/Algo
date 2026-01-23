@@ -340,12 +340,16 @@ class _MinePageState extends State<MinePage> {
             children: [
               CircleAvatar(
                 radius: 60,
-                backgroundColor: Colors.grey[300],
+                backgroundColor: Theme.of(context).cardColor,
                 backgroundImage: avatarUrl.isNotEmpty
                     ? NetworkImage(avatarUrl)
                     : null,
                 child: avatarUrl.isEmpty
-                    ? const Icon(Icons.person, size: 60, color: Colors.grey)
+                    ? Icon(
+                        Icons.person,
+                        size: 60,
+                        color: Theme.of(context).textTheme.bodySmall?.color,
+                      )
                     : null,
               ),
               if (_isEditing)
@@ -398,17 +402,28 @@ class _MinePageState extends State<MinePage> {
   }
 
   Widget _buildUserInfo() {
+    final theme = Theme.of(context);
+    
     return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: theme.dividerColor,
+          width: 1,
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'User Information',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
+                color: theme.textTheme.titleLarge?.color,
               ),
             ),
             const SizedBox(height: 16),
@@ -428,21 +443,31 @@ class _MinePageState extends State<MinePage> {
   }
 
   Widget _buildWalletSection() {
+    final theme = Theme.of(context);
     final address = _getDepositAddress();
     final status = _getDepositStatus();
     final balance = _getUsdtBalance();
 
     return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: theme.dividerColor,
+          width: 1,
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Wallet',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
+                color: theme.textTheme.titleLarge?.color,
               ),
             ),
             const SizedBox(height: 12),
@@ -453,12 +478,19 @@ class _MinePageState extends State<MinePage> {
             if (address.isNotEmpty)
               Text(
                 'Deposit Address',
-                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                style: TextStyle(
+                  color: theme.textTheme.bodySmall?.color,
+                  fontSize: 12,
+                ),
               ),
             if (address.isNotEmpty)
               Text(
                 address,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: theme.textTheme.bodyMedium?.color,
+                ),
               ),
             const SizedBox(height: 12),
             Row(
@@ -494,6 +526,8 @@ class _MinePageState extends State<MinePage> {
   }
 
   Widget _buildInfoRow(String label, String value) {
+    final theme = Theme.of(context);
+    
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -504,7 +538,7 @@ class _MinePageState extends State<MinePage> {
             child: Text(
               label,
               style: TextStyle(
-                color: Colors.grey[600],
+                color: theme.textTheme.bodySmall?.color,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -512,8 +546,9 @@ class _MinePageState extends State<MinePage> {
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w500,
+                color: theme.textTheme.bodyMedium?.color,
               ),
             ),
           ),
@@ -523,17 +558,28 @@ class _MinePageState extends State<MinePage> {
   }
 
   Widget _buildAdditionalInfo() {
+    final theme = Theme.of(context);
+    
     return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: theme.dividerColor,
+          width: 1,
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Additional Information',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
+                color: theme.textTheme.titleLarge?.color,
               ),
             ),
             const SizedBox(height: 16),
