@@ -64,6 +64,7 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
       
       // Load available APIs
       final apis = await _exchangeService.getLinkedApis();
+      print('[ALGO CONFIG] Loaded ${apis.length} APIs. Active: ${apis.where((api) => api.isActive).length}');
       
       // Load platform wallet balance
       double platformWalletBalance = 0.0;
@@ -99,6 +100,9 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
         // Load balance for selected API
         if (_selectedApi != null) {
           _loadApiBalance(_selectedApi!);
+        } else if (_availableApis.isEmpty) {
+          // Log for debugging
+          print('[ALGO CONFIG] No active APIs found. Total APIs: ${apis.length}');
         }
       }
     } catch (e) {
@@ -118,11 +122,19 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
 
   Future<void> _loadApiBalance(ExchangeApi api) async {
     try {
+      print('[ALGO CONFIG] Loading balance for API: ${api.platform} - ${api.label} (Test: ${api.isTest})');
       final balance = await _exchangeService.getBalance(api.platform, apiId: api.id);
-      final totalBalance = balance.fold<double>(
-        0.0,
-        (sum, b) => sum + (b.total * (b.asset == widget.quoteCurrency ? 1.0 : 0.0)),
-      );
+      print('[ALGO CONFIG] Balance loaded: ${balance.length} assets');
+      
+      // Calculate total balance in quote currency (USDT)
+      double totalBalance = 0.0;
+      for (var b in balance) {
+        if (b.asset.toUpperCase() == widget.quoteCurrency.toUpperCase()) {
+          totalBalance += b.total;
+        }
+      }
+      
+      print('[ALGO CONFIG] Total ${widget.quoteCurrency} balance: $totalBalance');
       
       if (mounted) {
         setState(() {
@@ -135,10 +147,23 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
         });
       }
     } catch (e) {
+      print('[ALGO CONFIG] Error loading balance: $e');
       if (mounted) {
         setState(() {
-          _apiBalance = null;
+          _apiBalance = {
+            'total': 0.0,
+            'balances': [],
+            'platform': api.platform,
+            'permissions': api.permissions,
+          };
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading balance: ${e.toString()}'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
+        );
       }
     }
   }
@@ -404,13 +429,15 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
       appBar: AppBar(
         title: Text('Algo Trading - ${widget.coin.symbol}/${widget.quoteCurrency}'),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
               if (_hasActiveTrade)
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -617,7 +644,7 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Required: 3% of total trade amount (all levels)',
+                            'Required: ${_selectedApi != null ? (_selectedApi!.isTest ? "3%" : "0.3%") : "3%"} of total trade amount (all levels)',
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.grey[600],
@@ -698,6 +725,7 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
               _buildInfoCard(),
               const SizedBox(height: 24),
               
+              // Trading Parameters - Always show
               Text(
                 'Trading Parameters',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -875,7 +903,7 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
             '• Loss adjustments don\'t check signals - they automatically add funds when loss threshold is hit\n'
             '• If profit hits "Max Profit Book" (e.g., 3%), it books profit and stops\n'
             '• If max levels are reached, it books overall loss and stops\n'
-            '• 3% platform wallet fee is deducted at each level (must have 3% of total for all levels upfront)',
+            '• ${_selectedApi != null ? (_selectedApi!.isTest ? "3%" : "0.3%") : "Platform wallet"} fee is deducted at each level (must have ${_selectedApi != null ? (_selectedApi!.isTest ? "3%" : "0.3%") : "required"} of total for all levels upfront)',
             style: TextStyle(
               fontSize: 12,
               color: Colors.grey[700],
@@ -939,7 +967,7 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'I understand that algorithmic trading involves risks. I accept full responsibility for all trades executed by this algorithm. The algorithm will automatically place orders based on technical indicators and my configured parameters. A 3% platform wallet fee will be deducted at each level.',
+                  'I understand that algorithmic trading involves risks. I accept full responsibility for all trades executed by this algorithm. The algorithm will automatically place orders based on technical indicators and my configured parameters. A ${_selectedApi != null ? (_selectedApi!.isTest ? "3%" : "0.3%") : "platform wallet"} fee will be deducted at each level.',
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.grey[600],
