@@ -817,8 +817,9 @@ async function closeAllPositions(trade, reason) {
       .update(queryString)
       .digest('hex');
 
+    const binanceBaseUrl = getBinanceApiUrl(trade.isTest);
     const accountResponse = await axios.get(
-      `https://api.binance.com/api/v3/account?${queryString}&signature=${signature}`,
+      `${binanceBaseUrl}/account?${queryString}&signature=${signature}`,
       {
         headers: {
           'X-MBX-APIKEY': trade.apiKey,
@@ -841,8 +842,9 @@ async function closeAllPositions(trade, reason) {
         .update(sellQueryString)
         .digest('hex');
 
+      const binanceBaseUrl = getBinanceApiUrl(trade.isTest);
       await axios.post(
-        `https://api.binance.com/api/v3/order?${sellQueryString}&signature=${sellSignature}`,
+        `${binanceBaseUrl}/order?${sellQueryString}&signature=${sellSignature}`,
         null,
         {
           headers: {
