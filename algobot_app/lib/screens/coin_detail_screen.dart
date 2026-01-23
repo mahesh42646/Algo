@@ -1400,7 +1400,6 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
       ),
     );
   }
-}
 
   Widget _buildActiveTradeCard() {
     if (_activeTrade == null) return const SizedBox.shrink();
