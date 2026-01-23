@@ -432,6 +432,13 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Algo Trading - ${widget.coin.symbol}/${widget.quoteCurrency}'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadData,
+            tooltip: 'Refresh',
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -581,20 +588,45 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
                 const SizedBox(height: 16),
               ] else ...[
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
+                    color: Colors.orange.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red),
+                    border: Border.all(color: Colors.orange),
                   ),
-                  child: const Row(
+                  child: Column(
                     children: [
-                      Icon(Icons.error, color: Colors.red),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'No active APIs found. Please link an exchange API first.',
-                          style: TextStyle(color: Colors.red),
+                      const Row(
+                        children: [
+                          Icon(Icons.warning, color: Colors.orange),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'No Active APIs Found',
+                              style: TextStyle(
+                                color: Colors.orange,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Please link an exchange API (test or real) from the API Binding page before starting algo trading.',
+                        style: TextStyle(color: Colors.orange),
+                      ),
+                      const SizedBox(height: 12),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
+                        icon: const Icon(Icons.link),
+                        label: const Text('Go to API Binding'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          foregroundColor: Colors.white,
                         ),
                       ),
                     ],
