@@ -660,6 +660,7 @@ router.post('/:userId/:platform/verify', async (req, res, next) => {
 router.get('/:userId/:platform/balance', async (req, res, next) => {
   try {
     const { userId, platform } = req.params;
+    const apiId = req.query.apiId;
 
     const user = await User.findOne({ userId }).select('exchangeApis');
 
@@ -670,14 +671,26 @@ router.get('/:userId/:platform/balance', async (req, res, next) => {
       });
     }
 
-    const api = user.exchangeApis.find(
-      a => a.platform === platform.toLowerCase() && a.isActive
-    );
+    // Get API by ID if provided, otherwise find by platform
+    let api;
+    if (apiId) {
+      api = user.exchangeApis.id(apiId);
+      if (api && !api.isActive) {
+        return res.status(400).json({
+          success: false,
+          error: 'API is not active',
+        });
+      }
+    } else {
+      api = user.exchangeApis.find(
+        a => a.platform === platform.toLowerCase() && a.isActive
+      );
+    }
 
     if (!api) {
       return res.status(404).json({
         success: false,
-        error: `No active API found for ${platform}`,
+        error: `No active API found for ${platform}${apiId ? ` with ID ${apiId}` : ''}`,
       });
     }
 
