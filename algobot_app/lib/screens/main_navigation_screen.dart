@@ -32,16 +32,17 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).bottomNavigationBarTheme.backgroundColor ?? 
+                 Theme.of(context).cardColor,
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(20),
             topRight: Radius.circular(20),
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withOpacity(0.05),
               blurRadius: 10,
-              offset: const Offset(0, -5),
+              offset: const Offset(0, -2),
             ),
           ],
         ),
@@ -95,47 +96,59 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     required String label,
     required int index,
   }) {
+    final theme = Theme.of(context);
     final isSelected = _currentIndex == index;
-    final primaryColor = Theme.of(context).colorScheme.primary;
+    final primaryColor = theme.colorScheme.primary;
+    final isDark = theme.brightness == Brightness.dark;
     
     return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: EdgeInsets.symmetric(
-            vertical: isSelected ? 10 : 8,
-            horizontal: isSelected ? 16 : 8,
-          ),
-          decoration: isSelected
-              ? BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(30),
-                )
-              : null,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                isSelected ? icon : iconOutlined,
-                color: isSelected ? primaryColor : Colors.grey[600],
-                size: 24,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isSelected ? primaryColor : Colors.grey[600],
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+          borderRadius: BorderRadius.circular(30),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: EdgeInsets.symmetric(
+              vertical: isSelected ? 10 : 8,
+              horizontal: isSelected ? 16 : 8,
+            ),
+            decoration: isSelected
+                ? BoxDecoration(
+                    color: isDark 
+                        ? Colors.grey[800] 
+                        : Colors.grey[200],
+                    borderRadius: BorderRadius.circular(30),
+                  )
+                : null,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  isSelected ? icon : iconOutlined,
+                  color: isSelected 
+                      ? primaryColor 
+                      : (isDark ? Colors.grey[400] : Colors.grey[600]),
+                  size: 22,
                 ),
-              ),
-            ],
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isSelected 
+                        ? primaryColor 
+                        : (isDark ? Colors.grey[400] : Colors.grey[600]),
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

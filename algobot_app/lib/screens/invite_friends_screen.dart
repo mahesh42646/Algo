@@ -6,19 +6,11 @@ class InviteFriendsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return Scaffold(
       appBar: AppBar(
-        leading: Container(
-          margin: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.grey[200],
-            shape: BoxShape.circle,
-          ),
-          child: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.black87),
-            onPressed: () => Navigator.pop(context),
-          ),
-        ),
+        elevation: 0,
         title: const Text(
           'Invite Friends',
           style: TextStyle(fontWeight: FontWeight.bold),
@@ -123,12 +115,17 @@ class InviteFriendsScreen extends StatelessWidget {
   }
 
   Widget _buildInvitationCode() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(
+          color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -137,7 +134,7 @@ class InviteFriendsScreen extends StatelessWidget {
             'My invitation code',
             style: TextStyle(
               fontSize: 12,
-              color: Colors.grey[600],
+              color: theme.textTheme.bodySmall?.color,
             ),
           ),
           const SizedBox(height: 8),
@@ -155,12 +152,17 @@ class InviteFriendsScreen extends StatelessWidget {
   }
 
   Widget _buildInvitationLink() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(
+          color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -169,7 +171,7 @@ class InviteFriendsScreen extends StatelessWidget {
             'Invitation Link',
             style: TextStyle(
               fontSize: 12,
-              color: Colors.grey[600],
+              color: theme.textTheme.bodySmall?.color,
             ),
           ),
           const SizedBox(height: 8),
@@ -186,12 +188,17 @@ class InviteFriendsScreen extends StatelessWidget {
   }
 
   Widget _buildQRCodeSection(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(
+          color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+        ),
       ),
       child: Row(
         children: [
@@ -280,12 +287,17 @@ class InviteFriendsScreen extends StatelessWidget {
   }
 
   Widget _buildDescriptionCard() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(
+          color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+        ),
       ),
       child: Row(
         children: [
@@ -294,12 +306,16 @@ class InviteFriendsScreen extends StatelessWidget {
               'Invite friends and earn money. Whenever a member you referred activates their account, you will receive bonuses based on your ranking.',
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey[700],
+                color: theme.textTheme.bodyMedium?.color,
               ),
             ),
           ),
           const SizedBox(width: 12),
-          Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[600]),
+          Icon(
+            Icons.arrow_forward_ios,
+            size: 16,
+            color: theme.textTheme.bodySmall?.color,
+          ),
         ],
       ),
     );

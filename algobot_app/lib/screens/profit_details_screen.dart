@@ -58,28 +58,19 @@ class _ProfitDetailsScreenState extends State<ProfitDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1976D2),
-        leading: Container(
-          margin: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.blue[100],
-            shape: BoxShape.circle,
-          ),
-          child: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
-          ),
-        ),
+        elevation: 0,
         title: const Text(
           'Profit Details',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.share, color: Colors.white),
+            icon: const Icon(Icons.share),
             onPressed: () {},
           ),
         ],
@@ -99,28 +90,31 @@ class _ProfitDetailsScreenState extends State<ProfitDetailsScreen> {
       ),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(16),
-        child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          border: Border(
+            top: BorderSide(
+              color: Theme.of(context).dividerColor,
+              width: 1,
+            ),
+          ),
+        ),
+        child: SizedBox(
           width: double.infinity,
           height: 50,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFFFF9800), Color(0xFFFF6F00)],
-            ),
-            borderRadius: BorderRadius.circular(25),
-          ),
           child: ElevatedButton(
             onPressed: () {},
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              shadowColor: Colors.transparent,
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(25),
               ),
+              elevation: 2,
             ),
             child: const Text(
               'Get Started',
               style: TextStyle(
-                color: Colors.white,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
@@ -222,13 +216,18 @@ class _ProfitDetailsScreenState extends State<ProfitDetailsScreen> {
   }
 
   Widget _buildInfoBox() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(
+          color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+        ),
       ),
       child: Row(
         children: [
@@ -236,7 +235,7 @@ class _ProfitDetailsScreenState extends State<ProfitDetailsScreen> {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: Colors.orange[100],
+              color: Colors.orange.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.info, color: Colors.orange, size: 20),
@@ -245,7 +244,10 @@ class _ProfitDetailsScreenState extends State<ProfitDetailsScreen> {
           Expanded(
             child: Text(
               'While using Sub-bin mode, profit will only be shown after all positions are closed. Profit will directly go into your exchange balance.',
-              style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+              style: TextStyle(
+                fontSize: 12,
+                color: theme.textTheme.bodySmall?.color,
+              ),
             ),
           ),
         ],
@@ -254,32 +256,41 @@ class _ProfitDetailsScreenState extends State<ProfitDetailsScreen> {
   }
 
   Widget _buildTabs() {
+    final theme = Theme.of(context);
     final tabs = ['History Record', 'Profit Analysis', 'Currency Pro'];
+    
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 16),
       child: Row(
         children: List.generate(tabs.length, (index) {
           final isSelected = _selectedTab == index;
           return Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _selectedTab = index),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: isSelected ? Colors.orange : Colors.transparent,
-                      width: 2,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => setState(() => _selectedTab = index),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: isSelected 
+                            ? theme.colorScheme.primary
+                            : Colors.transparent,
+                        width: 2,
+                      ),
                     ),
                   ),
-                ),
-                child: Text(
-                  tabs[index],
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: isSelected ? Colors.orange : Colors.grey[600],
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    fontSize: 14,
+                  child: Text(
+                    tabs[index],
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: isSelected 
+                          ? theme.colorScheme.primary
+                          : theme.textTheme.bodySmall?.color,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
               ),
@@ -295,28 +306,43 @@ class _ProfitDetailsScreenState extends State<ProfitDetailsScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    final theme = Theme.of(context);
+    
     if (_tradeHistory.isEmpty) {
       return Container(
         margin: const EdgeInsets.all(16),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.cardColor,
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: theme.dividerColor,
+          ),
         ),
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.inbox_outlined, size: 80, color: Colors.grey[300]),
+              Icon(
+                Icons.inbox_outlined,
+                size: 80,
+                color: theme.textTheme.bodySmall?.color?.withOpacity(0.3),
+              ),
               const SizedBox(height: 16),
               Text(
                 'No Trade History',
-                style: TextStyle(color: Colors.grey[600], fontSize: 16),
+                style: TextStyle(
+                  color: theme.textTheme.bodyMedium?.color,
+                  fontSize: 16,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
                 'Your completed algo trades will appear here',
-                style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                style: TextStyle(
+                  color: theme.textTheme.bodySmall?.color,
+                  fontSize: 12,
+                ),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -335,14 +361,18 @@ class _ProfitDetailsScreenState extends State<ProfitDetailsScreen> {
         final profit = trade['profit'] ?? 0.0;
         final isProfit = profit >= 0;
         
+        final theme = Theme.of(context);
+        
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: theme.cardColor,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isProfit ? Colors.green.withOpacity(0.3) : Colors.red.withOpacity(0.3),
+              color: isProfit 
+                  ? Colors.green.withOpacity(0.3)
+                  : Colors.red.withOpacity(0.3),
             ),
           ),
           child: Row(
@@ -364,7 +394,7 @@ class _ProfitDetailsScreenState extends State<ProfitDetailsScreen> {
                       'Levels: ${trade['levels'] ?? 0}',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey[600],
+                        color: theme.textTheme.bodySmall?.color,
                       ),
                     ),
                     if (trade['stoppedAt'] != null)
@@ -372,7 +402,7 @@ class _ProfitDetailsScreenState extends State<ProfitDetailsScreen> {
                         'Stopped: ${_formatDate(trade['stoppedAt'])}',
                         style: TextStyle(
                           fontSize: 11,
-                          color: Colors.grey[500],
+                          color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
                         ),
                       ),
                   ],
@@ -394,7 +424,7 @@ class _ProfitDetailsScreenState extends State<ProfitDetailsScreen> {
                     'USDT',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey[600],
+                      color: theme.textTheme.bodySmall?.color,
                     ),
                   ),
                 ],

@@ -77,11 +77,17 @@ class _CirclePageState extends State<CirclePage> {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).cardColor,
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.grey[300]!),
+                border: Border.all(
+                  color: Theme.of(context).dividerColor,
+                ),
               ),
-              child: const Icon(Icons.add, color: Colors.black87, size: 20),
+              child: Icon(
+                Icons.add,
+                color: Theme.of(context).textTheme.bodyLarge?.color,
+                size: 20,
+              ),
             ),
             onPressed: () {},
           ),
@@ -106,35 +112,62 @@ class _CirclePageState extends State<CirclePage> {
   }
 
   Widget _buildTabButton(String label, int index) {
+    final theme = Theme.of(context);
     final isSelected = _selectedTab == index;
+    final isDark = theme.brightness == Brightness.dark;
+    
     return GestureDetector(
       onTap: () => setState(() => _selectedTab = index),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected 
+              ? theme.colorScheme.primary.withOpacity(0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
         child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 16,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-          color: isSelected ? Colors.black87 : Colors.grey[600],
+          label,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            color: isSelected 
+                ? theme.colorScheme.primary
+                : (isDark ? Colors.grey[400] : Colors.grey[600]),
+          ),
         ),
       ),
     );
   }
 
   Widget _buildSearchBar() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.grey[100],
+        color: isDark ? Colors.grey[800] : Colors.grey[100],
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+          width: 1,
+        ),
       ),
       child: Row(
         children: [
-          Icon(Icons.search, color: Colors.grey[600]),
+          Icon(
+            Icons.search,
+            color: isDark ? Colors.grey[400] : Colors.grey[600],
+          ),
           const SizedBox(width: 12),
           Text(
             'Search circle',
-            style: TextStyle(color: Colors.grey[600], fontSize: 14),
+            style: TextStyle(
+              color: isDark ? Colors.grey[400] : Colors.grey[600],
+              fontSize: 14,
+            ),
           ),
         ],
       ),

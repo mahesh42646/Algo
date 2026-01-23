@@ -345,7 +345,7 @@ class _ApiBindingScreenState extends State<ApiBindingScreen> {
                       final freeValue = free is String ? double.tryParse(free) ?? 0.0 : (free is num ? free.toDouble() : 0.0);
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Text('$asset: ${freeValue.toStringAsFixed(8)}'),
+                        child: Text('$asset: ${freeValue.toStringAsFixed(4)}'),
                       );
                     }).toList(),
                   ],
