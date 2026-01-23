@@ -91,13 +91,18 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
   }
 
   void _filterByQuote(String quote) {
+    if (!mounted) return;
+    
     if (_selectedQuote == quote && _allCoins.isNotEmpty) {
       // Already selected and has data, just apply filter
       return;
     }
+    
     setState(() {
       _selectedQuote = quote;
+      _isLoading = true;
     });
+    
     _loadCryptoData();
   }
 
@@ -158,17 +163,29 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // _buildHeader(),
           _buildMarketFilters(),
           _buildTableHeader(),
           _buildCryptoList(),
@@ -200,41 +217,71 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
   // }
 
   Widget _buildMarketFilters() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 0),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       child: Row(
         children: [
-          ..._quoteCurrencies.map((quote) => Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: GestureDetector(
-                    onTap: () => _filterByQuote(quote),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      decoration: BoxDecoration(
-                        color: _selectedQuote == quote
-                            ? Theme.of(context).colorScheme.primary
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        quote,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: _selectedQuote == quote
-                              ? Colors.white
-                              : Colors.grey[700],
-                          fontWeight: _selectedQuote == quote
-                              ? FontWeight.w600
-                              : FontWeight.normal,
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: _quoteCurrencies.map((quote) {
+                  final isSelected = _selectedQuote == quote;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onTap: () => _filterByQuote(quote),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? theme.colorScheme.primary
+                              : isDark
+                                  ? Colors.grey[800]
+                                  : Colors.grey[100],
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isSelected
+                                ? theme.colorScheme.primary
+                                : isDark
+                                    ? Colors.grey[700]!
+                                    : Colors.grey[300]!,
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          quote,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: isSelected
+                                ? Colors.white
+                                : theme.textTheme.bodyMedium?.color,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-              )),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
           IconButton(
-            icon: const Icon(Icons.search),
+            icon: Icon(
+              Icons.search,
+              color: theme.textTheme.bodyMedium?.color,
+            ),
             onPressed: () {
               showDialog(
                 context: context,
@@ -244,22 +291,27 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
                     autofocus: true,
                     decoration: const InputDecoration(
                       hintText: 'Search by symbol or name',
+                      prefixIcon: Icon(Icons.search),
                     ),
                     onChanged: (value) {
-                      setState(() {
-                        _searchQuery = value;
-                      });
-                      _applySort();
+                      if (mounted) {
+                        setState(() {
+                          _searchQuery = value;
+                        });
+                        _applySort();
+                      }
                     },
                   ),
                   actions: [
                     TextButton(
                       onPressed: () {
-                        setState(() {
-                          _searchQuery = '';
-                        });
-                        _applySort();
-                        Navigator.of(context).pop();
+                        if (mounted) {
+                          setState(() {
+                            _searchQuery = '';
+                          });
+                          _applySort();
+                          Navigator.of(context).pop();
+                        }
                       },
                       child: const Text('Clear'),
                     ),
@@ -278,11 +330,18 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
   }
 
   Widget _buildTableHeader() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
+        color: isDark ? Colors.grey[900] : Colors.grey[50],
         border: Border(
-          bottom: BorderSide(color: Colors.grey[200]!),
+          bottom: BorderSide(
+            color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+            width: 1,
+          ),
         ),
       ),
       child: Row(
@@ -293,19 +352,22 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
               onTap: () => _toggleSort(SortType.currency),
               child: Row(
                 children: [
-                  const Text(
+                  Text(
                     'Currency',
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      fontSize: 14,
+                      fontSize: 13,
+                      color: theme.textTheme.bodySmall?.color,
                     ),
                   ),
+                  const SizedBox(width: 4),
                   if (_sortType == SortType.currency)
                     Icon(
                       _sortOrder == SortOrder.ascending
                           ? Icons.arrow_upward
                           : Icons.arrow_downward,
-                      size: 16,
+                      size: 14,
+                      color: theme.colorScheme.primary,
                     ),
                 ],
               ),
@@ -318,19 +380,22 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  const Text(
-                    'Last Price',
+                  Text(
+                    'Price',
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      fontSize: 14,
+                      fontSize: 13,
+                      color: theme.textTheme.bodySmall?.color,
                     ),
                   ),
+                  const SizedBox(width: 4),
                   if (_sortType == SortType.price)
                     Icon(
                       _sortOrder == SortOrder.ascending
                           ? Icons.arrow_upward
                           : Icons.arrow_downward,
-                      size: 16,
+                      size: 14,
+                      color: theme.colorScheme.primary,
                     ),
                 ],
               ),
@@ -343,19 +408,22 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  const Text(
-                    '24h Change',
+                  Text(
+                    '24h',
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      fontSize: 14,
+                      fontSize: 13,
+                      color: theme.textTheme.bodySmall?.color,
                     ),
                   ),
+                  const SizedBox(width: 4),
                   if (_sortType == SortType.change)
                     Icon(
                       _sortOrder == SortOrder.ascending
                           ? Icons.arrow_upward
                           : Icons.arrow_downward,
-                      size: 16,
+                      size: 14,
+                      color: theme.colorScheme.primary,
                     ),
                 ],
               ),
@@ -367,141 +435,158 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
   }
 
   Widget _buildCryptoList() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     if (_isLoading) {
       return _buildSkeletonList();
     }
 
     if (_filteredCoins.isEmpty) {
-      return const SizedBox(
-        height: 200,
-        child: Center(child: Text('No coins found')),
+      return SizedBox(
+        height: 300,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.inbox_outlined,
+                size: 48,
+                color: theme.textTheme.bodySmall?.color,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'No coins found',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: theme.textTheme.bodySmall?.color,
+                ),
+              ),
+            ],
+          ),
+        ),
       );
     }
 
-    return SizedBox(
-      height: 400,
-      child: ListView.builder(
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 500),
+      child: ListView.separated(
+        shrinkWrap: true,
+        physics: const AlwaysScrollableScrollPhysics(),
         itemCount: _filteredCoins.length,
+        separatorBuilder: (context, index) => Divider(
+          height: 1,
+          thickness: 0.5,
+          color: isDark ? Colors.grey[800] : Colors.grey[200],
+        ),
         itemBuilder: (context, index) {
           final coin = _filteredCoins[index];
           final isPositive = coin.priceChangePercentage24h >= 0;
-          final priceColor = isPositive ? Colors.green : Colors.red;
-          final changeColor = isPositive ? Colors.green : Colors.red;
+          final changeColor = isPositive 
+              ? Colors.green 
+              : Colors.red;
 
-          return InkWell(
-            onTap: () {
-              Navigator.of(context).pushNamed(
-                '/coin-detail',
-                arguments: {
-                  'coin': coin,
-                  'quoteCurrency': _selectedQuote,
-                },
-              );
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: Colors.grey[100]!,
-                    width: 0.5,
-                  ),
-                ),
-              ),
-              child: Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        coin.getPair(_selectedQuote),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                if (mounted) {
+                  Navigator.of(context).pushNamed(
+                    '/coin-detail',
+                    arguments: {
+                      'coin': coin,
+                      'quoteCurrency': _selectedQuote,
+                    },
+                  );
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            coin.getPair(_selectedQuote),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              color: theme.textTheme.bodyLarge?.color,
+                            ),
+                          ),
+                          if (coin.symbol == 'ZEC')
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Wrap(
+                                spacing: 4,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      'To be delisted',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.orange[700],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        _formatPrice(coin.currentPrice),
+                        textAlign: TextAlign.end,
+                        style: TextStyle(
+                          color: theme.textTheme.bodyLarge?.color,
+                          fontWeight: FontWeight.w500,
                           fontSize: 14,
                         ),
                       ),
-                      if (coin.symbol == 'ZEC')
-                        Wrap(
-                          spacing: 4,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.orange[50],
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                'To be delisted',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.orange[700],
-                                ),
-                              ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: changeColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '${isPositive ? '+' : ''}${coin.priceChangePercentage24h.toStringAsFixed(2)}%',
+                            textAlign: TextAlign.end,
+                            style: TextStyle(
+                              color: changeColor,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.red[50],
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                'Monitoring',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.red[700],
-                                ),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    _formatPrice(coin.currentPrice),
-                    textAlign: TextAlign.end,
-                    style: TextStyle(
-                      color: priceColor,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isPositive ? Colors.green[50] : Colors.red[50],
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      '${isPositive ? '+' : ''}${coin.priceChangePercentage24h.toStringAsFixed(2)}%',
-                      textAlign: TextAlign.end,
-                      style: TextStyle(
-                        color: isPositive ? Colors.green[700] : Colors.red[700],
-                        fontWeight: FontWeight.w500,
-                        fontSize: 12,
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
           );
         },
       ),
@@ -509,43 +594,41 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
   }
 
   Widget _buildSkeletonList() {
-    return SizedBox(
-      height: 400,
-      child: ListView.builder(
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: 8,
-        itemBuilder: (context, index) {
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: Colors.grey[100]!,
-                  width: 0.5,
-                ),
-              ),
-            ),
-            child: Row(
-              children: const [
-                Expanded(
-                  flex: 2,
-                  child: SkeletonBox(width: double.infinity, height: 14),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: SkeletonBox(width: double.infinity, height: 14),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: SkeletonBox(width: double.infinity, height: 14),
-                ),
-              ],
-            ),
-          );
-        },
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: 8,
+      separatorBuilder: (context, index) => Divider(
+        height: 1,
+        thickness: 0.5,
+        color: isDark ? Colors.grey[800] : Colors.grey[200],
       ),
+      itemBuilder: (context, index) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: SkeletonBox(width: double.infinity, height: 16),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: SkeletonBox(width: double.infinity, height: 16),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: SkeletonBox(width: double.infinity, height: 16),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

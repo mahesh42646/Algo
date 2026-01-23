@@ -95,34 +95,48 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
+        elevation: 0,
         title: const Text('Home'),
         actions: [
           const NotificationBell(),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildCarousel(),
-            const SizedBox(height: 16),
-            _buildNotificationBanner(),
-            const SizedBox(height: 24),
-            _buildPlatformOptions(),
-            const CryptoListWidget(),
-          ],
+      body: RefreshIndicator(
+        onRefresh: () async {
+          // Trigger refresh in crypto list widget
+          setState(() {});
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildCarousel(),
+              const SizedBox(height: 20),
+              _buildNotificationBanner(),
+              const SizedBox(height: 24),
+              _buildPlatformOptions(),
+              const CryptoListWidget(),
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildCarousel() {
+    final theme = Theme.of(context);
+    
     return Column(
       children: [
         SizedBox(
-          height: 180,
+          height: 160,
           child: PageView.builder(
             controller: _pageController,
             onPageChanged: (index) {
@@ -141,10 +155,17 @@ class _HomePageState extends State<HomePage> {
                     end: Alignment.bottomRight,
                     colors: [
                       item['color'] as Color,
-                      (item['color'] as Color).withOpacity(0.7),
+                      (item['color'] as Color).withOpacity(0.8),
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (item['color'] as Color).withOpacity(0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 padding: const EdgeInsets.all(20),
                 child: Column(
@@ -154,7 +175,7 @@ class _HomePageState extends State<HomePage> {
                     Text(
                       item['title'] as String,
                       style: const TextStyle(
-                        fontSize: 24,
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
@@ -163,7 +184,7 @@ class _HomePageState extends State<HomePage> {
                     Text(
                       item['subtitle'] as String,
                       style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         color: Colors.white70,
                       ),
                     ),
@@ -173,19 +194,20 @@ class _HomePageState extends State<HomePage> {
             },
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(
             _carouselItems.length,
-            (index) => Container(
-              width: 8,
+            (index) => AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              width: _currentPage == index ? 24 : 8,
               height: 8,
               margin: const EdgeInsets.symmetric(horizontal: 4),
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(4),
                 color: _currentPage == index
-                    ? Theme.of(context).colorScheme.primary
+                    ? theme.colorScheme.primary
                     : Colors.grey[300],
               ),
             ),
@@ -196,95 +218,158 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildNotificationBanner() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[200]!),
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          Icon(Icons.notifications_outlined, color: Colors.grey[600]),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Text(
-              'Removing LGCT from Gate.io Spot Trading',
-              style: TextStyle(fontSize: 14),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              Icons.notifications_outlined,
+              color: theme.colorScheme.primary,
+              size: 20,
             ),
           ),
-          Icon(Icons.menu, color: Colors.grey[600]),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Removing LGCT from Gate.io Spot Trading',
+              style: TextStyle(
+                fontSize: 13,
+                color: theme.textTheme.bodyMedium?.color,
+              ),
+            ),
+          ),
+          Icon(
+            Icons.chevron_right,
+            color: theme.textTheme.bodySmall?.color,
+            size: 20,
+          ),
         ],
       ),
     );
   }
 
   Widget _buildPlatformOptions() {
+    final theme = Theme.of(context);
+    
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final crossAxisCount = constraints.maxWidth > 600 ? 5 : 4;
-          return GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: crossAxisCount,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 0.85,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Quick Actions',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: theme.textTheme.titleLarge?.color,
             ),
-            itemCount: _platformOptions.length,
-            itemBuilder: (context, index) {
-              final option = _platformOptions[index];
-              final colors = option['color'] as List<Color>;
-              
-              return GestureDetector(
-                onTap: () => _handlePlatformOptionTap(option['title'] as String),
-                child: Column(
-                  children: [
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: colors,
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: colors[0].withOpacity(0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Icon(
-                        option['icon'] as IconData,
-                        color: Colors.white,
-                        size: 28,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      option['title'] as String,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+          ),
+          const SizedBox(height: 16),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final crossAxisCount = constraints.maxWidth > 600 ? 4 : 4;
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 0.9,
                 ),
+                itemCount: _platformOptions.length,
+                itemBuilder: (context, index) {
+                  final option = _platformOptions[index];
+                  final colors = option['color'] as List<Color>;
+                  
+                  return Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => _handlePlatformOptionTap(option['title'] as String),
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: theme.cardColor,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: theme.dividerColor.withOpacity(0.5),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.03),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: colors,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                option['icon'] as IconData,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              option['title'] as String,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: theme.textTheme.bodyMedium?.color,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
               );
             },
-          );
-        },
+          ),
+        ],
       ),
     );
   }
