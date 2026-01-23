@@ -188,7 +188,6 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
       final amountPerLevel = double.parse(_amountPerLevelController.text);
       final numberOfLevels = int.parse(_numberOfLevelsController.text);
       final totalTradeAmount = amountPerLevel * numberOfLevels;
-      final requiredWalletBalance = totalTradeAmount * 0.03; // 3% of total trade amount
 
       // Check API balance - must be sufficient for ALL levels
       final apiTotalBalance = (_apiBalance?['total'] ?? 0.0).toDouble();
@@ -207,7 +206,6 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
 
       // Check platform wallet balance (fee depends on test/real key)
       final feePercentage = _selectedApi!.isTest ? 0.03 : 0.003; // 3% for test, 0.3% for demo
-      final requiredWalletBalance = totalTradeAmount * feePercentage;
       
       if (_platformWalletBalance < requiredWalletBalance) {
         setState(() {
