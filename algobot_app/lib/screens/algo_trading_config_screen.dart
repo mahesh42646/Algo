@@ -64,7 +64,12 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
       
       // Load available APIs
       final apis = await _exchangeService.getLinkedApis();
-      print('[ALGO CONFIG] Loaded ${apis.length} APIs. Active: ${apis.where((api) => api.isActive).length}');
+      print('[ALGO CONFIG] Loaded ${apis.length} total APIs');
+      for (var api in apis) {
+        print('[ALGO CONFIG] API: ${api.platform} - ${api.label} (Active: ${api.isActive}, Test: ${api.isTest})');
+      }
+      final activeApis = apis.where((api) => api.isActive).toList();
+      print('[ALGO CONFIG] Active APIs: ${activeApis.length}');
       
       // Load platform wallet balance
       double platformWalletBalance = 0.0;
