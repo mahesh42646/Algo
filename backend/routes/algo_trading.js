@@ -174,6 +174,8 @@ router.post('/:userId/start', async (req, res, next) => {
       lastSignal: null,
       intervalId: null,
       platformWalletFees: [], // Track all fees (deducted at each level)
+      orders: [], // Track all orders placed
+      totalInvested: 0, // Track total amount invested
     };
 
     // Start the algo trading loop
@@ -696,6 +698,91 @@ async function getCandlesticks(symbol, interval, limit, isTest = false) {
   }
 }
 
+// Get symbol exchange info (filters, tick size, etc.)
+async function getSymbolInfo(symbol, isTest = false) {
+  try {
+    const binanceBaseUrl = getBinanceApiUrl(isTest);
+    const response = await axios.get(
+      `${binanceBaseUrl}/exchangeInfo?symbol=${symbol}`,
+      { timeout: 5000 }
+    );
+    
+    if (response.data && response.data.symbols && response.data.symbols.length > 0) {
+      const symbolInfo = response.data.symbols[0];
+      const filters = symbolInfo.filters || [];
+      
+      let priceFilter = null;
+      let lotSizeFilter = null;
+      let minNotionalFilter = null;
+      
+      for (const filter of filters) {
+        if (filter.filterType === 'PRICE_FILTER') {
+          priceFilter = {
+            minPrice: parseFloat(filter.minPrice),
+            maxPrice: parseFloat(filter.maxPrice),
+            tickSize: parseFloat(filter.tickSize),
+          };
+        } else if (filter.filterType === 'LOT_SIZE') {
+          lotSizeFilter = {
+            minQty: parseFloat(filter.minQty),
+            maxQty: parseFloat(filter.maxQty),
+            stepSize: parseFloat(filter.stepSize),
+          };
+        } else if (filter.filterType === 'MIN_NOTIONAL') {
+          minNotionalFilter = {
+            minNotional: parseFloat(filter.minNotional || filter.notional || 0),
+          };
+        }
+      }
+      
+      return {
+        priceFilter,
+        lotSizeFilter,
+        minNotionalFilter,
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error(`[ALGO TRADING] Error getting symbol info:`, error.message);
+    return null;
+  }
+}
+
+// Adjust price to match tick size
+function adjustPrice(price, tickSize) {
+  if (!tickSize || tickSize <= 0) return price;
+  
+  // Calculate number of decimal places from tick size
+  const tickSizeStr = tickSize.toString();
+  const decimalPlaces = tickSizeStr.includes('.') 
+    ? tickSizeStr.split('.')[1].length 
+    : 0;
+  
+  // Round to nearest tick
+  const adjusted = Math.round(price / tickSize) * tickSize;
+  
+  // Format to correct decimal places
+  return parseFloat(adjusted.toFixed(decimalPlaces));
+}
+
+// Adjust quantity to match step size
+function adjustQuantity(quantity, stepSize) {
+  if (!stepSize || stepSize <= 0) return quantity;
+  
+  // Calculate number of decimal places from step size
+  const stepSizeStr = stepSize.toString();
+  const decimalPlaces = stepSizeStr.includes('.') 
+    ? stepSizeStr.split('.')[1].length 
+    : 0;
+  
+  // Round down to nearest step
+  const adjusted = Math.floor(quantity / stepSize) * stepSize;
+  
+  // Format to correct decimal places
+  return parseFloat(adjusted.toFixed(decimalPlaces));
+}
+
 // Get trading signal from technical indicators (using same logic as frontend)
 async function getTradingSignal(candles, currentPrice) {
   try {
@@ -800,14 +887,60 @@ async function getTradingSignal(candles, currentPrice) {
 // Place order
 async function placeOrder(trade, side, price, amount) {
   try {
+    // Get symbol info to adjust price and quantity according to Binance filters
+    const symbolInfo = await getSymbolInfo(trade.symbol, trade.isTest);
+    
+    // Calculate base quantity
+    let quantity = amount / price;
+    
+    // Adjust quantity to match step size if available
+    if (symbolInfo?.lotSizeFilter) {
+      quantity = adjustQuantity(quantity, symbolInfo.lotSizeFilter.stepSize);
+      // Ensure quantity meets minimum
+      if (quantity < symbolInfo.lotSizeFilter.minQty) {
+        quantity = symbolInfo.lotSizeFilter.minQty;
+      }
+      // Ensure quantity doesn't exceed maximum
+      if (quantity > symbolInfo.lotSizeFilter.maxQty) {
+        quantity = symbolInfo.lotSizeFilter.maxQty;
+      }
+    }
+    
+    // For limit orders, place slightly below market for buy, above for sell
+    let limitPrice = side === 'BUY' 
+      ? price * 0.998 // 0.2% below
+      : price * 1.002; // 0.2% above
+    
+    // Adjust price to match tick size if available
+    if (symbolInfo?.priceFilter) {
+      limitPrice = adjustPrice(limitPrice, symbolInfo.priceFilter.tickSize);
+      // Ensure price is within min/max bounds
+      if (limitPrice < symbolInfo.priceFilter.minPrice) {
+        limitPrice = symbolInfo.priceFilter.minPrice;
+      }
+      if (limitPrice > symbolInfo.priceFilter.maxPrice) {
+        limitPrice = symbolInfo.priceFilter.maxPrice;
+      }
+    }
+    
+    // Check min notional (price * quantity)
+    const notional = limitPrice * quantity;
+    if (symbolInfo?.minNotionalFilter && notional < symbolInfo.minNotionalFilter.minNotional) {
+      // Adjust quantity to meet min notional
+      quantity = Math.ceil(symbolInfo.minNotionalFilter.minNotional / limitPrice);
+      if (symbolInfo.lotSizeFilter) {
+        quantity = adjustQuantity(quantity, symbolInfo.lotSizeFilter.stepSize);
+      }
+    }
+    
+    // Format for API
+    const quantityStr = quantity.toFixed(8);
+    const priceStr = limitPrice.toFixed(8);
+    
     // For demo trading (real keys), simulate order without actual API call
     if (trade.isDemo) {
       console.log(`[ALGO TRADING DEMO] 📝 Simulating ${side} order for ${trade.symbol}`);
       const timestamp = Date.now();
-      const quantity = (amount / price).toFixed(8);
-      const limitPrice = side === 'BUY' 
-        ? (price * 0.998).toFixed(8)
-        : (price * 1.002).toFixed(8);
 
       // Simulate order response
       const simulatedOrder = {
@@ -815,35 +948,31 @@ async function placeOrder(trade, side, price, amount) {
         symbol: trade.symbol,
         side: side,
         type: 'LIMIT',
-        quantity: quantity,
-        price: limitPrice,
+        quantity: quantityStr,
+        price: priceStr,
         status: 'NEW',
       };
 
+      if (!trade.orders) {
+        trade.orders = [];
+      }
       trade.orders.push({
         orderId: simulatedOrder.orderId,
         side,
-        quantity,
-        price: limitPrice,
+        quantity: quantityStr,
+        price: priceStr,
         timestamp: new Date(),
       });
 
-      trade.totalInvested += amount;
+      trade.totalInvested += parseFloat(priceStr) * parseFloat(quantityStr);
 
-      console.log(`[ALGO TRADING DEMO] ✅ Simulated ${side} order for ${trade.symbol}: ${quantity} @ ${limitPrice}`);
+      console.log(`[ALGO TRADING DEMO] ✅ Simulated ${side} order for ${trade.symbol}: ${quantityStr} @ ${priceStr}`);
       return simulatedOrder;
     }
 
     // For test keys, use testnet API
     const timestamp = Date.now();
-    const quantity = (amount / price).toFixed(8);
-    
-    // For limit orders, place slightly below market for buy, above for sell
-    const limitPrice = side === 'BUY' 
-      ? (price * 0.998).toFixed(8) // 0.2% below
-      : (price * 1.002).toFixed(8); // 0.2% above
-
-    const queryString = `symbol=${trade.symbol}&side=${side}&type=LIMIT&timeInForce=GTC&quantity=${quantity}&price=${limitPrice}&timestamp=${timestamp}`;
+    const queryString = `symbol=${trade.symbol}&side=${side}&type=LIMIT&timeInForce=GTC&quantity=${quantityStr}&price=${priceStr}&timestamp=${timestamp}`;
     
     const signature = crypto
       .createHmac('sha256', trade.apiSecret)
@@ -862,21 +991,27 @@ async function placeOrder(trade, side, price, amount) {
       }
     );
 
+    if (!trade.orders) {
+      trade.orders = [];
+    }
     trade.orders.push({
       orderId: response.data.orderId,
       side,
-      quantity,
-      price: limitPrice,
+      quantity: quantityStr,
+      price: priceStr,
       timestamp: new Date(),
     });
 
-    trade.totalInvested += amount;
+    trade.totalInvested += parseFloat(priceStr) * parseFloat(quantityStr);
 
-    console.log(`[ALGO TRADING] ✅ Placed ${side} order for ${trade.symbol}: ${quantity} @ ${limitPrice}`);
+    console.log(`[ALGO TRADING] ✅ Placed ${side} order for ${trade.symbol}: ${quantityStr} @ ${priceStr} (Order ID: ${response.data.orderId})`);
 
     return response.data;
   } catch (error) {
     console.error(`[ALGO TRADING] ❌ Error placing order:`, error.response?.data || error.message);
+    if (error.response?.data) {
+      console.error(`[ALGO TRADING] ❌ Binance Error Details:`, JSON.stringify(error.response.data, null, 2));
+    }
     throw error;
   }
 }
