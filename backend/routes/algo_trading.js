@@ -504,6 +504,10 @@ async function executeAlgoTradingStep(trade) {
       
       // Get technical indicators using 1-minute timeframe (same as coin detail screen)
       const candles = await getCandlesticks(trade.symbol, '1m', 500, trade.isTest);
+      if (!candles || candles.length === 0) {
+        console.log(`[ALGO TRADING STEP] ⚠️ No candlestick data for ${trade.symbol}`);
+        return;
+      }
       const signal = await getTradingSignal(candles, currentPrice);
       trade.lastSignal = signal;
 
@@ -705,32 +709,64 @@ async function getTradingSignal(candles, currentPrice) {
     for (const period in maValues) {
       const { sma, ema } = maValues[period];
       
-      // SMA signal
+      // SMA signal (same logic as frontend getMASignal)
       if (currentPrice > sma) buyCount++;
       else if (currentPrice < sma) sellCount++;
       else neutralCount++;
       
-      // EMA signal
+      // EMA signal (same logic as frontend getMASignal)
       if (currentPrice > ema) buyCount++;
       else if (currentPrice < ema) sellCount++;
       else neutralCount++;
     }
     
-    // Determine direction and strength based on sentiment counts
-    // Strong signal: at least 10 out of 14 signals agree (70%+)
+    // Determine direction and strength based on ratios (same as frontend)
+    // Frontend uses: buyRatio > 0.6 ? 'Strong Buy' : 'Buy'
+    // Frontend uses: sellRatio > 0.6 ? 'Strong Sell' : 'Sell'
     const totalSignals = buyCount + sellCount + neutralCount;
-    const strongThreshold = Math.floor(totalSignals * 0.7);
     
-    if (buyCount >= strongThreshold) {
-      return { direction: 'BUY', strength: 'strong' };
-    } else if (sellCount >= strongThreshold) {
-      return { direction: 'SELL', strength: 'strong' };
-    } else if (buyCount > sellCount) {
-      return { direction: 'BUY', strength: 'weak' };
-    } else if (sellCount > buyCount) {
-      return { direction: 'SELL', strength: 'weak' };
+    if (totalSignals === 0) {
+      console.log(`[ALGO TRADING SIGNAL] ⚠️ No signals calculated`);
+      return { direction: 'NEUTRAL', strength: 'weak' };
+    }
+    
+    const buyRatio = buyCount / totalSignals;
+    const sellRatio = sellCount / totalSignals;
+    const neutralRatio = neutralCount / totalSignals;
+    
+    // Log for debugging
+    console.log(`[ALGO TRADING SIGNAL] 📊 Signal Analysis:`, {
+      symbol: candles[0] ? 'N/A' : 'N/A',
+      buyCount,
+      sellCount,
+      neutralCount,
+      totalSignals,
+      buyRatio: buyRatio.toFixed(2),
+      sellRatio: sellRatio.toFixed(2),
+      neutralRatio: neutralRatio.toFixed(2),
+      currentPrice: currentPrice.toFixed(8),
+    });
+    
+    // Match frontend logic exactly: ratio > 0.6 = strong
+    if (buyRatio > sellRatio && buyRatio > neutralRatio) {
+      if (buyRatio > 0.6) {
+        console.log(`[ALGO TRADING SIGNAL] ✅ Strong BUY detected (ratio: ${buyRatio.toFixed(2)})`);
+        return { direction: 'BUY', strength: 'strong' };
+      } else {
+        console.log(`[ALGO TRADING SIGNAL] 📈 BUY signal (ratio: ${buyRatio.toFixed(2)})`);
+        return { direction: 'BUY', strength: 'weak' };
+      }
+    } else if (sellRatio > buyRatio && sellRatio > neutralRatio) {
+      if (sellRatio > 0.6) {
+        console.log(`[ALGO TRADING SIGNAL] ✅ Strong SELL detected (ratio: ${sellRatio.toFixed(2)})`);
+        return { direction: 'SELL', strength: 'strong' };
+      } else {
+        console.log(`[ALGO TRADING SIGNAL] 📉 SELL signal (ratio: ${sellRatio.toFixed(2)})`);
+        return { direction: 'SELL', strength: 'weak' };
+      }
     }
 
+    console.log(`[ALGO TRADING SIGNAL] ⚪ NEUTRAL signal`);
     return { direction: 'NEUTRAL', strength: 'weak' };
   } catch (error) {
     console.error(`[ALGO TRADING] Error calculating signal:`, error.message);
