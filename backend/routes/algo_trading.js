@@ -177,6 +177,12 @@ router.post('/:userId/start', async (req, res, next) => {
     };
 
     // Start the algo trading loop
+    // Execute first step immediately to check for signal and start if available
+    executeAlgoTradingStep(trade).catch(error => {
+      console.error(`[ALGO TRADING] ❌ Error in initial trading step for ${symbol}:`, error.message);
+    });
+
+    // Then continue checking every 30 seconds
     const intervalId = setInterval(async () => {
       try {
         await executeAlgoTradingStep(trade);
