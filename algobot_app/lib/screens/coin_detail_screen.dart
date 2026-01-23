@@ -28,6 +28,7 @@ class CoinDetailScreen extends StatefulWidget {
 
 class _CoinDetailScreenState extends State<CoinDetailScreen> {
   final ChartService _chartService = ChartService();
+  final AlgoTradingService _algoService = AlgoTradingService();
   Map<String, int> _sentiment = {'buy': 0, 'sell': 0, 'neutral': 0};
   Map<String, dynamic> _stats24h = {};
   String _selectedInterval = '5';
@@ -38,6 +39,8 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
   bool _isLoadingMA = false;
   Timer? _indicatorUpdateTimer;
   DateTime? _lastUpdateTime;
+  Timer? _tradeUpdateTimer;
+  Map<String, dynamic>? _activeTrade; // Current active trade for this symbol
   final Map<String, String> _intervalMap = {
     '1m': '1',
     '3m': '3',
@@ -83,10 +86,14 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
     try {
       final symbol = '${widget.coin.symbol}${widget.quoteCurrency}';
       final trades = await _algoService.getActiveTrades();
-      final trade = trades.firstWhere(
-        (t) => t['symbol'] == symbol && t['isStarted'] == true,
-        orElse: () => null,
-      );
+      Map<String, dynamic>? trade;
+      try {
+        trade = trades.firstWhere(
+          (t) => t['symbol'] == symbol && (t['isStarted'] == true || t['isStarted'] == 'true'),
+        );
+      } catch (e) {
+        trade = null;
+      }
       
       if (mounted) {
         setState(() {
