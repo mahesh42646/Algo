@@ -216,9 +216,31 @@ class _ApiBindingScreenState extends State<ApiBindingScreen> {
               'API: ${api.apiKey}',
               style: TextStyle(color: Colors.grey[600], fontSize: 12),
             ),
-            Text(
-              'Label: ${api.label}',
-              style: TextStyle(color: Colors.grey[600], fontSize: 12),
+            Row(
+              children: [
+                Text(
+                  'Label: ${api.label}',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: api.isTest 
+                        ? Colors.orange.withOpacity(0.2)
+                        : Colors.green.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    api.isTest ? 'TEST' : 'REAL',
+                    style: TextStyle(
+                      color: api.isTest ? Colors.orange[700] : Colors.green[700],
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -861,6 +883,7 @@ class _ApiBindingScreenState extends State<ApiBindingScreen> {
     final labelController = TextEditingController(text: 'Default');
     bool isLoading = false;
     bool obscureSecret = true;
+    bool isTestKey = false;
 
     showDialog(
       context: context,
@@ -960,6 +983,119 @@ class _ApiBindingScreenState extends State<ApiBindingScreen> {
                 ),
                 const SizedBox(height: 16),
                 Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.blue[700]),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Key Type',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => setState(() => isTestKey = false),
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: !isTestKey
+                                      ? Colors.green.withOpacity(0.2)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: !isTestKey
+                                        ? Colors.green
+                                        : Colors.grey[300]!,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.check_circle,
+                                      color: !isTestKey ? Colors.green : Colors.grey,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Text(
+                                      'Real Key',
+                                      style: TextStyle(fontWeight: FontWeight.w600),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => setState(() => isTestKey = true),
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: isTestKey
+                                      ? Colors.orange.withOpacity(0.2)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: isTestKey
+                                        ? Colors.orange
+                                        : Colors.grey[300]!,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.science,
+                                      color: isTestKey ? Colors.orange : Colors.grey,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Text(
+                                      'Test Key',
+                                      style: TextStyle(fontWeight: FontWeight.w600),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        isTestKey
+                            ? 'Test keys use Binance Testnet (testnet.binance.vision) for safe testing.'
+                            : 'Real keys use live Binance API. Demo trading with 0.3% fee will be enabled.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: Colors.amber.withOpacity(0.1),
@@ -1009,6 +1145,7 @@ class _ApiBindingScreenState extends State<ApiBindingScreen> {
                           apiKey: apiKeyController.text.trim(),
                           apiSecret: apiSecretController.text.trim(),
                           label: labelController.text.trim(),
+                          isTest: isTestKey,
                         );
 
                         if (mounted) {

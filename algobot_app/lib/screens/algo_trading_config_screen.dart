@@ -87,6 +87,7 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
       if (mounted) {
         setState(() {
           _hasActiveTrade = status['isActive'] == true;
+          // Show all active APIs (both test and real)
           _availableApis = apis.where((api) => api.isActive).toList();
           if (_availableApis.isNotEmpty) {
             _selectedApi = _availableApis.first;
@@ -204,13 +205,16 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
         return;
       }
 
-      // Check platform wallet balance (3% of ALL levels total)
+      // Check platform wallet balance (fee depends on test/real key)
+      final feePercentage = _selectedApi!.isTest ? 0.03 : 0.003; // 3% for test, 0.3% for demo
+      final requiredWalletBalance = totalTradeAmount * feePercentage;
+      
       if (_platformWalletBalance < requiredWalletBalance) {
         setState(() {
           _validationError = 'Insufficient Platform Wallet Balance';
           _validationDetails = {
-            'message': 'You need at least 3% of total trade amount (for all $numberOfLevels levels) in platform wallet.',
-            'required': '\$${requiredWalletBalance.toStringAsFixed(2)} (3% of \$${totalTradeAmount.toStringAsFixed(2)})',
+            'message': 'You need at least ${(feePercentage * 100).toStringAsFixed(1)}% of total trade amount (for all $numberOfLevels levels) in platform wallet.',
+            'required': '\$${requiredWalletBalance.toStringAsFixed(2)} (${(feePercentage * 100).toStringAsFixed(1)}% of \$${totalTradeAmount.toStringAsFixed(2)})',
             'current': '\$${_platformWalletBalance.toStringAsFixed(2)}',
             'totalTradeAmount': '\$${totalTradeAmount.toStringAsFixed(2)}',
             'numberOfLevels': '$numberOfLevels levels',
@@ -250,6 +254,10 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
   }
 
   void _showConfirmationDialog(double totalTradeAmount, double requiredWalletBalance) {
+    final feePercentage = _selectedApi!.isTest ? 0.03 : 0.003;
+    final feeText = _selectedApi!.isTest ? '3%' : '0.3%';
+    final modeText = _selectedApi!.isTest ? 'Test Mode (Testnet)' : 'Demo Mode (Real Key)';
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -265,27 +273,38 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
               ),
               const SizedBox(height: 16),
               _buildConfirmationRow('Symbol', '${widget.coin.symbol}/${widget.quoteCurrency}'),
-              _buildConfirmationRow('API', '${_selectedApi!.platform} (${_selectedApi!.label})'),
+              _buildConfirmationRow('API', '${_selectedApi!.platform.toUpperCase()} (${_selectedApi!.label})'),
+              _buildConfirmationRow('Key Type', modeText),
               _buildConfirmationRow('Trading Mode', _useMargin ? 'Margin' : 'Spot'),
               _buildConfirmationRow('Total Trade Amount', '\$${totalTradeAmount.toStringAsFixed(2)}'),
-              _buildConfirmationRow('Platform Wallet Fee', '\$${requiredWalletBalance.toStringAsFixed(2)} (3%)'),
+              _buildConfirmationRow('Platform Wallet Fee', '\$${requiredWalletBalance.toStringAsFixed(2)} ($feeText)'),
               _buildConfirmationRow('Exchange Balance', '\$${(_apiBalance!['total'] ?? 0.0).toStringAsFixed(2)}'),
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
+                  color: _selectedApi!.isTest 
+                      ? Colors.orange.withOpacity(0.1)
+                      : Colors.blue.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange),
+                  border: Border.all(
+                    color: _selectedApi!.isTest ? Colors.orange : Colors.blue,
+                  ),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.warning, color: Colors.orange, size: 20),
-                    SizedBox(width: 8),
+                    Icon(
+                      _selectedApi!.isTest ? Icons.science : Icons.play_circle_outline,
+                      color: _selectedApi!.isTest ? Colors.orange : Colors.blue,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '3% platform wallet fee will be deducted at each level.',
-                        style: TextStyle(fontSize: 12),
+                        _selectedApi!.isTest
+                            ? 'Test Mode: Using Binance Testnet. $feeText platform wallet fee per level.'
+                            : 'Demo Mode: Simulated trading with real key. $feeText platform wallet fee per level.',
+                        style: const TextStyle(fontSize: 12),
                       ),
                     ),
                   ],
@@ -437,10 +456,34 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
                   items: _availableApis.map((api) {
                     return DropdownMenuItem(
                       value: api,
-                      child: Text(
-                        '${api.platform.toUpperCase()} - ${api.label}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                        overflow: TextOverflow.ellipsis,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${api.platform.toUpperCase()} - ${api.label}',
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: api.isTest 
+                                  ? Colors.orange.withOpacity(0.2)
+                                  : Colors.green.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              api.isTest ? 'TEST' : 'REAL',
+                              style: TextStyle(
+                                color: api.isTest ? Colors.orange[700] : Colors.green[700],
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     );
                   }).toList(),

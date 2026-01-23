@@ -8,6 +8,7 @@ class ExchangeApi {
   final String platform;
   final String apiKey;
   final String label;
+  final bool isTest;
   final List<String> permissions;
   final bool isActive;
   final DateTime? lastUsed;
@@ -18,6 +19,7 @@ class ExchangeApi {
     required this.platform,
     required this.apiKey,
     required this.label,
+    this.isTest = false,
     required this.permissions,
     required this.isActive,
     this.lastUsed,
@@ -30,6 +32,7 @@ class ExchangeApi {
       platform: json['platform'] ?? '',
       apiKey: json['apiKey'] ?? '',
       label: json['label'] ?? 'Default',
+      isTest: json['isTest'] ?? false,
       permissions: List<String>.from(json['permissions'] ?? []),
       isActive: json['isActive'] ?? true,
       lastUsed: json['lastUsed'] != null ? DateTime.parse(json['lastUsed']) : null,
@@ -165,6 +168,7 @@ class ExchangeService {
     required String apiKey,
     required String apiSecret,
     String? label,
+    bool isTest = false,
     List<String>? permissions,
   }) async {
     if (_userId == null) {
@@ -177,6 +181,7 @@ class ExchangeService {
         'apiKey': apiKey,
         'apiSecret': apiSecret,
         'label': label ?? 'Default',
+        'isTest': isTest,
         'permissions': permissions ?? ['read', 'spot_trade'],
       });
       

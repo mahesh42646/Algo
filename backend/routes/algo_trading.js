@@ -8,6 +8,11 @@ const axios = require('axios');
 // Store active algo trades in memory (in production, use Redis or database)
 const activeTrades = new Map();
 
+// Helper function to get Binance API URL based on test mode
+function getBinanceApiUrl(isTest = false) {
+  return isTest ? 'https://testnet.binance.vision/api/v3' : 'https://api.binance.com/api/v3';
+}
+
 // Start algo trading
 router.post('/:userId/start', async (req, res, next) => {
   const startTime = Date.now();
@@ -101,7 +106,7 @@ router.post('/:userId/start', async (req, res, next) => {
     const totalTradeAmount = parseFloat(amountPerLevel) * parseInt(numberOfLevels);
     
     // Check exchange balance - must be sufficient for ALL levels
-    const exchangeBalance = await getExchangeBalance(apiKey, apiSecret, symbol.toUpperCase());
+    const exchangeBalance = await getExchangeBalance(apiKey, apiSecret, symbol.toUpperCase(), api.isTest);
     if (exchangeBalance < totalTradeAmount) {
       console.error(`[ALGO TRADING START] ❌ Insufficient exchange balance: ${exchangeBalance} < ${totalTradeAmount}`);
       return res.status(400).json({
@@ -115,8 +120,10 @@ router.post('/:userId/start', async (req, res, next) => {
 
     console.log(`[ALGO TRADING START] ✅ Exchange balance: \$${exchangeBalance.toFixed(2)} (Required: \$${totalTradeAmount.toFixed(2)} for ${numberOfLevels} levels)`);
 
-    // Calculate required platform wallet balance (3% of total trade amount for ALL levels)
-    const requiredWalletBalance = totalTradeAmount * 0.03;
+    // Calculate required platform wallet balance
+    // For test keys: 3% fee, for real keys (demo): 0.3% fee
+    const feePercentage = api.isTest ? 0.03 : 0.003; // 3% for test, 0.3% for demo
+    const requiredWalletBalance = totalTradeAmount * feePercentage;
 
     // Check platform wallet balance
     const walletBalances = user.wallet?.balances || [];
@@ -128,7 +135,7 @@ router.post('/:userId/start', async (req, res, next) => {
       return res.status(400).json({
         success: false,
         error: 'Insufficient platform wallet balance',
-        details: `You need at least 3% of total trade amount (\$${requiredWalletBalance.toFixed(2)}) in platform wallet. Current: \$${platformWalletBalance.toFixed(2)}`,
+        details: `You need at least ${(feePercentage * 100).toFixed(1)}% of total trade amount (\$${requiredWalletBalance.toFixed(2)}) in platform wallet. Current: \$${platformWalletBalance.toFixed(2)}`,
         required: requiredWalletBalance,
         current: platformWalletBalance,
       });
@@ -146,6 +153,8 @@ router.post('/:userId/start', async (req, res, next) => {
       symbol: symbol.toUpperCase(),
       apiId: api._id.toString(),
       platform: api.platform,
+      isTest: api.isTest, // Store test mode
+      isDemo: !api.isTest, // Demo mode for real keys
       maxLossPerTrade: parseFloat(maxLossPerTrade),
       maxLossOverall: parseFloat(maxLossOverall),
       maxProfitBook: parseFloat(maxProfitBook),
@@ -241,7 +250,7 @@ router.post('/:userId/start', async (req, res, next) => {
 });
 
 // Helper function to get exchange balance
-async function getExchangeBalance(apiKey, apiSecret, symbol) {
+async function getExchangeBalance(apiKey, apiSecret, symbol, isTest = false) {
   try {
     const timestamp = Date.now();
     const queryString = `timestamp=${timestamp}`;
@@ -250,8 +259,9 @@ async function getExchangeBalance(apiKey, apiSecret, symbol) {
       .update(queryString)
       .digest('hex');
 
+    const binanceBaseUrl = getBinanceApiUrl(isTest);
     const response = await axios.get(
-      `https://api.binance.com/api/v3/account?${queryString}&signature=${signature}`,
+      `${binanceBaseUrl}/account?${queryString}&signature=${signature}`,
       {
         headers: {
           'X-MBX-APIKEY': apiKey,
@@ -479,14 +489,14 @@ async function executeAlgoTradingStep(trade) {
     console.log(`[ALGO TRADING STEP] 🔄 Processing step for ${trade.symbol} (Status: ${status}, Level: ${trade.currentLevel}/${trade.numberOfLevels})`);
     
     // Get current price
-    const currentPrice = await getCurrentPrice(trade.symbol);
+    const currentPrice = await getCurrentPrice(trade.symbol, trade.isTest);
     
     // If trade hasn't started yet, wait for strong signal
     if (!trade.isStarted) {
       console.log(`[ALGO TRADING STEP] ⏳ Waiting for strong signal to start trade...`);
       
       // Get technical indicators
-      const candles = await getCandlesticks(trade.symbol, '5m', 200);
+      const candles = await getCandlesticks(trade.symbol, '5m', 200, trade.isTest);
       const signal = await getTradingSignal(candles, currentPrice);
       trade.lastSignal = signal;
 
@@ -499,8 +509,9 @@ async function executeAlgoTradingStep(trade) {
         trade.tradeDirection = signal.direction;
         trade.isStarted = true;
         
-        // Deduct platform wallet fee for first level
-        const levelFee = trade.amountPerLevel * 0.03;
+        // Deduct platform wallet fee for first level (3% for test, 0.3% for demo)
+        const feePercentage = trade.isTest ? 0.03 : 0.003;
+        const levelFee = trade.amountPerLevel * feePercentage;
         const user = await User.findOne({ userId: trade.userId }).select('wallet notifications');
         
         if (user) {
@@ -573,8 +584,9 @@ async function executeAlgoTradingStep(trade) {
       console.log(`[ALGO TRADING STEP] 📉 Loss threshold hit: ${currentPnL.toFixed(2)}% <= -${trade.maxLossPerTrade}%`);
       console.log(`[ALGO TRADING STEP] 🔄 Adding level in same direction: ${trade.tradeDirection} (no signal check)`);
       
-      // Deduct platform wallet fee before placing order
-      const levelFee = trade.amountPerLevel * 0.03;
+      // Deduct platform wallet fee before placing order (3% for test, 0.3% for demo)
+      const feePercentage = trade.isTest ? 0.03 : 0.003;
+      const levelFee = trade.amountPerLevel * feePercentage;
       const user = await User.findOne({ userId: trade.userId }).select('wallet notifications');
       
       if (user) {
@@ -617,10 +629,11 @@ async function executeAlgoTradingStep(trade) {
 }
 
 // Get current price
-async function getCurrentPrice(symbol) {
+async function getCurrentPrice(symbol, isTest = false) {
   try {
+    const binanceBaseUrl = getBinanceApiUrl(isTest);
     const response = await axios.get(
-      `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`,
+      `${binanceBaseUrl}/ticker/price?symbol=${symbol}`,
       { timeout: 5000 }
     );
     return parseFloat(response.data.price);
@@ -630,10 +643,11 @@ async function getCurrentPrice(symbol) {
 }
 
 // Get candlesticks
-async function getCandlesticks(symbol, interval, limit) {
+async function getCandlesticks(symbol, interval, limit, isTest = false) {
   try {
+    const binanceBaseUrl = getBinanceApiUrl(isTest);
     const response = await axios.get(
-      `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+      `${binanceBaseUrl}/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
       { timeout: 5000 }
     );
     return response.data;
@@ -707,6 +721,41 @@ async function getTradingSignal(candles, currentPrice) {
 // Place order
 async function placeOrder(trade, side, price, amount) {
   try {
+    // For demo trading (real keys), simulate order without actual API call
+    if (trade.isDemo) {
+      console.log(`[ALGO TRADING DEMO] 📝 Simulating ${side} order for ${trade.symbol}`);
+      const timestamp = Date.now();
+      const quantity = (amount / price).toFixed(8);
+      const limitPrice = side === 'BUY' 
+        ? (price * 0.998).toFixed(8)
+        : (price * 1.002).toFixed(8);
+
+      // Simulate order response
+      const simulatedOrder = {
+        orderId: `DEMO_${timestamp}`,
+        symbol: trade.symbol,
+        side: side,
+        type: 'LIMIT',
+        quantity: quantity,
+        price: limitPrice,
+        status: 'NEW',
+      };
+
+      trade.orders.push({
+        orderId: simulatedOrder.orderId,
+        side,
+        quantity,
+        price: limitPrice,
+        timestamp: new Date(),
+      });
+
+      trade.totalInvested += amount;
+
+      console.log(`[ALGO TRADING DEMO] ✅ Simulated ${side} order for ${trade.symbol}: ${quantity} @ ${limitPrice}`);
+      return simulatedOrder;
+    }
+
+    // For test keys, use testnet API
     const timestamp = Date.now();
     const quantity = (amount / price).toFixed(8);
     
@@ -722,8 +771,9 @@ async function placeOrder(trade, side, price, amount) {
       .update(queryString)
       .digest('hex');
 
+    const binanceBaseUrl = getBinanceApiUrl(trade.isTest);
     const response = await axios.post(
-      `https://api.binance.com/api/v3/order?${queryString}&signature=${signature}`,
+      `${binanceBaseUrl}/order?${queryString}&signature=${signature}`,
       null,
       {
         headers: {

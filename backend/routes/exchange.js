@@ -4,6 +4,11 @@ const crypto = require('crypto');
 const User = require('../schemas/user');
 const { encrypt, decrypt, maskSensitiveData } = require('../utils/encryption');
 
+// Helper function to get Binance API URL based on test mode
+function getBinanceApiUrl(isTest = false) {
+  return isTest ? 'https://testnet.binance.vision/api/v3' : 'https://api.binance.com/api/v3';
+}
+
 // Get all exchange APIs for a user
 router.get('/:userId', async (req, res, next) => {
   try {
@@ -24,6 +29,7 @@ router.get('/:userId', async (req, res, next) => {
       platform: api.platform,
       apiKey: maskSensitiveData(api.apiKey), // Mask encrypted key for display
       label: api.label,
+      isTest: api.isTest,
       permissions: api.permissions,
       isActive: api.isActive,
       lastUsed: api.lastUsed,
@@ -44,7 +50,7 @@ router.get('/:userId', async (req, res, next) => {
 router.post('/:userId', async (req, res, next) => {
   try {
     const { userId } = req.params;
-    const { platform, apiKey, apiSecret, label, permissions } = req.body;
+    const { platform, apiKey, apiSecret, label, permissions, isTest } = req.body;
 
     // Validate input
     if (!platform || !apiKey || !apiSecret) {
@@ -108,6 +114,7 @@ router.post('/:userId', async (req, res, next) => {
       apiKey: encryptedKey,
       apiSecret: encryptedSecret,
       label: (label || 'Default').trim(),
+      isTest: Boolean(isTest === true || isTest === 'true'),
       permissions: Array.isArray(permissions) ? permissions : ['read', 'spot_trade'],
       isActive: true,
       createdAt: new Date(),
@@ -137,6 +144,7 @@ router.post('/:userId', async (req, res, next) => {
         platform: savedApi.platform,
         apiKey: maskSensitiveData(apiKey), // Mask original key for response
         label: savedApi.label,
+        isTest: savedApi.isTest,
         permissions: savedApi.permissions,
         isActive: savedApi.isActive,
         createdAt: savedApi.createdAt,
@@ -360,9 +368,17 @@ router.post('/:userId/:platform/verify', async (req, res, next) => {
       });
     }
 
-    const api = user.exchangeApis.find(
-      a => a.platform === platform.toLowerCase() && a.isActive
-    );
+    // Get API ID from query or body
+    const apiId = req.query.apiId || req.body.apiId;
+    
+    let api;
+    if (apiId) {
+      api = user.exchangeApis.id(apiId);
+    } else {
+      api = user.exchangeApis.find(
+        a => a.platform === platform.toLowerCase() && a.isActive
+      );
+    }
 
     if (!api) {
       return res.status(404).json({
@@ -378,6 +394,7 @@ router.post('/:userId/:platform/verify', async (req, res, next) => {
       apiSecret = decrypt(api.apiSecret);
       console.log(`[EXCHANGE API VERIFY] ✅ Credentials decrypted successfully`);
       console.log(`[EXCHANGE API VERIFY] 📝 API Key (masked): ${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}`);
+      console.log(`[EXCHANGE API VERIFY] 🧪 Test Mode: ${api.isTest ? 'YES' : 'NO'}`);
     } catch (decryptError) {
       console.error(`[EXCHANGE API VERIFY] ❌ Decryption failed:`, decryptError.message);
       return res.status(500).json({
@@ -439,8 +456,9 @@ router.post('/:userId/:platform/verify', async (req, res, next) => {
       console.log(`[EXCHANGE API VERIFY] 🌐 Request will come from IP: ${serverPublicIP}`);
 
       try {
-        const binanceUrl = `https://api.binance.com/api/v3/account?${queryString}&signature=${signature}`;
-        console.log(`[EXCHANGE API VERIFY] 📤 Request URL: https://api.binance.com/api/v3/account?timestamp=${timestamp}&signature=[REDACTED]`);
+        const binanceBaseUrl = getBinanceApiUrl(api.isTest);
+        const binanceUrl = `${binanceBaseUrl}/account?${queryString}&signature=${signature}`;
+        console.log(`[EXCHANGE API VERIFY] 📤 Request URL: ${binanceBaseUrl}/account?timestamp=${timestamp}&signature=[REDACTED]`);
         
         const response = await axios.get(binanceUrl, {
           headers: {
@@ -728,8 +746,10 @@ router.get('/:userId/:platform/balance', async (req, res, next) => {
       console.log(`[EXCHANGE BALANCE] 🌐 Request will come from IP: ${serverPublicIP}`);
 
       try {
-        const binanceUrl = `https://api.binance.com/api/v3/account?${queryString}&signature=${signature}`;
-        console.log(`[EXCHANGE BALANCE] 📤 Request URL: https://api.binance.com/api/v3/account?timestamp=${timestamp}&signature=[REDACTED]`);
+        const binanceBaseUrl = getBinanceApiUrl(api.isTest);
+        const binanceUrl = `${binanceBaseUrl}/account?${queryString}&signature=${signature}`;
+        console.log(`[EXCHANGE BALANCE] 📤 Request URL: ${binanceBaseUrl}/account?timestamp=${timestamp}&signature=[REDACTED]`);
+        console.log(`[EXCHANGE BALANCE] 🧪 Test Mode: ${api.isTest ? 'YES' : 'NO'}`);
         
         const response = await axios.get(binanceUrl, {
           headers: {

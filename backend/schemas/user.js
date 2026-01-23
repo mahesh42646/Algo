@@ -346,6 +346,10 @@ const userSchema = new mongoose.Schema({
       type: String,
       default: 'Default',
     },
+    isTest: {
+      type: Boolean,
+      default: false,
+    },
     permissions: [{
       type: String,
       enum: ['read', 'spot_trade', 'futures_trade', 'withdraw'],
