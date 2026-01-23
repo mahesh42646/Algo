@@ -410,7 +410,7 @@ router.get('/:userId/status', async (req, res, next) => {
   }
 });
 
-// Get all active trades
+// Get all active trades with real-time P&L
 router.get('/:userId/trades', async (req, res, next) => {
   try {
     const { userId } = req.params;
@@ -418,16 +418,70 @@ router.get('/:userId/trades', async (req, res, next) => {
     const userTrades = [];
     for (const [key, trade] of activeTrades.entries()) {
       if (trade.userId === userId && trade.isActive) {
-        userTrades.push({
-          symbol: trade.symbol,
-          currentLevel: trade.currentLevel,
-          totalInvested: trade.totalInvested,
-          numberOfLevels: trade.numberOfLevels,
-          isStarted: trade.isStarted,
-          tradeDirection: trade.tradeDirection,
-          startedAt: trade.startedAt,
-          lastSignal: trade.lastSignal,
-        });
+        try {
+          // Get current price for real-time P&L calculation
+          const currentPrice = await getCurrentPrice(trade.symbol, trade.isTest);
+          
+          // Calculate real-time P&L
+          let currentPnL = 0;
+          let unrealizedPnL = 0;
+          let realizedPnL = 0;
+          
+          if (trade.isStarted && trade.startPrice > 0) {
+            const priceMovement = ((currentPrice - trade.startPrice) / trade.startPrice) * 100;
+            currentPnL = trade.useMargin && trade.leverage > 1
+              ? priceMovement * trade.leverage
+              : priceMovement;
+            
+            // Calculate unrealized P&L (current position value - invested)
+            if (trade.orders && trade.orders.length > 0) {
+              const totalQuantity = trade.orders.reduce((sum, o) => sum + parseFloat(o.quantity || 0), 0);
+              const avgEntryPrice = trade.totalInvested / totalQuantity;
+              const currentValue = totalQuantity * currentPrice;
+              unrealizedPnL = trade.tradeDirection === 'BUY'
+                ? (currentPrice - avgEntryPrice) * totalQuantity
+                : (avgEntryPrice - currentPrice) * totalQuantity;
+            }
+          }
+          
+          // Calculate total balance (invested + unrealized P&L)
+          const totalBalance = trade.totalInvested + unrealizedPnL;
+          
+          userTrades.push({
+            symbol: trade.symbol,
+            currentLevel: trade.currentLevel,
+            numberOfLevels: trade.numberOfLevels,
+            isStarted: trade.isStarted,
+            tradeDirection: trade.tradeDirection,
+            startedAt: trade.startedAt,
+            startPrice: trade.startPrice,
+            currentPrice: currentPrice,
+            totalInvested: trade.totalInvested,
+            currentPnL: currentPnL,
+            unrealizedPnL: unrealizedPnL,
+            realizedPnL: realizedPnL,
+            totalBalance: totalBalance,
+            orders: trade.orders || [],
+            lastSignal: trade.lastSignal,
+            useMargin: trade.useMargin,
+            leverage: trade.leverage || 1,
+            platformWalletFees: trade.platformWalletFees || [],
+          });
+        } catch (priceError) {
+          console.error(`[ALGO TRADING] Error getting price for ${trade.symbol}:`, priceError.message);
+          // Still return trade data without current price
+          userTrades.push({
+            symbol: trade.symbol,
+            currentLevel: trade.currentLevel,
+            totalInvested: trade.totalInvested,
+            numberOfLevels: trade.numberOfLevels,
+            isStarted: trade.isStarted,
+            tradeDirection: trade.tradeDirection,
+            startedAt: trade.startedAt,
+            lastSignal: trade.lastSignal,
+            error: 'Failed to get current price',
+          });
+        }
       }
     }
 

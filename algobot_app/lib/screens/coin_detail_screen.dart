@@ -10,6 +10,7 @@ import '../services/exchange_service.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/tradingview_chart.dart';
 import 'algo_trading_config_screen.dart';
+import '../services/algo_trading_service.dart';
 
 class CoinDetailScreen extends StatefulWidget {
   final CryptoCoin coin;
@@ -64,11 +65,48 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
     super.initState();
     _loadData();
     _startIndicatorUpdates();
+    _startTradeUpdates();
+  }
+  
+  void _startTradeUpdates() {
+    // Update active trade data every 3 seconds for real-time P&L
+    _tradeUpdateTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (mounted) {
+        _loadActiveTrade();
+      }
+    });
+    // Load immediately
+    _loadActiveTrade();
+  }
+  
+  Future<void> _loadActiveTrade() async {
+    try {
+      final symbol = '${widget.coin.symbol}${widget.quoteCurrency}';
+      final trades = await _algoService.getActiveTrades();
+      final trade = trades.firstWhere(
+        (t) => t['symbol'] == symbol && t['isStarted'] == true,
+        orElse: () => null,
+      );
+      
+      if (mounted) {
+        setState(() {
+          _activeTrade = trade;
+        });
+      }
+    } catch (e) {
+      // Silently fail - trade might not exist
+      if (mounted) {
+        setState(() {
+          _activeTrade = null;
+        });
+      }
+    }
   }
 
   @override
   void dispose() {
     _indicatorUpdateTimer?.cancel();
+    _tradeUpdateTimer?.cancel();
     super.dispose();
   }
 
@@ -213,6 +251,8 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
             _buildTabSelector(),
             _buildPriceSection(),
             _build24hStats(),
+            // Show active trade info if exists
+            if (_activeTrade != null) _buildActiveTradeCard(),
             // _buildIntervalSelector(),
             _buildTradingViewChart(),
             _buildTechnicalIndicatorSection(),
@@ -1361,6 +1401,182 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
     );
   }
 }
+
+  Widget _buildActiveTradeCard() {
+    if (_activeTrade == null) return const SizedBox.shrink();
+    
+    final currentPnL = _activeTrade!['currentPnL'] ?? 0.0;
+    final unrealizedPnL = _activeTrade!['unrealizedPnL'] ?? 0.0;
+    final totalBalance = _activeTrade!['totalBalance'] ?? _activeTrade!['totalInvested'] ?? 0.0;
+    final currentLevel = _activeTrade!['currentLevel'] ?? 0;
+    final numberOfLevels = _activeTrade!['numberOfLevels'] ?? 0;
+    final tradeDirection = _activeTrade!['tradeDirection'] ?? 'N/A';
+    final currentPrice = _activeTrade!['currentPrice'] ?? widget.coin.currentPrice;
+    final startPrice = _activeTrade!['startPrice'] ?? 0.0;
+    final leverage = _activeTrade!['leverage'] ?? 1;
+    final useMargin = _activeTrade!['useMargin'] ?? false;
+    
+    final pnlColor = currentPnL >= 0 ? Colors.green : Colors.red;
+    
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: pnlColor.withOpacity(0.3),
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: pnlColor.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    tradeDirection == 'BUY' ? Icons.trending_up : Icons.trending_down,
+                    color: tradeDirection == 'BUY' ? Colors.green : Colors.red,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Active Trade - $tradeDirection',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              if (useMargin && leverage > 1)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${leverage}x',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildTradeMetric(
+                  'Current Price',
+                  '\$${currentPrice.toStringAsFixed(2)}',
+                  Colors.grey[700]!,
+                ),
+              ),
+              Expanded(
+                child: _buildTradeMetric(
+                  'Entry Price',
+                  '\$${startPrice.toStringAsFixed(2)}',
+                  Colors.grey[700]!,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildTradeMetric(
+                  'P&L',
+                  '${currentPnL >= 0 ? "+" : ""}${currentPnL.toStringAsFixed(2)}%',
+                  pnlColor,
+                  isBold: true,
+                ),
+              ),
+              Expanded(
+                child: _buildTradeMetric(
+                  'Unrealized P&L',
+                  '\$${unrealizedPnL >= 0 ? "+" : ""}${unrealizedPnL.toStringAsFixed(2)}',
+                  pnlColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildTradeMetric(
+                  'Total Balance',
+                  '\$${totalBalance.toStringAsFixed(2)}',
+                  Colors.blue,
+                  isBold: true,
+                ),
+              ),
+              Expanded(
+                child: _buildTradeMetric(
+                  'Levels',
+                  '$currentLevel / $numberOfLevels',
+                  Colors.orange,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Progress bar for levels
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: numberOfLevels > 0 ? currentLevel / numberOfLevels : 0,
+              backgroundColor: Colors.grey[300],
+              valueColor: AlwaysStoppedAnimation<Color>(
+                currentLevel >= numberOfLevels ? Colors.green : Colors.blue,
+              ),
+              minHeight: 8,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildTradeMetric(String label, String value, Color color, {bool isBold = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[600],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
 
 class SentimentGaugePainter extends CustomPainter {
   final double buyRatio;
