@@ -313,13 +313,16 @@ class ExchangeService {
   }
 
   // Get account balance
-  Future<List<ExchangeBalance>> getBalance(String platform) async {
+  Future<List<ExchangeBalance>> getBalance(String platform, {String? apiId}) async {
     if (_userId == null) {
       throw Exception('User not logged in');
     }
 
     try {
-      final response = await _apiHandler.get('/exchange/$_userId/$platform/balance');
+      final url = apiId != null 
+          ? '/exchange/$_userId/$platform/balance?apiId=$apiId'
+          : '/exchange/$_userId/$platform/balance';
+      final response = await _apiHandler.get(url);
       
       if (response.statusCode == 200) {
         final balances = response.data['data']['balances'] as List;
