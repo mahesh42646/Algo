@@ -34,6 +34,12 @@ const adminSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  dashboardName: {
+    type: String,
+    default: 'Admin Dashboard',
+    trim: true,
+    maxlength: [100, 'Dashboard name cannot exceed 100 characters'],
+  },
   createdAt: {
     type: Date,
     default: Date.now,

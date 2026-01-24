@@ -9,6 +9,7 @@ export default function DashboardLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [dashboardName, setDashboardName] = useState('Admin Dashboard');
   const router = useRouter();
   const pathname = usePathname();
 
@@ -20,6 +21,32 @@ export default function DashboardLayout({ children }) {
 
   useEffect(() => {
     setMounted(true);
+
+    // Load dashboard name from localStorage or fetch from API
+    const storedName = localStorage.getItem('dashboardName');
+    if (storedName) {
+      setDashboardName(storedName);
+    } else {
+      // Fetch from API if not in localStorage
+      const fetchDashboardName = async () => {
+        try {
+          const { getAuthToken } = await import('@/utils/auth');
+          const { adminAPI } = await import('@/utils/api');
+          const token = getAuthToken();
+          if (token) {
+            const response = await adminAPI.getProfile(token);
+            if (response.success && response.data?.admin?.dashboardName) {
+              const name = response.data.admin.dashboardName;
+              setDashboardName(name);
+              localStorage.setItem('dashboardName', name);
+            }
+          }
+        } catch (error) {
+          console.error('Failed to fetch dashboard name:', error);
+        }
+      };
+      fetchDashboardName();
+    }
 
     const checkMobile = () => {
       const width = window.innerWidth;
@@ -37,7 +64,28 @@ export default function DashboardLayout({ children }) {
 
     checkMobile();
     window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    
+    // Listen for dashboard name changes
+    const handleStorageChange = (e) => {
+      if (e.key === 'dashboardName' && e.newValue) {
+        setDashboardName(e.newValue);
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for custom event (for same-tab updates)
+    const handleDashboardNameChange = (e) => {
+      if (e.detail?.dashboardName) {
+        setDashboardName(e.detail.dashboardName);
+      }
+    };
+    window.addEventListener('dashboardNameChanged', handleDashboardNameChange);
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('dashboardNameChanged', handleDashboardNameChange);
+    };
   }, []);
 
   const handleLogout = () => {
@@ -444,7 +492,7 @@ export default function DashboardLayout({ children }) {
                   backgroundClip: 'text',
                   lineHeight: '1.2'
                 }}>
-                  Admin Dashboard
+                  {dashboardName}
                 </h4>
                 <small className="text-muted d-none d-md-block text-truncate" style={{ fontSize: 'clamp(0.7rem, 1.5vw, 0.75rem)' }}>
                   Control & Management Center

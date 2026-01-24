@@ -31,11 +31,47 @@ const authenticateAdmin = async (req, res, next) => {
     try {
       // Simple token format: base64(username:timestamp)
       // In production, use JWT with proper signing
-      const decoded = Buffer.from(token, 'base64').toString('utf-8');
-      const [username, timestamp] = decoded.split(':');
+      let decoded;
+      try {
+        decoded = Buffer.from(token, 'base64').toString('utf-8');
+      } catch (base64Error) {
+        console.error('[AUTH MIDDLEWARE] Base64 decode error:', base64Error.message);
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid authentication token format.',
+        });
+      }
+
+      const parts = decoded.split(':');
+      if (parts.length !== 2) {
+        console.error('[AUTH MIDDLEWARE] Invalid token format - expected username:timestamp');
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid authentication token format.',
+        });
+      }
+
+      const [username, timestamp] = parts;
       
+      if (!username || !timestamp) {
+        console.error('[AUTH MIDDLEWARE] Missing username or timestamp in token');
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid authentication token format.',
+        });
+      }
+
       // Check if token is not expired (24 hours)
-      const tokenAge = Date.now() - parseInt(timestamp, 10);
+      const tokenTimestamp = parseInt(timestamp, 10);
+      if (isNaN(tokenTimestamp)) {
+        console.error('[AUTH MIDDLEWARE] Invalid timestamp in token:', timestamp);
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid authentication token format.',
+        });
+      }
+
+      const tokenAge = Date.now() - tokenTimestamp;
       const maxAge = 24 * 60 * 60 * 1000; // 24 hours
       
       if (tokenAge > maxAge) {
@@ -49,6 +85,7 @@ const authenticateAdmin = async (req, res, next) => {
       const admin = await Admin.findOne({ username: username.toLowerCase(), isActive: true });
       
       if (!admin) {
+        console.error('[AUTH MIDDLEWARE] Admin not found for username:', username.toLowerCase());
         return res.status(401).json({
           success: false,
           error: 'Invalid authentication token.',
@@ -59,6 +96,7 @@ const authenticateAdmin = async (req, res, next) => {
       req.admin = admin;
       next();
     } catch (decodeError) {
+      console.error('[AUTH MIDDLEWARE] Token validation error:', decodeError);
       return res.status(401).json({
         success: false,
         error: 'Invalid authentication token format.',

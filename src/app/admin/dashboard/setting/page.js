@@ -1,55 +1,240 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { adminAPI } from '@/utils/api';
+import { getAuthToken } from '@/utils/auth';
 
 export default function Settings() {
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState(null);
-
-  const [settings, setSettings] = useState({
-    siteName: 'Algo Platform',
-    siteDescription: 'Advanced algorithm and analytics platform',
-    siteUrl: 'https://algo-platform.com',
-    adminEmail: 'admin@algo-platform.com',
-    supportEmail: 'support@algo-platform.com',
-    timezone: 'UTC',
-    language: 'en',
-    primaryColor: '#ff8c00',
-    secondaryColor: '#0066cc',
-    theme: 'light',
-    twoFactorAuth: true,
-    sessionTimeout: '30',
-    passwordMinLength: '8',
-    enableAnalytics: true,
-    maintenanceMode: false
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+  
+  const [profile, setProfile] = useState({
+    username: '',
+    email: '',
+    dashboardName: 'Admin Dashboard',
   });
 
-  const handleInputChange = (field, value) => {
-    setSettings(prev => ({
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+
+  const [showPasswordFields, setShowPasswordFields] = useState(false);
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const fetchProfile = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const token = getAuthToken();
+      
+      if (!token) {
+        setError('Authentication required. Please login again.');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await adminAPI.getProfile(token);
+        
+        if (response.success && response.data?.admin) {
+          const admin = response.data.admin;
+          setProfile({
+            username: admin.username || '',
+            email: admin.email || '',
+            dashboardName: admin.dashboardName || 'Admin Dashboard',
+          });
+        } else {
+          setError(response.error || 'Failed to load profile');
+        }
+      } catch (apiError) {
+        // Handle authentication errors specifically
+        if (apiError.status === 401 || apiError.message?.includes('authentication') || apiError.message?.includes('token')) {
+          setError('Your session has expired. Please login again.');
+          // Clear auth and redirect to login
+          const { clearAuth } = await import('@/utils/auth');
+          clearAuth();
+          setTimeout(() => {
+            window.location.href = '/admin';
+          }, 2000);
+        } else {
+          setError(apiError.message || 'Failed to load profile');
+        }
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to load profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleProfileChange = (field, value) => {
+    setProfile(prev => ({
       ...prev,
       [field]: value
     }));
+    setError(null);
   };
 
-  const handleToggle = (field) => {
-    setSettings(prev => ({
+  const handlePasswordChange = (field, value) => {
+    setPasswordForm(prev => ({
       ...prev,
-      [field]: !prev[field]
+      [field]: value
     }));
+    setError(null);
   };
 
-  const handleSave = async () => {
-    setSaving(true);
-    setSaveMessage(null);
-
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    setSaving(false);
-    setSaveMessage({ type: 'success', text: 'Settings saved successfully!' });
-
-    setTimeout(() => setSaveMessage(null), 3000);
+  const validatePassword = () => {
+    if (passwordForm.newPassword.length < 6) {
+      return 'Password must be at least 6 characters long';
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      return 'New password and confirm password do not match';
+    }
+    return null;
   };
+
+  const handleSaveProfile = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+      
+      const token = getAuthToken();
+      if (!token) {
+        setError('Authentication required. Please login again.');
+        setSaving(false);
+        return;
+      }
+
+      const updates = {};
+      if (profile.username) updates.username = profile.username;
+      if (profile.email) updates.email = profile.email;
+      if (profile.dashboardName) updates.dashboardName = profile.dashboardName;
+
+      if (Object.keys(updates).length === 0) {
+        setError('No changes to save');
+        setSaving(false);
+        return;
+      }
+
+      try {
+        const response = await adminAPI.updateProfile(token, updates);
+        
+        if (response.success) {
+          setSuccess('Profile updated successfully!');
+          // Update dashboard name in localStorage for immediate effect
+          if (updates.dashboardName) {
+            localStorage.setItem('dashboardName', updates.dashboardName);
+            // Dispatch custom event for same-tab updates
+            window.dispatchEvent(new CustomEvent('dashboardNameChanged', {
+              detail: { dashboardName: updates.dashboardName }
+            }));
+          }
+          // Refresh profile data
+          await fetchProfile();
+          setTimeout(() => setSuccess(null), 3000);
+        } else {
+          setError(response.error || 'Failed to update profile');
+        }
+      } catch (apiError) {
+        // Handle authentication errors specifically
+        if (apiError.status === 401 || apiError.message?.includes('authentication') || apiError.message?.includes('token')) {
+          setError('Your session has expired. Please login again.');
+          // Clear auth and redirect to login
+          const { clearAuth } = await import('@/utils/auth');
+          clearAuth();
+          setTimeout(() => {
+            window.location.href = '/admin';
+          }, 2000);
+        } else {
+          setError(apiError.message || 'Failed to update profile');
+        }
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to update profile');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSavePassword = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+
+      const validationError = validatePassword();
+      if (validationError) {
+        setError(validationError);
+        setSaving(false);
+        return;
+      }
+
+      const token = getAuthToken();
+      if (!token) {
+        setError('Authentication required. Please login again.');
+        setSaving(false);
+        return;
+      }
+
+      try {
+        const response = await adminAPI.updateProfile(token, {
+          password: passwordForm.newPassword,
+          currentPassword: passwordForm.currentPassword,
+        });
+        
+        if (response.success) {
+          setSuccess('Password updated successfully!');
+          setPasswordForm({
+            currentPassword: '',
+            newPassword: '',
+            confirmPassword: '',
+          });
+          setShowPasswordFields(false);
+          setTimeout(() => setSuccess(null), 3000);
+        } else {
+          setError(response.error || 'Failed to update password');
+        }
+      } catch (apiError) {
+        // Handle authentication errors specifically
+        if (apiError.status === 401 || apiError.message?.includes('authentication') || apiError.message?.includes('token')) {
+          setError('Your session has expired. Please login again.');
+          // Clear auth and redirect to login
+          const { clearAuth } = await import('@/utils/auth');
+          clearAuth();
+          setTimeout(() => {
+            window.location.href = '/admin';
+          }, 2000);
+        } else {
+          setError(apiError.message || 'Failed to update password');
+        }
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to update password');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="d-flex align-items-center justify-content-center" style={{ minHeight: '400px' }}>
+        <div className="text-center">
+          <div className="spinner-border text-primary mb-3" role="status" style={{ width: '3rem', height: '3rem' }}>
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="text-muted">Loading settings...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="px-2 px-md-3 px-lg-4" style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
@@ -67,55 +252,47 @@ export default function Settings() {
                 boxShadow: '0 4px 15px rgba(255, 140, 0, 0.3)'
               }}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="white" viewBox="0 0 16 16" className="d-md-none" style={{ width: 'clamp(16px, 4vw, 20px)', height: 'clamp(16px, 4vw, 20px)' }}>
-                <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z"/>
-              </svg>
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="white" viewBox="0 0 16 16" className="d-none d-md-block">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="white" viewBox="0 0 16 16">
                 <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z"/>
               </svg>
             </div>
             <div>
               <h2 className="mb-0 fw-bold" style={{ fontSize: 'clamp(1.25rem, 4vw, 1.75rem)' }}>Settings</h2>
-              <p className="text-muted mb-0 small d-none d-md-block" style={{ fontSize: 'clamp(0.75rem, 2vw, 0.875rem)' }}>Manage platform configuration and preferences</p>
+              <p className="text-muted mb-0 small d-none d-md-block" style={{ fontSize: 'clamp(0.75rem, 2vw, 0.875rem)' }}>Manage your admin profile and preferences</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Success Message */}
-      {saveMessage && (
-        <div
-          className={`alert alert-${saveMessage.type === 'success' ? 'success' : 'danger'} alert-dismissible fade show mb-3`}
-          role="alert"
-          style={{
-            borderRadius: '12px',
-            border: 'none',
-            boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)',
-            fontSize: 'clamp(0.875rem, 2vw, 1rem)'
-          }}
-        >
+      {/* Messages */}
+      {error && (
+        <div className="alert alert-danger alert-dismissible fade show mb-3" role="alert" style={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)' }}>
           <div className="d-flex align-items-center">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16" className="me-2" style={{ width: 'clamp(16px, 4vw, 20px)', height: 'clamp(16px, 4vw, 20px)', flexShrink: 0 }}>
-              {saveMessage.type === 'success' ? (
-                <path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/>
-              ) : (
-                <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16zM4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
-              )}
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16" className="me-2">
+              <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+              <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
             </svg>
-            <span style={{ wordBreak: 'break-word' }}>{saveMessage.text}</span>
+            <span>{error}</span>
           </div>
-          <button
-            type="button"
-            className="btn-close"
-            onClick={() => setSaveMessage(null)}
-            aria-label="Close"
-          />
+          <button type="button" className="btn-close" onClick={() => setError(null)} aria-label="Close" />
+        </div>
+      )}
+
+      {success && (
+        <div className="alert alert-success alert-dismissible fade show mb-3" role="alert" style={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)' }}>
+          <div className="d-flex align-items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16" className="me-2">
+              <path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/>
+            </svg>
+            <span>{success}</span>
+          </div>
+          <button type="button" className="btn-close" onClick={() => setSuccess(null)} aria-label="Close" />
         </div>
       )}
 
       <div className="row g-3 g-md-4">
-        {/* General Settings Card */}
-        <div className="col-12 col-lg-6">
+        {/* Admin Profile Card */}
+        <div className="col-12 col-lg-8">
           <div
             className="card h-100"
             style={{
@@ -124,330 +301,192 @@ export default function Settings() {
               border: '1px solid rgba(255, 140, 0, 0.2)',
               boxShadow: '0 4px 20px rgba(255, 140, 0, 0.1)',
               backdropFilter: 'blur(10px)',
-              WebkitBackdropFilter: 'blur(10px)',
-              transition: 'all 0.3s ease'
-            }}
-            onMouseEnter={(e) => {
-              if (window.innerWidth > 768) {
-                e.currentTarget.style.transform = 'translateY(-4px)';
-                e.currentTarget.style.boxShadow = '0 8px 25px rgba(255, 140, 0, 0.15)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 20px rgba(255, 140, 0, 0.1)';
             }}
           >
             <div className="card-header border-bottom px-3 px-md-4 py-3" style={{ background: 'transparent' }}>
               <h5 className="mb-0 fw-bold d-flex align-items-center" style={{ fontSize: 'clamp(1rem, 2.5vw, 1.25rem)' }}>
-                <span className="me-2">⚙️</span>
-                General Settings
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16" className="me-2">
+                  <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/>
+                </svg>
+                Admin Profile
               </h5>
             </div>
             <div className="card-body p-3 p-md-4">
               <div className="row g-3">
                 <div className="col-12">
-                  <label className="form-label fw-semibold mb-2" style={{ fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}>Site Name</label>
+                  <label className="form-label fw-semibold mb-2">Username</label>
                   <input
                     type="text"
                     className="form-control"
-                    value={settings.siteName}
-                    onChange={(e) => handleInputChange('siteName', e.target.value)}
-                    style={{ borderRadius: '8px', padding: 'clamp(0.5rem, 2vw, 0.6rem) clamp(0.875rem, 2.5vw, 1rem)', fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}
+                    value={profile.username}
+                    onChange={(e) => handleProfileChange('username', e.target.value)}
+                    placeholder="Enter username"
+                    style={{ borderRadius: '8px', padding: '0.6rem 1rem' }}
                   />
+                  <small className="text-muted">Username must be 3-50 characters, lowercase letters, numbers, and underscores only</small>
                 </div>
                 <div className="col-12">
-                  <label className="form-label fw-semibold mb-2" style={{ fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}>Site URL</label>
-                  <input
-                    type="url"
-                    className="form-control"
-                    value={settings.siteUrl}
-                    onChange={(e) => handleInputChange('siteUrl', e.target.value)}
-                    style={{ borderRadius: '8px', padding: 'clamp(0.5rem, 2vw, 0.6rem) clamp(0.875rem, 2.5vw, 1rem)', fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}
-                  />
-                </div>
-                <div className="col-12">
-                  <label className="form-label fw-semibold mb-2" style={{ fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}>Site Description</label>
-                  <textarea
-                    className="form-control"
-                    value={settings.siteDescription}
-                    onChange={(e) => handleInputChange('siteDescription', e.target.value)}
-                    rows="3"
-                    style={{ borderRadius: '8px', padding: 'clamp(0.5rem, 2vw, 0.6rem) clamp(0.875rem, 2.5vw, 1rem)', fontSize: 'clamp(0.875rem, 2vw, 1rem)', resize: 'vertical' }}
-                  />
-                </div>
-                <div className="col-12 col-md-6">
-                  <label className="form-label fw-semibold mb-2" style={{ fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}>Admin Email</label>
+                  <label className="form-label fw-semibold mb-2">Email</label>
                   <input
                     type="email"
                     className="form-control"
-                    value={settings.adminEmail}
-                    onChange={(e) => handleInputChange('adminEmail', e.target.value)}
-                    style={{ borderRadius: '8px', padding: 'clamp(0.5rem, 2vw, 0.6rem) clamp(0.875rem, 2.5vw, 1rem)', fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}
+                    value={profile.email}
+                    onChange={(e) => handleProfileChange('email', e.target.value)}
+                    placeholder="Enter email address"
+                    style={{ borderRadius: '8px', padding: '0.6rem 1rem' }}
                   />
                 </div>
-                <div className="col-12 col-md-6">
-                  <label className="form-label fw-semibold mb-2" style={{ fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}>Support Email</label>
+                <div className="col-12">
+                  <label className="form-label fw-semibold mb-2">Dashboard Name</label>
                   <input
-                    type="email"
+                    type="text"
                     className="form-control"
-                    value={settings.supportEmail}
-                    onChange={(e) => handleInputChange('supportEmail', e.target.value)}
-                    style={{ borderRadius: '8px', padding: 'clamp(0.5rem, 2vw, 0.6rem) clamp(0.875rem, 2.5vw, 1rem)', fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}
+                    value={profile.dashboardName}
+                    onChange={(e) => handleProfileChange('dashboardName', e.target.value)}
+                    placeholder="Enter dashboard name"
+                    maxLength={100}
+                    style={{ borderRadius: '8px', padding: '0.6rem 1rem' }}
                   />
-                </div>
-                <div className="col-12 col-md-6">
-                  <label className="form-label fw-semibold mb-2" style={{ fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}>Timezone</label>
-                  <select
-                    className="form-select"
-                    value={settings.timezone}
-                    onChange={(e) => handleInputChange('timezone', e.target.value)}
-                    style={{ borderRadius: '8px', padding: 'clamp(0.5rem, 2vw, 0.6rem) clamp(0.875rem, 2.5vw, 1rem)', fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}
-                  >
-                    <option value="UTC">UTC</option>
-                    <option value="America/New_York">Eastern Time (ET)</option>
-                    <option value="America/Chicago">Central Time (CT)</option>
-                    <option value="America/Los_Angeles">Pacific Time (PT)</option>
-                    <option value="Europe/London">London (GMT)</option>
-                    <option value="Asia/Tokyo">Tokyo (JST)</option>
-                  </select>
-                </div>
-                <div className="col-12 col-md-6">
-                  <label className="form-label fw-semibold mb-2" style={{ fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}>Language</label>
-                  <select
-                    className="form-select"
-                    value={settings.language}
-                    onChange={(e) => handleInputChange('language', e.target.value)}
-                    style={{ borderRadius: '8px', padding: 'clamp(0.5rem, 2vw, 0.6rem) clamp(0.875rem, 2.5vw, 1rem)', fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}
-                  >
-                    <option value="en">English</option>
-                    <option value="es">Spanish</option>
-                    <option value="fr">French</option>
-                    <option value="de">German</option>
-                  </select>
+                  <small className="text-muted">This name will be displayed in the admin dashboard header</small>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Appearance & Security Card */}
-        <div className="col-12 col-lg-6">
-          <div
-            className="card h-100"
-            style={{
-              borderRadius: '16px',
-              background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 248, 240, 0.95) 100%)',
-              border: '1px solid rgba(255, 140, 0, 0.2)',
-              boxShadow: '0 4px 20px rgba(255, 140, 0, 0.1)',
-              backdropFilter: 'blur(10px)',
-              WebkitBackdropFilter: 'blur(10px)',
-              transition: 'all 0.3s ease'
-            }}
-            onMouseEnter={(e) => {
-              if (window.innerWidth > 768) {
-                e.currentTarget.style.transform = 'translateY(-4px)';
-                e.currentTarget.style.boxShadow = '0 8px 25px rgba(255, 140, 0, 0.15)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 20px rgba(255, 140, 0, 0.1)';
-            }}
-          >
-            <div className="card-header border-bottom px-3 px-md-4 py-3" style={{ background: 'transparent' }}>
-              <h5 className="mb-0 fw-bold d-flex align-items-center" style={{ fontSize: 'clamp(1rem, 2.5vw, 1.25rem)' }}>
-                <span className="me-2">🎨</span>
-                Appearance & Security
-              </h5>
-            </div>
-            <div className="card-body p-3 p-md-4">
-              <div className="row g-3">
-                <div className="col-12 col-md-6">
-                  <label className="form-label fw-semibold mb-2" style={{ fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}>Primary Color</label>
-                  <div className="d-flex gap-2 align-items-center">
-                    <input
-                      type="color"
-                      className="form-control form-control-color flex-shrink-0"
-                      value={settings.primaryColor}
-                      onChange={(e) => handleInputChange('primaryColor', e.target.value)}
-                      style={{ width: 'clamp(50px, 12vw, 60px)', height: 'clamp(35px, 8vw, 40px)', borderRadius: '8px', border: '1px solid #dee2e6', cursor: 'pointer' }}
-                    />
-                    <input
-                      type="text"
-                      className="form-control flex-grow-1"
-                      value={settings.primaryColor}
-                      onChange={(e) => handleInputChange('primaryColor', e.target.value)}
-                      style={{ borderRadius: '8px', padding: 'clamp(0.5rem, 2vw, 0.6rem) clamp(0.875rem, 2.5vw, 1rem)', fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}
-                    />
-                  </div>
-                </div>
-                <div className="col-12 col-md-6">
-                  <label className="form-label fw-semibold mb-2" style={{ fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}>Secondary Color</label>
-                  <div className="d-flex gap-2 align-items-center">
-                    <input
-                      type="color"
-                      className="form-control form-control-color flex-shrink-0"
-                      value={settings.secondaryColor}
-                      onChange={(e) => handleInputChange('secondaryColor', e.target.value)}
-                      style={{ width: 'clamp(50px, 12vw, 60px)', height: 'clamp(35px, 8vw, 40px)', borderRadius: '8px', border: '1px solid #dee2e6', cursor: 'pointer' }}
-                    />
-                    <input
-                      type="text"
-                      className="form-control flex-grow-1"
-                      value={settings.secondaryColor}
-                      onChange={(e) => handleInputChange('secondaryColor', e.target.value)}
-                      style={{ borderRadius: '8px', padding: 'clamp(0.5rem, 2vw, 0.6rem) clamp(0.875rem, 2.5vw, 1rem)', fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}
-                    />
-                  </div>
-                </div>
-                <div className="col-12">
-                  <label className="form-label fw-semibold mb-2" style={{ fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}>Theme</label>
-                  <select
-                    className="form-select"
-                    value={settings.theme}
-                    onChange={(e) => handleInputChange('theme', e.target.value)}
-                    style={{ borderRadius: '8px', padding: 'clamp(0.5rem, 2vw, 0.6rem) clamp(0.875rem, 2.5vw, 1rem)', fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}
-                  >
-                    <option value="light">Light</option>
-                    <option value="dark">Dark</option>
-                    <option value="auto">Auto (System)</option>
-                  </select>
-                </div>
-                <div className="col-12">
-                  <div className="form-check form-switch d-flex align-items-center p-2 p-md-3 rounded" style={{ background: 'rgba(255, 140, 0, 0.05)' }}>
-                    <input
-                      className="form-check-input me-2 me-md-3 flex-shrink-0"
-                      type="checkbox"
-                      checked={settings.twoFactorAuth}
-                      onChange={() => handleToggle('twoFactorAuth')}
-                      style={{ width: 'clamp(2.5rem, 6vw, 3rem)', height: 'clamp(1.25rem, 3vw, 1.5rem)', cursor: 'pointer' }}
-                    />
-                    <div className="flex-grow-1">
-                      <label className="form-check-label fw-semibold mb-0" style={{ cursor: 'pointer', fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}>
-                        Enable Two-Factor Authentication
-                      </label>
-                      <small className="d-block text-muted" style={{ fontSize: 'clamp(0.75rem, 1.8vw, 0.875rem)' }}>Require 2FA for admin accounts</small>
-                    </div>
-                  </div>
-                </div>
-                <div className="col-12 col-md-6">
-                  <label className="form-label fw-semibold mb-2" style={{ fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}>Session Timeout (minutes)</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    value={settings.sessionTimeout}
-                    onChange={(e) => handleInputChange('sessionTimeout', e.target.value)}
-                    min="5"
-                    max="1440"
-                    style={{ borderRadius: '8px', padding: 'clamp(0.5rem, 2vw, 0.6rem) clamp(0.875rem, 2.5vw, 1rem)', fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}
-                  />
-                </div>
-                <div className="col-12 col-md-6">
-                  <label className="form-label fw-semibold mb-2" style={{ fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}>Password Min Length</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    value={settings.passwordMinLength}
-                    onChange={(e) => handleInputChange('passwordMinLength', e.target.value)}
-                    min="6"
-                    max="32"
-                    style={{ borderRadius: '8px', padding: 'clamp(0.5rem, 2vw, 0.6rem) clamp(0.875rem, 2.5vw, 1rem)', fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* System Settings Card */}
-        <div className="col-12">
-          <div
-            className="card"
-            style={{
-              borderRadius: '16px',
-              background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 248, 240, 0.95) 100%)',
-              border: '1px solid rgba(255, 140, 0, 0.2)',
-              boxShadow: '0 4px 20px rgba(255, 140, 0, 0.1)',
-              backdropFilter: 'blur(10px)',
-              WebkitBackdropFilter: 'blur(10px)',
-              transition: 'all 0.3s ease'
-            }}
-            onMouseEnter={(e) => {
-              if (window.innerWidth > 768) {
-                e.currentTarget.style.transform = 'translateY(-4px)';
-                e.currentTarget.style.boxShadow = '0 8px 25px rgba(255, 140, 0, 0.15)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 20px rgba(255, 140, 0, 0.1)';
-            }}
-          >
-            <div className="card-header border-bottom px-3 px-md-4 py-3" style={{ background: 'transparent' }}>
-              <h5 className="mb-0 fw-bold d-flex align-items-center" style={{ fontSize: 'clamp(1rem, 2.5vw, 1.25rem)' }}>
-                <span className="me-2">🖥️</span>
-                System Settings
-              </h5>
-            </div>
-            <div className="card-body p-3 p-md-4">
-              <div className="row g-3">
-                <div className="col-12">
-                  <div className="form-check form-switch d-flex align-items-center p-2 p-md-3 rounded mb-3" style={{ background: 'rgba(255, 140, 0, 0.05)' }}>
-                    <input
-                      className="form-check-input me-2 me-md-3 flex-shrink-0"
-                      type="checkbox"
-                      checked={settings.enableAnalytics}
-                      onChange={() => handleToggle('enableAnalytics')}
-                      style={{ width: 'clamp(2.5rem, 6vw, 3rem)', height: 'clamp(1.25rem, 3vw, 1.5rem)', cursor: 'pointer' }}
-                    />
-                    <div className="flex-grow-1">
-                      <label className="form-check-label fw-semibold mb-0" style={{ cursor: 'pointer', fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}>
-                        Enable Analytics
-                      </label>
-                      <small className="d-block text-muted" style={{ fontSize: 'clamp(0.75rem, 1.8vw, 0.875rem)' }}>Track user behavior and platform usage</small>
-                    </div>
-                  </div>
-                </div>
-                <div className="col-12">
-                  <div className="form-check form-switch d-flex align-items-center p-2 p-md-3 rounded" style={{ background: 'rgba(255, 140, 0, 0.05)' }}>
-                    <input
-                      className="form-check-input me-2 me-md-3 flex-shrink-0"
-                      type="checkbox"
-                      checked={settings.maintenanceMode}
-                      onChange={() => handleToggle('maintenanceMode')}
-                      style={{ width: 'clamp(2.5rem, 6vw, 3rem)', height: 'clamp(1.25rem, 3vw, 1.5rem)', cursor: 'pointer' }}
-                    />
-                    <div className="flex-grow-1">
-                      <label className="form-check-label fw-semibold mb-0" style={{ cursor: 'pointer', fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}>
-                        Maintenance Mode
-                      </label>
-                      <small className="d-block text-muted" style={{ fontSize: 'clamp(0.75rem, 1.8vw, 0.875rem)' }}>Put the site in maintenance mode (only admins can access)</small>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="card-footer border-top px-3 px-md-4 py-3 d-flex flex-column flex-sm-row justify-content-end gap-2" style={{ background: 'transparent' }}>
+            <div className="card-footer border-top px-3 px-md-4 py-3 d-flex justify-content-end" style={{ background: 'transparent' }}>
               <button
-                className="btn"
-                onClick={handleSave}
+                className="btn btn-primary"
+                onClick={handleSaveProfile}
                 disabled={saving}
                 style={{
                   background: 'linear-gradient(135deg, #ff8c00 0%, #ff6b00 100%)',
                   color: 'white',
                   border: 'none',
                   borderRadius: '8px',
-                  padding: 'clamp(0.5rem, 2vw, 0.6rem) clamp(1rem, 3vw, 1.5rem)',
+                  padding: '0.6rem 1.5rem',
                   fontWeight: '600',
-                  fontSize: 'clamp(0.875rem, 2vw, 1rem)',
-                  width: '100%',
-                  maxWidth: '200px'
                 }}
               >
-                {saving ? 'Saving...' : 'Save All Settings'}
+                {saving ? (
+                  <>
+                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    Saving...
+                  </>
+                ) : (
+                  'Save Profile'
+                )}
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* Password Change Card */}
+        <div className="col-12 col-lg-4">
+          <div
+            className="card h-100"
+            style={{
+              borderRadius: '16px',
+              background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 248, 255, 0.95) 100%)',
+              border: '1px solid rgba(0, 102, 204, 0.2)',
+              boxShadow: '0 4px 20px rgba(0, 102, 204, 0.1)',
+              backdropFilter: 'blur(10px)',
+            }}
+          >
+            <div className="card-header border-bottom px-3 px-md-4 py-3" style={{ background: 'transparent' }}>
+              <h5 className="mb-0 fw-bold d-flex align-items-center" style={{ fontSize: 'clamp(1rem, 2.5vw, 1.25rem)' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16" className="me-2">
+                  <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
+                </svg>
+                Change Password
+              </h5>
+            </div>
+            <div className="card-body p-3 p-md-4">
+              {!showPasswordFields ? (
+                <div className="text-center py-3">
+                  <p className="text-muted mb-3">Click the button below to change your password</p>
+                  <button
+                    className="btn btn-outline-primary"
+                    onClick={() => setShowPasswordFields(true)}
+                    style={{ borderRadius: '8px' }}
+                  >
+                    Change Password
+                  </button>
+                </div>
+              ) : (
+                <div className="row g-3">
+                  <div className="col-12">
+                    <label className="form-label fw-semibold mb-2">Current Password</label>
+                    <input
+                      type="password"
+                      className="form-control"
+                      value={passwordForm.currentPassword}
+                      onChange={(e) => handlePasswordChange('currentPassword', e.target.value)}
+                      placeholder="Enter current password"
+                      style={{ borderRadius: '8px', padding: '0.6rem 1rem' }}
+                    />
+                  </div>
+                  <div className="col-12">
+                    <label className="form-label fw-semibold mb-2">New Password</label>
+                    <input
+                      type="password"
+                      className="form-control"
+                      value={passwordForm.newPassword}
+                      onChange={(e) => handlePasswordChange('newPassword', e.target.value)}
+                      placeholder="Enter new password"
+                      style={{ borderRadius: '8px', padding: '0.6rem 1rem' }}
+                    />
+                    <small className="text-muted">Password must be at least 6 characters long</small>
+                  </div>
+                  <div className="col-12">
+                    <label className="form-label fw-semibold mb-2">Confirm New Password</label>
+                    <input
+                      type="password"
+                      className="form-control"
+                      value={passwordForm.confirmPassword}
+                      onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)}
+                      placeholder="Confirm new password"
+                      style={{ borderRadius: '8px', padding: '0.6rem 1rem' }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+            {showPasswordFields && (
+              <div className="card-footer border-top px-3 px-md-4 py-3 d-flex gap-2" style={{ background: 'transparent' }}>
+                <button
+                  className="btn btn-outline-secondary flex-grow-1"
+                  onClick={() => {
+                    setShowPasswordFields(false);
+                    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                    setError(null);
+                  }}
+                  disabled={saving}
+                  style={{ borderRadius: '8px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary flex-grow-1"
+                  onClick={handleSavePassword}
+                  disabled={saving}
+                  style={{
+                    background: 'linear-gradient(135deg, #0066cc 0%, #0052a3 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '0.6rem 1rem',
+                    fontWeight: '600',
+                  }}
+                >
+                  {saving ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                      Saving...
+                    </>
+                  ) : (
+                    'Update Password'
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

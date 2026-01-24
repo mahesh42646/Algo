@@ -905,6 +905,8 @@ export default function Notifications() {
                                   <Image
                                     src={notification.image}
                                     alt="Notification"
+                                    height={55}
+                                    width={50}
                                     style={{
                                       width: '100%',
                                       height: '100%',
@@ -1207,7 +1209,8 @@ export default function Notifications() {
                   }}>
                     {formData.imagePreview ? (
                       <div className="text-center w-100">
-                        <Image
+
+                        <img
                           src={formData.imagePreview}
                           alt="Preview"
                           style={{
@@ -1215,7 +1218,8 @@ export default function Notifications() {
                             maxHeight: '200px',
                             borderRadius: '12px',
                             marginBottom: '1rem',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                            objectFit: 'contain'
                           }}
                         />
                         <div className="d-flex gap-2 justify-content-center">

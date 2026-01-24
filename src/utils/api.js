@@ -385,6 +385,9 @@ export const adminAPI = {
    * Get admin profile (requires authentication)
    */
   async getProfile(token) {
+    if (!token) {
+      throw new Error('Authentication token is required');
+    }
     return fetchAPI('/admin/profile', {
       method: 'GET',
       headers: {
@@ -397,6 +400,9 @@ export const adminAPI = {
    * Update admin profile (username and/or password)
    */
   async updateProfile(token, updates) {
+    if (!token) {
+      throw new Error('Authentication token is required');
+    }
     return fetchAPI('/admin/profile', {
       method: 'PUT',
       headers: {

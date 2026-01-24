@@ -102,6 +102,7 @@ router.get('/profile', authenticateAdmin, async (req, res, next) => {
           username: admin.username,
           email: admin.email,
           isActive: admin.isActive,
+          dashboardName: admin.dashboardName || 'Admin Dashboard',
           lastLogin: admin.lastLogin,
           createdAt: admin.createdAt,
           updatedAt: admin.updatedAt,
@@ -120,14 +121,14 @@ router.get('/profile', authenticateAdmin, async (req, res, next) => {
  */
 router.put('/profile', authenticateAdmin, async (req, res, next) => {
   try {
-    const { username, password, currentPassword } = req.body;
+    const { username, email, password, currentPassword, dashboardName } = req.body;
     const admin = req.admin;
 
     // Validate that at least one field is being updated
-    if (!username && !password) {
+    if (!username && !email && !password && !dashboardName) {
       return res.status(400).json({
         success: false,
-        error: 'At least one field (username or password) must be provided',
+        error: 'At least one field (username, email, password, or dashboardName) must be provided',
       });
     }
 
@@ -173,6 +174,44 @@ router.put('/profile', authenticateAdmin, async (req, res, next) => {
       }
 
       admin.username = username.toLowerCase();
+    }
+
+    // Update email if provided
+    if (email) {
+      // Check if email is already taken by another admin
+      const existingAdmin = await Admin.findOne({
+        email: email.toLowerCase(),
+        _id: { $ne: admin._id },
+      });
+
+      if (existingAdmin) {
+        return res.status(400).json({
+          success: false,
+          error: 'Email is already taken',
+        });
+      }
+
+      // Validate email format
+      const emailRegex = /^\S+@\S+\.\S+$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid email format',
+        });
+      }
+
+      admin.email = email.toLowerCase();
+    }
+
+    // Save admin if username or email was updated
+    if (username || email) {
+      await admin.save();
+    }
+
+    // Handle dashboard name (store in admin document or separate config)
+    // For now, we'll add it to the admin document as a preference
+    if (dashboardName !== undefined) {
+      admin.dashboardName = dashboardName;
       await admin.save();
     }
 
@@ -188,6 +227,7 @@ router.put('/profile', authenticateAdmin, async (req, res, next) => {
           username: updatedAdmin.username,
           email: updatedAdmin.email,
           isActive: updatedAdmin.isActive,
+          dashboardName: updatedAdmin.dashboardName || 'Admin Dashboard',
           lastLogin: updatedAdmin.lastLogin,
           createdAt: updatedAdmin.createdAt,
           updatedAt: updatedAdmin.updatedAt,
