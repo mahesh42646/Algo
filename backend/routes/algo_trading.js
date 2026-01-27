@@ -1485,6 +1485,26 @@ router.post('/:userId/start-manual', async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'API not found or inactive' });
     }
 
+    // Decrypt API credentials
+    const { decrypt } = require('../utils/encryption');
+    let apiKey, apiSecret;
+    try {
+      apiKey = decrypt(api.apiKey);
+      apiSecret = decrypt(api.apiSecret);
+    } catch (e) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to decrypt API credentials',
+      });
+    }
+
+    const tradeKey = `${userId}:${symbol.toUpperCase()}`;
+    if (activeTrades.has(tradeKey)) {
+      const existing = activeTrades.get(tradeKey);
+      if (existing.intervalId) clearInterval(existing.intervalId);
+      activeTrades.delete(tradeKey);
+    }
+
     // Use same algo trading logic but with manual mode flag
     const trade = {
       userId,
@@ -1501,31 +1521,27 @@ router.post('/:userId/start-manual', async (req, res, next) => {
       numberOfLevels: parseInt(numberOfLevels),
       useMargin: false,
       leverage: 1,
+      apiKey,
+      apiSecret,
       startPrice: 0,
       currentLevel: 0,
       totalInvested: 0,
       orders: [],
       isActive: true,
-      isStarted: true, // Manual trades start immediately
-      tradeDirection: null,
+      isStarted: true, // Manual trades start immediately (user places orders)
+      tradeDirection: null, // Will be set when first order is placed
       startedAt: new Date(),
       lastSignal: null,
       intervalId: null,
       platformWalletFees: [],
     };
 
-    const tradeKey = `${userId}:${symbol.toUpperCase()}`;
-    if (activeTrades.has(tradeKey)) {
-      const existing = activeTrades.get(tradeKey);
-      if (existing.intervalId) clearInterval(existing.intervalId);
-    }
-
-    // Start manual trading (user places orders manually)
+    // Start manual trading (user places orders manually - no automatic execution)
     activeTrades.set(tradeKey, trade);
 
     res.json({
       success: true,
-      message: 'Manual trading started',
+      message: 'Manual trading started - you can now place orders manually',
       data: { symbol: trade.symbol, startedAt: trade.startedAt },
     });
   } catch (error) {
