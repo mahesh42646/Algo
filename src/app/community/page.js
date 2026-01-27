@@ -1,5 +1,6 @@
 'use client';
 
+import React, { useState } from 'react';
 import Header from '../home/components/Header';
 import Footer from '../home/components/Footer';
 import BootstrapIcon from '../home/components/BootstrapIcon';
@@ -21,6 +22,58 @@ function Avatar({ user, name }) {
     >
       {user}
     </span>
+  );
+}
+
+function LatestPostModal({ post, visible, onClose }) {
+  if (!visible || !post) return null;
+  return (
+    <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.35)' }}>
+      <div className="modal-dialog modal-dialog-centered">
+        <div className="modal-content shadow-card">
+          <div className="modal-header border-0">
+            <h5 className="modal-title fw-semibold">
+              <BootstrapIcon name="chat-left-text" className="me-2 text-primary" />
+              Latest Topic: {post.title}
+            </h5>
+            <button type="button" className="btn-close" aria-label="Close" onClick={onClose}></button>
+          </div>
+          <div className="modal-body">
+            <div className="d-flex align-items-center mb-3">
+              <Avatar user={post.user} name={post.name} />
+              <div className="ms-3">
+                <div className="fw-semibold">{post.name}</div>
+                <div className="text-muted small">Posted on {post.date}</div>
+              </div>
+            </div>
+            <div className="mb-3">
+              <strong>Title:</strong>
+              <div>{post.title}</div>
+            </div>
+            <div className="d-flex align-items-center gap-3 mb-2">
+              <span className="badge bg-secondary">
+                <BootstrapIcon name="chat-left-text" className="me-1" />
+                {post.replies} {post.replies === 1 ? 'Reply' : 'Replies'}
+              </span>
+              <span className="badge bg-info text-dark">
+                <BootstrapIcon name="clock" className="me-1" />
+                {post.date}
+              </span>
+            </div>
+            <div className="alert alert-info mt-4 mb-0">
+              <BootstrapIcon name="info-circle" className="me-2" />
+              <span>
+                For security reasons, full post details are available after you join and log in. 
+                <a href="/auth/registration" className="ms-2 text-decoration-underline fw-semibold">Sign Up</a> or <a href="/auth/login" className="ms-1 text-decoration-underline fw-semibold">Sign In</a> to read and reply!
+              </span>
+            </div>
+          </div>
+          <div className="modal-footer border-0">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -107,6 +160,17 @@ export default function CommunityPage() {
       ]
     }
   ];
+
+  // Manage which post to show in modal
+  const [modalPost, setModalPost] = useState(null);
+
+  const handleViewClick = (post) => {
+    setModalPost(post);
+  };
+
+  const handleModalClose = () => {
+    setModalPost(null);
+  };
 
   return (
     <>
@@ -204,7 +268,7 @@ export default function CommunityPage() {
                           <Avatar user={cat.latest.user} name={cat.latest.name} />
                           <div className="flex-grow-1">
                             <div className="fw-semibold mb-2" style={{ fontSize: '0.95rem' }}>
-                              <a href="#" className="text-dark text-decoration-none">
+                              <a href="#" className="text-dark text-decoration-none" tabIndex={-1}>
                                 {cat.latest.title}
                               </a>
                             </div>
@@ -217,9 +281,15 @@ export default function CommunityPage() {
                                 <BootstrapIcon name="clock" className="me-1" style={{ fontSize: '0.75rem' }} />
                                 {cat.latest.date}
                               </span>
-                              <a href="#" className="ms-auto text-primary text-decoration-none small fw-semibold">
+                              <button
+                                type="button"
+                                className="ms-auto btn btn-link text-primary text-decoration-none small fw-semibold px-0"
+                                style={{ boxShadow: "none" }}
+                                onClick={() => handleViewClick(cat.latest)}
+                                aria-label={`View details about ${cat.latest.title}`}
+                              >
                                 View <BootstrapIcon name="arrow-right" style={{ fontSize: '0.75rem' }} />
-                              </a>
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -230,6 +300,9 @@ export default function CommunityPage() {
               ))}
             </div>
           </section>
+
+          {/* Show LatestPostModal after view button click */}
+          <LatestPostModal post={modalPost} visible={!!modalPost} onClose={handleModalClose} />
 
           {/* Join Community CTA */}
           <section className="mt-5">
@@ -271,6 +344,12 @@ export default function CommunityPage() {
         }
         .community-category-card:hover .card-body {
           background-color: #fafbfc;
+        }
+        .modal.fade {
+          pointer-events: auto;
+        }
+        .modal-backdrop {
+          display: none;
         }
       `}</style>
     </>

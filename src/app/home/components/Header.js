@@ -52,7 +52,7 @@ export default function Header() {
     <header className="sticky-top  bg-white shadow-small" style={{ zIndex: 1000 }}>
       <nav className="navbar navbar-expand-lg  navbar-light">
         <div className="container-fluid px-3 px-md-4 px-lg-5" style={{ maxWidth: '1500px', margin: '0 auto' }}>
-          <a className="navbar-brand d-flex align-items-center text-decoration-none" href="/home">
+          <a className="navbar-brand d-flex align-items-center text-decoration-none" href="/">
             <span className="fw-bold fs-1 primary me-2" style={{
               background: 'linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)',
               WebkitBackgroundClip: 'text',
