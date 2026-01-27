@@ -121,7 +121,7 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
         
         if (mounted && usdtBalance != null) {
           setState(() {
-            _binanceBalance = '${usdtBalance.total.toStringAsFixed(2)} ${widget.quoteCurrency}';
+            _binanceBalance = '${usdtBalance!.total.toStringAsFixed(2)} ${widget.quoteCurrency}';
           });
         }
       }
