@@ -73,7 +73,7 @@ class _AlgoBotAppState extends State<AlgoBotApp> {
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.deepOrange,
+            seedColor: const Color(0xFF4A90E2), // Light bluish theme
             brightness: Brightness.light,
           ),
           useMaterial3: true,
@@ -97,13 +97,14 @@ class _AlgoBotAppState extends State<AlgoBotApp> {
             debugShowCheckedModeBanner: false,
             theme: ThemeData(
               colorScheme: ColorScheme.fromSeed(
-                seedColor: const Color(0xFF2196F3),
+                seedColor: const Color(0xFF4A90E2), // Light bluish theme
                 brightness: Brightness.light,
               ),
-              scaffoldBackgroundColor: const Color(0xFFFAFAFA),
+              primaryColor: const Color(0xFF4A90E2),
+              scaffoldBackgroundColor: const Color(0xFFF0F5FF), // Light bluish background
               appBarTheme: const AppBarTheme(
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.black87,
+                backgroundColor: Color(0xFFE3F2FD), // Light blue app bar
+                foregroundColor: Color(0xFF1565C0),
                 elevation: 0,
                 centerTitle: false,
               ),
@@ -116,18 +117,18 @@ class _AlgoBotAppState extends State<AlgoBotApp> {
               ),
               inputDecorationTheme: InputDecorationTheme(
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: const Color(0xFFF5F9FF), // Very light blue fill
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                  borderSide: const BorderSide(color: Color(0xFFBBDEFB)),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                  borderSide: const BorderSide(color: Color(0xFFBBDEFB)),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF2196F3), width: 2),
+                  borderSide: const BorderSide(color: Color(0xFF4A90E2), width: 2),
                 ),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               ),

@@ -52,6 +52,16 @@ router.post('/:userId/start', async (req, res, next) => {
       });
     }
 
+    // Check if user already has an algo trade (only one algo trade allowed per user)
+    for (const [key, existingTrade] of activeTrades.entries()) {
+      if (existingTrade.userId === userId && !existingTrade.isAdminMode && !existingTrade.isManual && existingTrade.isActive) {
+        return res.status(400).json({
+          success: false,
+          error: 'You already have an active algo trade. Only one algo trade is allowed at a time. You can have multiple manual trades.',
+        });
+      }
+    }
+
     // Check if there's an active trade for this symbol
     const tradeKey = `${userId}:${symbol.toUpperCase()}`;
     if (activeTrades.has(tradeKey)) {
@@ -1498,11 +1508,20 @@ router.post('/:userId/start-manual', async (req, res, next) => {
       });
     }
 
+    // Manual trades can have multiple per user, but check for same symbol
     const tradeKey = `${userId}:${symbol.toUpperCase()}`;
     if (activeTrades.has(tradeKey)) {
       const existing = activeTrades.get(tradeKey);
-      if (existing.intervalId) clearInterval(existing.intervalId);
-      activeTrades.delete(tradeKey);
+      // Only stop if it's also a manual trade for same symbol
+      if (existing.isManual) {
+        if (existing.intervalId) clearInterval(existing.intervalId);
+        activeTrades.delete(tradeKey);
+      } else {
+        return res.status(400).json({
+          success: false,
+          error: 'A non-manual trade is already active for this symbol',
+        });
+      }
     }
 
     // Use same algo trading logic but with manual mode flag
@@ -1606,12 +1625,30 @@ router.post('/:userId/start-admin', async (req, res, next) => {
       }
     }
 
+    // Check if user already has an admin trade (only one admin trade allowed per user)
+    for (const [key, existingTrade] of activeTrades.entries()) {
+      if (existingTrade.userId === userId && existingTrade.isAdminMode && existingTrade.isActive) {
+        return res.status(400).json({
+          success: false,
+          error: 'You already have an active admin strategy trade. Only one admin trade is allowed at a time.',
+        });
+      }
+    }
+
     const tradeKey = `${userId}:${selectedSymbol.toUpperCase()}`;
+    // Check if there's already a trade for this symbol (any type)
     if (activeTrades.has(tradeKey)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Trade already active for this symbol',
-      });
+      const existing = activeTrades.get(tradeKey);
+      // If it's not admin mode, stop it (admin takes precedence)
+      if (!existing.isAdminMode) {
+        if (existing.intervalId) clearInterval(existing.intervalId);
+        activeTrades.delete(tradeKey);
+      } else {
+        return res.status(400).json({
+          success: false,
+          error: 'Trade already active for this symbol',
+        });
+      }
     }
 
     // Decrypt API credentials

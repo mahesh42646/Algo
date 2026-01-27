@@ -452,11 +452,22 @@ router.get('/algo-trades', authenticateAdmin, async (req, res, next) => {
     
     for (const [key, trade] of activeTrades.entries()) {
       if (trade.isActive) {
+        // Calculate current P&L
+        let currentPnL = 0;
+        let unrealizedPnL = 0;
+        if (trade.isStarted && trade.orders && trade.orders.length > 0) {
+          // This would need current price - simplified for now
+          const totalQuantity = trade.orders.reduce((sum, o) => sum + parseFloat(o.quantity || 0), 0);
+          const avgEntryPrice = totalQuantity > 0 ? trade.totalInvested / totalQuantity : trade.startPrice;
+          // Note: Would need current price API call for accurate P&L
+        }
+        
         trades.push({
           tradeKey: key,
           userId: trade.userId,
           symbol: trade.symbol,
           platform: trade.platform,
+          tradeType: trade.isAdminMode ? 'admin' : trade.isManual ? 'manual' : 'algo',
           currentLevel: trade.currentLevel,
           numberOfLevels: trade.numberOfLevels,
           isStarted: trade.isStarted,
@@ -465,6 +476,8 @@ router.get('/algo-trades', authenticateAdmin, async (req, res, next) => {
           lastSignal: trade.lastSignal,
           totalInvested: trade.totalInvested,
           platformWalletFees: trade.platformWalletFees.reduce((a, b) => a + b, 0),
+          currentPnL,
+          unrealizedPnL,
         });
       }
     }
@@ -478,6 +491,96 @@ router.get('/algo-trades', authenticateAdmin, async (req, res, next) => {
     });
   } catch (error) {
     console.error('[ADMIN] Error getting algo trades:', error);
+    next(error);
+  }
+});
+
+// Get trading history (all trades - active and completed)
+router.get('/trading-history', authenticateAdmin, async (req, res, next) => {
+  try {
+    const { limit = 100, offset = 0, userId, symbol, tradeType } = req.query;
+    const activeTrades = algoTradingRoutes.getActiveTrades();
+    const history = [];
+    
+    // Get active trades
+    for (const [key, trade] of activeTrades.entries()) {
+      if (userId && trade.userId !== userId) continue;
+      if (symbol && trade.symbol !== symbol.toUpperCase()) continue;
+      if (tradeType) {
+        const type = trade.isAdminMode ? 'admin' : trade.isManual ? 'manual' : 'algo';
+        if (type !== tradeType) continue;
+      }
+      
+      const type = trade.isAdminMode ? 'admin' : trade.isManual ? 'manual' : 'algo';
+      history.push({
+        tradeKey: key,
+        userId: trade.userId,
+        symbol: trade.symbol,
+        platform: trade.platform,
+        tradeType: type,
+        status: trade.isActive ? 'active' : 'stopped',
+        currentLevel: trade.currentLevel,
+        numberOfLevels: trade.numberOfLevels,
+        isStarted: trade.isStarted,
+        tradeDirection: trade.tradeDirection,
+        startedAt: trade.startedAt,
+        stoppedAt: trade.stoppedAt || null,
+        stopReason: trade.stopReason || null,
+        totalInvested: trade.totalInvested,
+        platformWalletFees: trade.platformWalletFees.reduce((a, b) => a + b, 0),
+        orders: trade.orders ? trade.orders.length : 0,
+      });
+    }
+    
+    // Get completed trades from user strategies (stored in database)
+    const users = await User.find(userId ? { userId } : {}).select('userId strategies');
+    for (const user of users) {
+      if (!user.strategies) continue;
+      for (const strategy of user.strategies) {
+        if (strategy.type !== 'algo_trading') continue;
+        if (symbol && strategy.symbol !== symbol.toUpperCase()) continue;
+        if (tradeType) {
+          // Strategies don't store type, skip type filter for now
+        }
+        
+        // Only include inactive strategies (completed trades)
+        if (strategy.status === 'inactive' || strategy.status === 'completed') {
+          history.push({
+            userId: user.userId,
+            symbol: strategy.symbol,
+            tradeType: 'algo', // Default, could be enhanced
+            status: 'completed',
+            startedAt: strategy.createdAt,
+            stoppedAt: strategy.updatedAt,
+            totalInvested: strategy.totalInvested || 0,
+            orders: strategy.orders ? strategy.orders.length : 0,
+          });
+        }
+      }
+    }
+    
+    // Sort by startedAt descending
+    history.sort((a, b) => {
+      const aTime = a.startedAt ? new Date(a.startedAt).getTime() : 0;
+      const bTime = b.startedAt ? new Date(b.startedAt).getTime() : 0;
+      return bTime - aTime;
+    });
+    
+    // Apply pagination
+    const paginatedHistory = history.slice(parseInt(offset), parseInt(offset) + parseInt(limit));
+    
+    console.log(`[ADMIN TRADING HISTORY] 📊 Admin ${req.admin.username} viewed trading history: ${paginatedHistory.length} of ${history.length}`);
+    
+    res.json({
+      success: true,
+      total: history.length,
+      count: paginatedHistory.length,
+      offset: parseInt(offset),
+      limit: parseInt(limit),
+      history: paginatedHistory,
+    });
+  } catch (error) {
+    console.error('[ADMIN] Error getting trading history:', error);
     next(error);
   }
 });
