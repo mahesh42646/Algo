@@ -85,14 +85,19 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
     if (_selectedApi != null && _selectedApi!.platform == 'binance') {
       try {
         final balance = await _exchangeService.getBalance('binance', apiId: _selectedApi!.id);
-        final usdtBalance = balance.firstWhere(
-          (b) => b.asset.toUpperCase() == widget.quoteCurrency.toUpperCase(),
-          orElse: () => null,
-        );
+        ExchangeBalance? usdtBalance;
+        try {
+          usdtBalance = balance.firstWhere(
+            (b) => b.asset.toUpperCase() == widget.quoteCurrency.toUpperCase(),
+          );
+        } catch (e) {
+          // No balance found for this currency
+          return;
+        }
         
         if (mounted && usdtBalance != null) {
           setState(() {
-            _binanceBalance = '${usdtBalance.total.toStringAsFixed(2)} ${widget.quoteCurrency}';
+            _binanceBalance = '${usdtBalance!.total.toStringAsFixed(2)} ${widget.quoteCurrency}';
           });
         }
       } catch (e) {
@@ -240,10 +245,15 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
           };
           // Update Binance balance for display
           if (api.platform == 'binance') {
-            final usdtBalance = balance.firstWhere(
-              (b) => b.asset.toUpperCase() == widget.quoteCurrency.toUpperCase(),
-              orElse: () => null,
-            );
+            ExchangeBalance? usdtBalance;
+            try {
+              usdtBalance = balance.firstWhere(
+                (b) => b.asset.toUpperCase() == widget.quoteCurrency.toUpperCase(),
+              );
+            } catch (e) {
+              // No balance found for this currency
+              usdtBalance = null;
+            }
             if (usdtBalance != null) {
               _binanceBalance = '${usdtBalance.total.toStringAsFixed(2)} ${widget.quoteCurrency}';
             }

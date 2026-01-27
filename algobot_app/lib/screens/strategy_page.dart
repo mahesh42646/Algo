@@ -259,9 +259,9 @@ class _StrategyPageState extends State<StrategyPage> {
                       symbol: baseSymbol,
                       name: baseSymbol,
                       currentPrice: 0.0,
+                      priceChange24h: 0.0,
                       priceChangePercentage24h: 0.0,
-                      marketCap: 0.0,
-                      totalVolume: 0.0,
+                      volume24h: 0.0,
                     );
                     Navigator.push(
                       context,

@@ -97,17 +97,27 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
   Future<void> _loadBinanceBalance() async {
     try {
       final apis = await _exchangeService.getLinkedApis();
-      final activeBinanceApi = apis.firstWhere(
-        (api) => api.platform == 'binance' && api.isActive && !api.isTest,
-        orElse: () => null,
-      );
+      ExchangeApi? activeBinanceApi;
+      try {
+        activeBinanceApi = apis.firstWhere(
+          (api) => api.platform == 'binance' && api.isActive && !api.isTest,
+        );
+      } catch (e) {
+        // No active Binance API found
+        return;
+      }
       
       if (activeBinanceApi != null) {
         final balance = await _exchangeService.getBalance('binance', apiId: activeBinanceApi.id);
-        final usdtBalance = balance.firstWhere(
-          (b) => b.asset.toUpperCase() == widget.quoteCurrency.toUpperCase(),
-          orElse: () => null,
-        );
+        ExchangeBalance? usdtBalance;
+        try {
+          usdtBalance = balance.firstWhere(
+            (b) => b.asset.toUpperCase() == widget.quoteCurrency.toUpperCase(),
+          );
+        } catch (e) {
+          // No balance found for this currency
+          return;
+        }
         
         if (mounted && usdtBalance != null) {
           setState(() {
@@ -1492,263 +1502,6 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
       positionDetails: positionDetails.isNotEmpty ? positionDetails : null,
       isMargin: useMargin,
       leverage: leverage > 1 ? leverage : null,
-    );
-    
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: pnlColor.withOpacity(0.3),
-          width: 2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: pnlColor.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    tradeDirection == 'BUY' ? Icons.trending_up : Icons.trending_down,
-                    color: tradeDirection == 'BUY' ? Colors.green : Colors.red,
-                    size: 24,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Active Trade - $tradeDirection',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              if (useMargin && leverage > 1)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '${leverage}x',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _buildTradeMetric(
-                  'Current Price',
-                  '\$${currentPrice.toStringAsFixed(2)}',
-                  Colors.grey[700]!,
-                ),
-              ),
-              Expanded(
-                child: _buildTradeMetric(
-                  'Entry Price',
-                  '\$${startPrice.toStringAsFixed(2)}',
-                  Colors.grey[700]!,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildTradeMetric(
-                  'P&L',
-                  '${currentPnL >= 0 ? "+" : ""}${currentPnL.toStringAsFixed(2)}%',
-                  pnlColor,
-                  isBold: true,
-                ),
-              ),
-              Expanded(
-                child: _buildTradeMetric(
-                  'Unrealized P&L',
-                  '\$${unrealizedPnL >= 0 ? "+" : ""}${unrealizedPnL.toStringAsFixed(2)}',
-                  pnlColor,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildTradeMetric(
-                  'Total Balance',
-                  '\$${totalBalance.toStringAsFixed(2)}',
-                  Colors.blue,
-                  isBold: true,
-                ),
-              ),
-              Expanded(
-                child: _buildTradeMetric(
-                  'Levels',
-                  '$currentLevel / $numberOfLevels',
-                  Colors.orange,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Progress bar for levels
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: numberOfLevels > 0 ? currentLevel / numberOfLevels : 0,
-              backgroundColor: Colors.grey[300],
-              valueColor: AlwaysStoppedAnimation<Color>(
-                currentLevel >= numberOfLevels ? Colors.green : Colors.blue,
-              ),
-              minHeight: 8,
-            ),
-          ),
-          // Show orders/positions if available
-          if (_activeTrade!['orders'] != null && (_activeTrade!['orders'] as List).isNotEmpty) ...[
-            const SizedBox(height: 16),
-            const Divider(),
-            const SizedBox(height: 12),
-            Text(
-              'Positions',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey[700],
-              ),
-            ),
-            const SizedBox(height: 8),
-            ...(_activeTrade!['orders'] as List).take(5).map((order) {
-              final orderPrice = double.tryParse(order['price']?.toString() ?? '0') ?? 0.0;
-              final orderQty = double.tryParse(order['quantity']?.toString() ?? '0') ?? 0.0;
-              final orderSide = order['side'] ?? 'N/A';
-              final orderPnL = orderSide == 'BUY'
-                ? (currentPrice - orderPrice) * orderQty
-                : (orderPrice - currentPrice) * orderQty;
-              final orderPnLPercent = orderPrice > 0
-                ? ((currentPrice - orderPrice) / orderPrice) * 100
-                : 0.0;
-              
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: orderPnL >= 0 
-                    ? Colors.green.withOpacity(0.1)
-                    : Colors.red.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: orderPnL >= 0 ? Colors.green : Colors.red,
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: orderSide == 'BUY' ? Colors.green : Colors.red,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                orderSide,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '${orderQty.toStringAsFixed(8)} @ \$${orderPrice.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          '${orderPnL >= 0 ? "+" : ""}\$${orderPnL.toStringAsFixed(2)}',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: orderPnL >= 0 ? Colors.green : Colors.red,
-                          ),
-                        ),
-                        Text(
-                          '${orderPnLPercent >= 0 ? "+" : ""}${orderPnLPercent.toStringAsFixed(2)}%',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: orderPnL >= 0 ? Colors.green : Colors.red,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
-          ],
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildTradeMetric(String label, String value, Color color, {bool isBold = false}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[600],
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
-            color: color,
-          ),
-        ),
-      ],
     );
   }
 }
