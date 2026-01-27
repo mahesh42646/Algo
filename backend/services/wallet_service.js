@@ -151,12 +151,37 @@ const processDeposit = async ({ address, txHash, amount, chain, token, contractA
   }
 
   try {
-    user.wallet.depositStatus = 'pending';
+    // STEP 1: IMMEDIATELY credit user's platform wallet balance (before any sweep attempts)
+    // This ensures user gets their balance even if sweep fails
+    await updateLedgerBalance({ user, amount });
+    await addWalletTransaction({ user, amount, txHash });
+    
+    user.wallet.depositStatus = 'confirmed';
+    await user.save();
+    
+    console.log(`[DEPOSIT] ✅ ${amount} USDT credited to user platform wallet immediately`);
+    
+    // STEP 2: Add notification for deposit
+    if (!user.notifications) {
+      user.notifications = [];
+    }
+    user.notifications.push({
+      title: '✅ Deposit Received',
+      message: `You have received ${amount} USDT. Your balance has been updated.`,
+      type: 'success',
+      read: false,
+      createdAt: new Date(),
+    });
     await user.save();
 
+    // STEP 3: Attempt to sweep funds to master wallet (this is separate from crediting user)
     const masterWallet = getMasterWallet();
     if (!masterWallet.address || !masterWallet.privateKey) {
-      throw new Error('Master wallet not configured');
+      console.warn(`[SWEEP] ⚠️ Master wallet not configured - funds remain in user address but balance is credited`);
+      deposit.status = 'completed';
+      deposit.error = 'Master wallet not configured - balance credited but sweep skipped';
+      await deposit.save();
+      return { success: true, swept: false, reason: 'Master wallet not configured' };
     }
 
     // Update unswept funds
@@ -168,75 +193,96 @@ const processDeposit = async ({ address, txHash, amount, chain, token, contractA
     if (shouldSweep) {
       console.log(`[SWEEP] Total unswept funds (${newUnsweptTotal} USDT) >= ${MIN_DEPOSIT_USDT} USDT - initiating sweep`);
       
-      // Step 1: Fund user wallet with TRX for gas (only if sweeping)
-      await sendTrx({
-        fromPrivateKey: masterWallet.privateKey,
-        to: address,
-        amount: TRX_GAS_AMOUNT,
-      });
-      deposit.status = 'gas_funded';
-      await deposit.save();
-
-      // Step 2: Sweep ALL unswept USDT to master wallet
-      const userPrivateKey = getUserPrivateKey(user);
-      deposit.status = 'sweeping';
-      await deposit.save();
-      await sendUsdtTrc20({
-        fromPrivateKey: userPrivateKey,
-        to: masterWallet.address,
-        amount: newUnsweptTotal, // Sweep all unswept funds
-      });
-
-      // Step 3: Reclaim TRX (leave dust)
-      const account = await getTronAccount(address);
-      const trxBalance = parseFloat(account?.balance || 0);
-      const reclaimAmount = trxBalance - TRX_DUST_AMOUNT;
-      if (reclaimAmount > 0) {
+      try {
+        // Step 1: Fund user wallet with TRX for gas (only if sweeping)
         await sendTrx({
+          fromPrivateKey: masterWallet.privateKey,
+          to: address,
+          amount: TRX_GAS_AMOUNT,
+        });
+        deposit.status = 'gas_funded';
+        await deposit.save();
+
+        // Step 2: Sweep ALL unswept USDT to master wallet
+        const userPrivateKey = getUserPrivateKey(user);
+        deposit.status = 'sweeping';
+        await deposit.save();
+        
+        await sendUsdtTrc20({
           fromPrivateKey: userPrivateKey,
           to: masterWallet.address,
-          amount: reclaimAmount,
+          amount: newUnsweptTotal, // Sweep all unswept funds
         });
+
+        // Step 3: Reclaim TRX (leave dust)
+        const account = await getTronAccount(address);
+        const trxBalance = parseFloat(account?.balance || 0);
+        const reclaimAmount = trxBalance - TRX_DUST_AMOUNT;
+        if (reclaimAmount > 0) {
+          await sendTrx({
+            fromPrivateKey: userPrivateKey,
+            to: masterWallet.address,
+            amount: reclaimAmount,
+          });
+        }
+        
+        // Update sweep tracking
+        user.wallet.unsweptFunds = 0;
+        user.wallet.totalSwept = (user.wallet.totalSwept || 0) + newUnsweptTotal;
+        user.wallet.lastSweepAt = new Date();
+        await user.save();
+        
+        deposit.status = 'swept';
+        await deposit.save();
+        console.log(`[SWEEP] ✅ Swept ${newUnsweptTotal} USDT to master wallet`);
+      } catch (sweepError) {
+        // If sweep fails, user balance is already credited - just log the error
+        console.error(`[SWEEP] ❌ Sweep failed: ${sweepError.message}`);
+        console.error(`[SWEEP] ⚠️ User balance already credited. Funds remain in user address: ${address}`);
+        deposit.status = 'sweep_failed';
+        deposit.error = `Sweep failed: ${sweepError.message}. User balance already credited.`;
+        await deposit.save();
+        // Keep unswept funds tracked - will retry on next deposit
+        user.wallet.unsweptFunds = newUnsweptTotal;
+        await user.save();
       }
-      
-      // Update sweep tracking
-      user.wallet.unsweptFunds = 0;
-      user.wallet.totalSwept = (user.wallet.totalSwept || 0) + newUnsweptTotal;
-      user.wallet.lastSweepAt = new Date();
-      
-      deposit.status = 'swept';
-      console.log(`[SWEEP] ✅ Swept ${newUnsweptTotal} USDT to master wallet`);
     } else {
       // Small deposits: hold in user address and track unswept
       user.wallet.unsweptFunds = newUnsweptTotal;
+      await user.save();
       deposit.status = 'held';
+      await deposit.save();
       console.log(`[DEPOSIT] Unswept funds: ${newUnsweptTotal} USDT (waiting for ${MIN_DEPOSIT_USDT} USDT to auto-sweep)`);
     }
-
-    // Step 4: Update ledger and transaction (always credit user's internal balance)
-    await updateLedgerBalance({ user, amount });
-    await addWalletTransaction({ user, amount, txHash });
-    
-    // Step 5: Add notification for deposit
-    user.notifications.push({
-      title: '✅ Deposit Received',
-      message: `You have received ${amount} USDT. Your balance has been updated.`,
-      type: 'success',
-      read: false,
-      createdAt: new Date(),
-    });
 
     deposit.status = 'completed';
     await deposit.save();
 
-    console.log(`[DEPOSIT] ✅ Deposit completed: ${amount} USDT credited`);
+    console.log(`[DEPOSIT] ✅ Deposit processing completed: ${amount} USDT credited to user`);
     return { success: true, swept: shouldSweep };
   } catch (error) {
+    // Even if there's an error, try to credit the user if not already done
+    try {
+      const currentBalance = user.wallet?.balances?.find(b => b.currency === 'USDT')?.amount || 0;
+      if (currentBalance < amount) {
+        console.log(`[DEPOSIT] ⚠️ Error occurred but attempting to credit user balance as fallback`);
+        await updateLedgerBalance({ user, amount });
+        await addWalletTransaction({ user, amount, txHash });
+        user.wallet.depositStatus = 'confirmed';
+        await user.save();
+        console.log(`[DEPOSIT] ✅ User balance credited as fallback`);
+      }
+    } catch (fallbackError) {
+      console.error(`[DEPOSIT] ❌ Fallback credit also failed: ${fallbackError.message}`);
+    }
+    
     deposit.status = 'failed';
     deposit.error = error.message;
     await deposit.save();
-    user.wallet.depositStatus = 'failed';
-    await user.save();
+    if (user.wallet) {
+      user.wallet.depositStatus = 'failed';
+      await user.save();
+    }
     throw error;
   }
 };

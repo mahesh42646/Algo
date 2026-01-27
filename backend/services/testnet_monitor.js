@@ -43,7 +43,7 @@ const checkAddressForDeposits = async (address, silent = false) => {
 
         // Try to process this deposit
         try {
-          await processDeposit({
+          const result = await processDeposit({
             address: tx.to,
             txHash,
             amount,
@@ -51,8 +51,16 @@ const checkAddressForDeposits = async (address, silent = false) => {
             token: 'USDT',
             contractAddress: tx.token_info.address,
           });
+          
+          if (result?.success) {
+            console.log(`[DEPOSIT] ✅ Successfully processed ${amount} USDT deposit for user`);
+          } else if (result?.ignored) {
+            console.log(`[DEPOSIT] ⏭️ Deposit ignored: ${result.reason}`);
+          }
         } catch (processError) {
           console.error(`[DEPOSIT] ❌ Processing failed:`, processError.message);
+          console.error(`[DEPOSIT] ❌ Stack:`, processError.stack);
+          // Even if processing fails, the deposit was detected - user should be notified
         }
       }
     }

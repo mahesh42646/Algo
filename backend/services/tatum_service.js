@@ -159,19 +159,55 @@ const sendUsdtTrc20 = async ({ fromPrivateKey, to, amount }) => {
   if (!fromPrivateKey || !to || !amount) {
     throw new Error('Missing TRC20 transfer parameters');
   }
-  const contractAddress = getUsdtContract();
+  let contractAddress = getUsdtContract();
   if (!contractAddress) {
-    throw new Error('TATUM_TRON_USDT_CONTRACT is required');
+    throw new Error('TATUM_TRON_USDT_CONTRACT is required. Please set TATUM_TRON_USDT_CONTRACT_TEST or TATUM_TRON_USDT_CONTRACT_PROD in environment variables.');
   }
+  
+  // Validate and format contract address
+  contractAddress = contractAddress.trim();
+  
+  // Convert to uppercase for validation but keep original case for API call
+  const upperAddress = contractAddress.toUpperCase();
+  
+  // TRON addresses must start with T and be exactly 34 characters long (T + 33 more characters)
+  if (!upperAddress.startsWith('T')) {
+    throw new Error(`Invalid USDT contract address: ${contractAddress}. TRON addresses must start with 'T'.`);
+  }
+  
+  if (contractAddress.length !== 34) {
+    throw new Error(`Invalid USDT contract address length: ${contractAddress}. Expected 34 characters (T + 33), got ${contractAddress.length}. Address: ${contractAddress}`);
+  }
+  
+  // Validate it's a valid base58 TRON address format (basic check)
+  const validChars = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
+  if (!validChars.test(contractAddress)) {
+    throw new Error(`Invalid USDT contract address format: ${contractAddress}. Must be a valid TRON base58 address.`);
+  }
+  
+  console.log(`[TATUM] Using USDT contract address: ${contractAddress} (length: ${contractAddress.length}, mode: ${getTatumMode()})`);
+  
   const body = {
     fromPrivateKey,
     to,
     amount: amount.toString(),
-    tokenAddress: contractAddress,
+    tokenAddress: contractAddress, // Use original case as Tatum expects
     feeLimit: 10000000, // default fee limit for TRC20
   };
-  const res = await tatumRequest('post', '/tron/trc20/transaction', body);
-  return res.data;
+  
+  try {
+    const res = await tatumRequest('post', '/tron/trc20/transaction', body);
+    return res.data;
+  } catch (error) {
+    // Enhanced error logging for token address issues
+    if (error.response?.data?.data?.some?.((msg) => msg.includes('tokenAddress'))) {
+      console.error(`[TATUM] ❌ Token address validation error. Current address: ${contractAddress}`);
+      console.error(`[TATUM] ❌ Please verify TATUM_TRON_USDT_CONTRACT_${getTatumMode().toUpperCase()} is set correctly in your .env file`);
+      console.error(`[TATUM] ❌ For testnet (Nile), use: TXYZabcdefghijklmnopqrstuvwxyz123456 (34 chars, starts with T)`);
+      console.error(`[TATUM] ❌ For mainnet, use the official USDT TRC20 contract address`);
+    }
+    throw error;
+  }
 };
 
 const getTronAccount = async (address) => {
