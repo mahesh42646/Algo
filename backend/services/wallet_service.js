@@ -98,7 +98,7 @@ const updateLedgerBalance = async ({ user, amount }) => {
   await user.save();
 };
 
-const addWalletTransaction = async ({ user, amount, txHash }) => {
+const addWalletTransaction = async ({ user, amount, txHash, createdAt }) => {
   if (!user.wallet) {
     user.wallet = {};
   }
@@ -106,15 +106,29 @@ const addWalletTransaction = async ({ user, amount, txHash }) => {
     user.wallet.transactions = [];
   }
 
+  // Check if transaction already exists (prevent duplicates)
+  const existingTx = user.wallet.transactions.find(
+    (t) => t.txHash === txHash || (t.type === 'deposit' && t.amount === amount && Math.abs(new Date(t.createdAt || 0).getTime() - new Date(createdAt || Date.now()).getTime()) < 60000)
+  );
+  
+  if (existingTx) {
+    console.log(`[TRANSACTION] ⏭️ Transaction already exists for ${txHash} - skipping duplicate`);
+    return;
+  }
+
   user.wallet.transactions.push({
     type: 'deposit',
     amount,
     currency: 'USDT',
     status: 'completed',
-    description: `USDT deposit confirmed (tx: ${txHash})`,
+    description: `USDT deposit confirmed (tx: ${txHash.substring(0, 16)}...)`,
+    txHash: txHash, // Store txHash for reference
+    createdAt: createdAt || new Date(),
   });
   user.wallet.lastDepositTx = txHash;
   await user.save();
+  
+  console.log(`[TRANSACTION] ✅ Added transaction to history: ${amount} USDT (tx: ${txHash.substring(0, 16)}...)`);
 };
 
 const processDeposit = async ({ address, txHash, amount, chain, token, contractAddress }) => {
@@ -160,11 +174,24 @@ const processDeposit = async ({ address, txHash, amount, chain, token, contractA
       throw new Error('User not found');
     }
     
+    // CRITICAL: Credit balance and add transaction ATOMICALLY
     await updateLedgerBalance({ user: freshUser, amount });
-    await addWalletTransaction({ user: freshUser, amount, txHash });
+    
+    // Add transaction to history with timestamp
+    await addWalletTransaction({ 
+      user: freshUser, 
+      amount, 
+      txHash,
+      createdAt: deposit.createdAt || new Date(),
+    });
     
     freshUser.wallet.depositStatus = 'confirmed';
     await freshUser.save();
+    
+    // Verify balance was actually saved
+    const verifyUser = await User.findOne({ userId: user.userId });
+    const verifiedBalance = verifyUser?.wallet?.balances?.find(b => b.currency === 'USDT')?.amount || 0;
+    const expectedBalance = (verifyUser?.wallet?.balances?.find(b => b.currency === 'USDT')?.amount || 0);
     
     balanceCredited = true;
     deposit.balanceCredited = true;
@@ -172,7 +199,9 @@ const processDeposit = async ({ address, txHash, amount, chain, token, contractA
     await deposit.save();
     
     console.log(`[DEPOSIT] ✅ ${amount} USDT credited to user platform wallet IMMEDIATELY (before sweep)`);
-    console.log(`[DEPOSIT] ✅ User balance updated and saved to database`);
+    console.log(`[DEPOSIT] ✅ User balance: ${expectedBalance} USDT (verified in database)`);
+    console.log(`[DEPOSIT] ✅ Transaction added to history`);
+    console.log(`[DEPOSIT] ✅ Deposit marked as completed in database`);
     
     // Update local user reference
     user = freshUser;

@@ -50,17 +50,41 @@ const retryFailedDeposits = async () => {
           continue;
         }
         
-        // Check if balance was already credited (maybe by another process)
-        const currentBalance = user.wallet?.balances?.find(b => b.currency === 'USDT')?.amount || 0;
-        if (currentBalance >= deposit.amount) {
-          console.log(`[DEPOSIT RETRY] ✅ Balance already credited for ${deposit.txHash} - marking as completed`);
-          deposit.balanceCredited = true;
-          deposit.status = 'completed';
-          deposit.error = null;
-          await deposit.save();
-          successCount++;
-          continue;
-        }
+              // Check if balance was already credited (maybe by another process)
+              const currentBalance = user.wallet?.balances?.find(b => b.currency === 'USDT')?.amount || 0;
+              
+              // Also check if transaction exists in history
+              const hasTransaction = user.wallet?.transactions?.some(
+                t => t.txHash === deposit.txHash || 
+                (t.type === 'deposit' && t.amount === deposit.amount && 
+                 Math.abs(new Date(t.createdAt || 0).getTime() - new Date(deposit.createdAt || 0).getTime()) < 60000)
+              );
+              
+              if (currentBalance >= deposit.amount && hasTransaction) {
+                console.log(`[DEPOSIT RETRY] ✅ Balance and transaction already exist for ${deposit.txHash} - marking as completed`);
+                deposit.balanceCredited = true;
+                deposit.status = 'completed';
+                deposit.error = null;
+                await deposit.save();
+                successCount++;
+                continue;
+              }
+              
+              // If balance exists but transaction doesn't, add transaction
+              if (currentBalance >= deposit.amount && !hasTransaction) {
+                console.log(`[DEPOSIT RETRY] ⚠️ Balance exists but transaction missing - adding transaction`);
+                await addWalletTransaction({ 
+                  user, 
+                  amount: deposit.amount, 
+                  txHash: deposit.txHash,
+                  createdAt: deposit.createdAt,
+                });
+                deposit.balanceCredited = true;
+                deposit.status = 'completed';
+                await deposit.save();
+                successCount++;
+                continue;
+              }
         
         // Update retry tracking
         deposit.retryCount = (deposit.retryCount || 0) + 1;
@@ -71,21 +95,58 @@ const retryFailedDeposits = async () => {
         console.log(`[DEPOSIT RETRY] 🔄 Retrying deposit ${deposit.txHash} (attempt ${deposit.retryCount}/${MAX_RETRIES})`);
         
         // Retry processing the deposit
-        const result = await processDeposit({
-          address: deposit.address,
-          txHash: deposit.txHash,
-          amount: deposit.amount,
-          chain: deposit.chain,
-          token: deposit.token,
-          contractAddress: deposit.contractAddress,
-        });
-        
-        if (result?.success || result?.balanceCredited) {
-          console.log(`[DEPOSIT RETRY] ✅ Successfully retried deposit ${deposit.txHash}`);
-          successCount++;
-        } else {
-          console.log(`[DEPOSIT RETRY] ⚠️ Retry attempt ${deposit.retryCount} failed for ${deposit.txHash}`);
-          failedCount++;
+        try {
+          const result = await processDeposit({
+            address: deposit.address,
+            txHash: deposit.txHash,
+            amount: deposit.amount,
+            chain: deposit.chain,
+            token: deposit.token,
+            contractAddress: deposit.contractAddress,
+          });
+          
+          if (result?.success || result?.balanceCredited) {
+            console.log(`[DEPOSIT RETRY] ✅ Successfully retried deposit ${deposit.txHash.substring(0, 16)}...`);
+            successCount++;
+          } else {
+            console.log(`[DEPOSIT RETRY] ⚠️ Retry attempt ${deposit.retryCount} failed for ${deposit.txHash.substring(0, 16)}...`);
+            failedCount++;
+          }
+        } catch (processError) {
+          // If processDeposit throws, try direct credit as fallback
+          console.log(`[DEPOSIT RETRY] ⚠️ processDeposit failed, trying direct credit...`);
+          try {
+            const freshUser = await User.findOne({ userId: deposit.userId });
+            if (freshUser) {
+              const currentBalance = freshUser.wallet?.balances?.find(b => b.currency === 'USDT')?.amount || 0;
+              if (currentBalance < deposit.amount) {
+                await updateLedgerBalance({ user: freshUser, amount: deposit.amount });
+                await addWalletTransaction({ 
+                  user: freshUser, 
+                  amount: deposit.amount, 
+                  txHash: deposit.txHash,
+                  createdAt: deposit.createdAt,
+                });
+                freshUser.wallet.depositStatus = 'confirmed';
+                await freshUser.save();
+                
+                deposit.balanceCredited = true;
+                deposit.status = 'completed';
+                await deposit.save();
+                
+                console.log(`[DEPOSIT RETRY] ✅ Direct credit succeeded for ${deposit.txHash.substring(0, 16)}...`);
+                successCount++;
+              } else {
+                deposit.balanceCredited = true;
+                deposit.status = 'completed';
+                await deposit.save();
+                successCount++;
+              }
+            }
+          } catch (directError) {
+            console.error(`[DEPOSIT RETRY] ❌ Direct credit also failed:`, directError.message);
+            failedCount++;
+          }
         }
       } catch (retryError) {
         console.error(`[DEPOSIT RETRY] ❌ Error retrying deposit ${deposit.txHash}:`, retryError.message);

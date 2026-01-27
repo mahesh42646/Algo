@@ -157,6 +157,17 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   // Start deposit retry service
   const depositRetry = require('./services/deposit_retry_service');
   depositRetry.startRetryService();
+  
+  // Run deposit recovery on startup to catch any missing deposits
+  setTimeout(async () => {
+    try {
+      const { recoverMissingDeposits } = require('./services/deposit_recovery_service');
+      console.log('[DEPOSIT RECOVERY] 🔍 Running initial deposit recovery check...');
+      await recoverMissingDeposits();
+    } catch (error) {
+      console.error('[DEPOSIT RECOVERY] ❌ Initial recovery failed:', error.message);
+    }
+  }, 30000); // Wait 30 seconds after server start
 });
 
 // Graceful shutdown

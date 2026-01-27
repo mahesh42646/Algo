@@ -529,6 +529,42 @@ router.post('/deposits/:txHash/retry', authenticateAdmin, async (req, res, next)
   }
 });
 
+// Recover missing deposits for a user or all users
+router.post('/deposits/recover', authenticateAdmin, async (req, res, next) => {
+  try {
+    const { userId } = req.body;
+    const { recoverMissingDeposits } = require('../services/deposit_recovery_service');
+    
+    const result = await recoverMissingDeposits(userId);
+    
+    res.json({
+      success: true,
+      message: 'Deposit recovery completed',
+      result,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Recover specific deposit by txHash
+router.post('/deposits/recover/:txHash', authenticateAdmin, async (req, res, next) => {
+  try {
+    const { txHash } = req.params;
+    const { recoverDepositByTxHash } = require('../services/deposit_recovery_service');
+    
+    const result = await recoverDepositByTxHash(txHash);
+    
+    res.json({
+      success: true,
+      message: 'Deposit recovery completed',
+      result,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Stop a specific algo trade
 router.post('/algo-trades/stop', authenticateAdmin, async (req, res, next) => {
   try {
