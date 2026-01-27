@@ -33,6 +33,12 @@ class Env {
   static bool get isDevelopment => environment == 'development';
   static bool get isProduction => environment == 'production';
 
+  // Admin Strategy Mode Settings (read from backend, defaults here for reference)
+  static double get adminMaxLoss => double.tryParse(dotenv.env['ADMIN_MAX_LOSS'] ?? '3.0') ?? 3.0;
+  static double get adminMaxProfit => double.tryParse(dotenv.env['ADMIN_MAX_PROFIT'] ?? '3.0') ?? 3.0;
+  static double get adminAmountPerLevel => double.tryParse(dotenv.env['ADMIN_AMOUNT_PER_LEVEL'] ?? '100.0') ?? 100.0;
+  static double get adminMinBalance => double.tryParse(dotenv.env['ADMIN_MIN_BALANCE'] ?? '100.0') ?? 100.0;
+
   // Validate required environment variables
   static void validate() {
     final requiredVars = ['BACKEND_URL'];

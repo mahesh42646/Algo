@@ -1550,14 +1550,20 @@ router.post('/:userId/start-admin', async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
 
-    // Get active Binance API
-    const api = user.exchangeApis.find(a => 
+    // Get active Binance API (prefer real key, but allow test for development)
+    let api = user.exchangeApis.find(a => 
       a.platform === 'binance' && a.isActive && !a.isTest
     );
+    // Fallback to test API if no real API available
+    if (!api) {
+      api = user.exchangeApis.find(a => 
+        a.platform === 'binance' && a.isActive
+      );
+    }
     if (!api) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Active Binance API (real key) required for admin mode' 
+        error: 'Active Binance API required for admin mode' 
       });
     }
 
@@ -1574,7 +1580,9 @@ router.post('/:userId/start-admin', async (req, res, next) => {
             error: 'No suitable pair found with strong signal',
           });
         }
+        console.log(`[ADMIN STRATEGY] ✅ Selected pair: ${selectedSymbol} (from top 10 volume pairs)`);
       } catch (e) {
+        console.error(`[ADMIN STRATEGY] ❌ Error selecting pair:`, e.message);
         return res.status(500).json({
           success: false,
           error: 'Failed to select default pair: ' + e.message,
@@ -1587,6 +1595,19 @@ router.post('/:userId/start-admin', async (req, res, next) => {
       return res.status(400).json({
         success: false,
         error: 'Trade already active for this symbol',
+      });
+    }
+
+    // Decrypt API credentials
+    const { decrypt } = require('../utils/encryption');
+    let apiKey, apiSecret;
+    try {
+      apiKey = decrypt(api.apiKey);
+      apiSecret = decrypt(api.apiSecret);
+    } catch (e) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to decrypt API credentials',
       });
     }
 
@@ -1607,6 +1628,8 @@ router.post('/:userId/start-admin', async (req, res, next) => {
       minBalance: ADMIN_MIN_BALANCE, // Stop when balance < this
       useMargin: false,
       leverage: 1,
+      apiKey,
+      apiSecret,
       startPrice: 0,
       currentLevel: 0,
       totalInvested: 0,
