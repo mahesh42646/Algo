@@ -610,6 +610,25 @@ router.get('/:userId/wallet', async (req, res, next) => {
   }
 });
 
+// Recover missing deposits for current user
+router.post('/:userId/wallet/recover-deposits', async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const { recoverMissingDeposits } = require('../services/deposit_recovery_service');
+    
+    const result = await recoverMissingDeposits(userId);
+    
+    res.json({
+      success: true,
+      message: 'Deposit recovery completed',
+      result,
+    });
+  } catch (error) {
+    console.error(`[WALLET RECOVER] ❌ Error recovering deposits:`, error);
+    next(error);
+  }
+});
+
 router.get('/:userId/permissions', async (req, res, next) => {
   try {
     const user = await User.findOne({ userId: req.params.userId })

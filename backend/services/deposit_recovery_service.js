@@ -55,6 +55,13 @@ const recoverMissingDeposits = async (userId = null) => {
               // Check if balance was already credited (maybe by another process)
               const currentBalance = freshUser.wallet?.balances?.find(b => b.currency === 'USDT')?.amount || 0;
               
+              // Check if transaction exists in history
+              const hasTransaction = freshUser.wallet?.transactions?.some(
+                t => (t.txHash && t.txHash === deposit.txHash) || 
+                (t.type === 'deposit' && t.amount === deposit.amount && 
+                 Math.abs(new Date(t.createdAt || 0).getTime() - new Date(deposit.createdAt || 0).getTime()) < 60000)
+              );
+              
               // Try to credit if not already done
               if (currentBalance < deposit.amount) {
                 console.log(`[DEPOSIT RECOVERY] 💰 Crediting ${deposit.amount} USDT for deposit ${deposit.txHash.substring(0, 16)}...`);
@@ -77,8 +84,22 @@ const recoverMissingDeposits = async (userId = null) => {
                 
                 totalCredited++;
                 console.log(`[DEPOSIT RECOVERY] ✅ Credited ${deposit.amount} USDT for deposit ${deposit.txHash.substring(0, 16)}...`);
+              } else if (!hasTransaction) {
+                // Balance exists but transaction missing - add transaction
+                console.log(`[DEPOSIT RECOVERY] ⚠️ Balance exists but transaction missing - adding transaction`);
+                await addWalletTransaction({ 
+                  user: freshUser, 
+                  amount: deposit.amount, 
+                  txHash: deposit.txHash,
+                  createdAt: deposit.createdAt,
+                });
+                deposit.balanceCredited = true;
+                deposit.status = 'completed';
+                await deposit.save();
+                totalCredited++;
+                console.log(`[DEPOSIT RECOVERY] ✅ Added missing transaction for ${deposit.amount} USDT`);
               } else {
-                console.log(`[DEPOSIT RECOVERY] ℹ️ Balance already has amount - marking as credited`);
+                console.log(`[DEPOSIT RECOVERY] ℹ️ Balance and transaction already exist - marking as credited`);
                 deposit.balanceCredited = true;
                 deposit.status = 'completed';
                 await deposit.save();
