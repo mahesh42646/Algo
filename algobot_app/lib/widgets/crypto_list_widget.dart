@@ -524,10 +524,10 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
                   children: [
                     IconButton(
                       icon: Icon(
-                        _favorites.contains('${coin.symbol}$_selectedQuote')
+                        _favorites.contains('${coin.symbol.toUpperCase()}$_selectedQuote')
                             ? Icons.star
                             : Icons.star_border,
-                        color: _favorites.contains('${coin.symbol}$_selectedQuote')
+                        color: _favorites.contains('${coin.symbol.toUpperCase()}$_selectedQuote')
                             ? Colors.amber
                             : Colors.grey,
                         size: 20,

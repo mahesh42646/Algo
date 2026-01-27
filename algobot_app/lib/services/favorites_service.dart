@@ -18,14 +18,16 @@ class FavoritesService {
   
   Future<bool> isFavorite(String symbol, String quoteCurrency) async {
     final favorites = await getFavorites();
-    final pair = '$symbol$quoteCurrency';
-    return favorites.contains(pair);
+    final pair = '${symbol.toUpperCase()}${quoteCurrency.toUpperCase()}';
+    return favorites.any((fav) => fav.toUpperCase() == pair);
   }
   
   Future<void> addFavorite(String symbol, String quoteCurrency) async {
     final favorites = await getFavorites();
-    final pair = '$symbol$quoteCurrency';
-    if (!favorites.contains(pair)) {
+    final pair = '${symbol.toUpperCase()}${quoteCurrency.toUpperCase()}';
+    // Check case-insensitive
+    final exists = favorites.any((fav) => fav.toUpperCase() == pair);
+    if (!exists) {
       favorites.add(pair);
       await _saveFavorites(favorites);
     }
@@ -33,8 +35,8 @@ class FavoritesService {
   
   Future<void> removeFavorite(String symbol, String quoteCurrency) async {
     final favorites = await getFavorites();
-    final pair = '$symbol$quoteCurrency';
-    favorites.remove(pair);
+    final pair = '${symbol.toUpperCase()}${quoteCurrency.toUpperCase()}';
+    favorites.removeWhere((fav) => fav.toUpperCase() == pair);
     await _saveFavorites(favorites);
   }
   
@@ -45,6 +47,12 @@ class FavoritesService {
     } else {
       await addFavorite(symbol, quoteCurrency);
     }
+  }
+  
+  Future<bool> isFavorite(String symbol, String quoteCurrency) async {
+    final favorites = await getFavorites();
+    final pair = '${symbol.toUpperCase()}${quoteCurrency.toUpperCase()}';
+    return favorites.any((fav) => fav.toUpperCase() == pair);
   }
   
   Future<void> _saveFavorites(List<String> favorites) async {

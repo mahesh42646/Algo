@@ -53,30 +53,54 @@ class _FavoritesPageState extends State<FavoritesPage> {
         }
       }
 
-      // Filter to only favorite pairs
-      final favoriteCoins = allCoins.where((coin) {
-        for (final quote in ['USDT', 'BTC', 'ETH', 'USDC']) {
-          if (_favorites.contains('${coin.symbol}$quote')) {
-            return true;
+      // Create a map of favorite pairs to their quote currencies
+      final favoritePairs = <String, String>{}; // symbol -> quoteCurrency
+      for (final fav in favorites) {
+        // Try to extract symbol and quote from favorite string (e.g., "BTCUSDT" -> BTC, USDT)
+        for (final quote in ['USDT', 'BTC', 'ETH', 'USDC', 'BNB']) {
+          if (fav.endsWith(quote)) {
+            final symbol = fav.substring(0, fav.length - quote.length);
+            favoritePairs[symbol.toUpperCase()] = quote;
+            break;
           }
         }
-        return false;
-      }).toList();
+      }
 
-      // Sort by favorite order (keep original order from favorites list)
-      favoriteCoins.sort((a, b) {
-        final aIndex = favorites.indexWhere((fav) => 
-          fav == '${a.symbol}USDT' || fav == '${a.symbol}BTC' || 
-          fav == '${a.symbol}ETH' || fav == '${a.symbol}USDC'
-        );
-        final bIndex = favorites.indexWhere((fav) => 
-          fav == '${b.symbol}USDT' || fav == '${b.symbol}BTC' || 
-          fav == '${b.symbol}ETH' || fav == '${b.symbol}USDC'
-        );
+      // Filter coins and match with their favorite quote currency
+      final favoriteCoinsWithQuote = <Map<String, dynamic>>[];
+      for (final coin in allCoins) {
+        // Check if coin symbol matches any favorite (case-insensitive)
+        final coinSymbolUpper = coin.symbol.toUpperCase();
+        if (favoritePairs.containsKey(coinSymbolUpper)) {
+          favoriteCoinsWithQuote.add({
+            'coin': coin,
+            'quote': favoritePairs[coinSymbolUpper]!,
+            'favoriteKey': '${coinSymbolUpper}${favoritePairs[coinSymbolUpper]!}',
+          });
+        }
+      }
+
+      // Sort by favorite order
+      favoriteCoinsWithQuote.sort((a, b) {
+        final aKey = a['favoriteKey'] as String;
+        final bKey = b['favoriteKey'] as String;
+        final aIndex = favorites.indexWhere((fav) => fav.toUpperCase() == aKey);
+        final bIndex = favorites.indexWhere((fav) => fav.toUpperCase() == bKey);
+        if (aIndex == -1 && bIndex == -1) return 0;
+        if (aIndex == -1) return 1;
+        if (bIndex == -1) return -1;
         return aIndex.compareTo(bIndex);
       });
 
+      final favoriteCoins = favoriteCoinsWithQuote.map((item) => item['coin'] as CryptoCoin).toList();
+
       if (mounted) {
+        // Build quote currency map
+        _coinQuoteMap.clear();
+        for (final item in favoriteCoinsWithQuote) {
+          _coinQuoteMap[(item['coin'] as CryptoCoin).symbol] = item['quote'] as String;
+        }
+        
         setState(() {
           _favoriteCoins = favoriteCoins;
           _isLoading = false;
@@ -107,13 +131,10 @@ class _FavoritesPageState extends State<FavoritesPage> {
     await _loadFavorites();
   }
 
+  final Map<String, String> _coinQuoteMap = {}; // coin symbol -> quote currency
+  
   String _getQuoteCurrency(CryptoCoin coin) {
-    for (final quote in ['USDT', 'BTC', 'ETH', 'USDC']) {
-      if (_favorites.contains('${coin.symbol}$quote')) {
-        return quote;
-      }
-    }
-    return 'USDT'; // Default
+    return _coinQuoteMap[coin.symbol] ?? 'USDT';
   }
 
   @override

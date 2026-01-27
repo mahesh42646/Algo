@@ -835,7 +835,21 @@ async function executeAlgoTradingStep(trade) {
       return;
     }
 
-    if (trade.currentLevel >= trade.numberOfLevels) {
+    // For admin mode, check balance instead of level limit
+    if (trade.isAdminMode) {
+      const user = await User.findOne({ userId: trade.userId }).select('wallet');
+      const walletBalances = user?.wallet?.balances || [];
+      const usdtBalance = walletBalances.find(b => 
+        (b.currency || '').toString().toUpperCase() === 'USDT'
+      );
+      const currentBalance = (usdtBalance?.amount || 0);
+      
+      if (currentBalance < (trade.minBalance || 100)) {
+        console.log(`[ADMIN STRATEGY] ⚠️ Balance insufficient (${currentBalance} < ${trade.minBalance || 100}) - stopping`);
+        await closeAllPositions(trade, 'insufficient_balance');
+        return;
+      }
+    } else if (trade.currentLevel >= trade.numberOfLevels) {
       // Max levels reached, check overall loss
       const avgPriceMovement = ((avgPrice - trade.startPrice) / trade.startPrice) * 100;
       const overallLoss = trade.useMargin && trade.leverage > 1
@@ -850,7 +864,12 @@ async function executeAlgoTradingStep(trade) {
 
     // Check if we need to add more (averaging down) - NO SIGNAL CHECK, just check loss
     // Loss adjustments are always in the SAME direction as initial trade
-    if (currentPnL <= -trade.maxLossPerTrade && trade.currentLevel < trade.numberOfLevels) {
+    // For admin mode, no level limit check
+    const canAddLevel = trade.isAdminMode 
+      ? true // Admin mode: no level limit
+      : trade.currentLevel < trade.numberOfLevels;
+      
+    if (currentPnL <= -trade.maxLossPerTrade && canAddLevel) {
       console.log(`[ALGO TRADING STEP] 📉 Loss threshold hit: ${currentPnL.toFixed(2)}% <= -${trade.maxLossPerTrade}%`);
       console.log(`[ALGO TRADING STEP] 🔄 Adding level in same direction: ${trade.tradeDirection} (no signal check)`);
       
@@ -1441,6 +1460,252 @@ function calculateMACD(prices, fastPeriod = 12, slowPeriod = 26, signalPeriod = 
     macd: macd,
     signal: signal.slice(signal.length - macdLength),
   };
+}
+
+// Start manual trading
+router.post('/:userId/start-manual', async (req, res, next) => {
+  const { userId } = req.params;
+  const { symbol, apiId, amountPerLevel, numberOfLevels } = req.body;
+
+  try {
+    if (!symbol || !apiId || !amountPerLevel || !numberOfLevels) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required parameters',
+      });
+    }
+
+    const user = await User.findOne({ userId }).select('exchangeApis wallet');
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    const api = user.exchangeApis.find(a => a._id.toString() === apiId && a.isActive);
+    if (!api) {
+      return res.status(400).json({ success: false, error: 'API not found or inactive' });
+    }
+
+    // Use same algo trading logic but with manual mode flag
+    const trade = {
+      userId,
+      symbol: symbol.toUpperCase(),
+      apiId: api._id.toString(),
+      platform: api.platform,
+      isTest: api.isTest,
+      isDemo: !api.isTest,
+      isManual: true, // Flag for manual mode
+      maxLossPerTrade: 3.0, // Default for manual
+      maxLossOverall: 3.0,
+      maxProfitBook: 3.0,
+      amountPerLevel: parseFloat(amountPerLevel),
+      numberOfLevels: parseInt(numberOfLevels),
+      useMargin: false,
+      leverage: 1,
+      startPrice: 0,
+      currentLevel: 0,
+      totalInvested: 0,
+      orders: [],
+      isActive: true,
+      isStarted: true, // Manual trades start immediately
+      tradeDirection: null,
+      startedAt: new Date(),
+      lastSignal: null,
+      intervalId: null,
+      platformWalletFees: [],
+    };
+
+    const tradeKey = `${userId}:${symbol.toUpperCase()}`;
+    if (activeTrades.has(tradeKey)) {
+      const existing = activeTrades.get(tradeKey);
+      if (existing.intervalId) clearInterval(existing.intervalId);
+    }
+
+    // Start manual trading (user places orders manually)
+    activeTrades.set(tradeKey, trade);
+
+    res.json({
+      success: true,
+      message: 'Manual trading started',
+      data: { symbol: trade.symbol, startedAt: trade.startedAt },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Start admin strategy mode
+router.post('/:userId/start-admin', async (req, res, next) => {
+  const { userId } = req.params;
+  const { symbol } = req.body;
+
+  try {
+    // Get admin mode settings from env
+    const ADMIN_MAX_LOSS = parseFloat(process.env.ADMIN_MAX_LOSS || '3.0');
+    const ADMIN_MAX_PROFIT = parseFloat(process.env.ADMIN_MAX_PROFIT || '3.0');
+    const ADMIN_AMOUNT_PER_LEVEL = parseFloat(process.env.ADMIN_AMOUNT_PER_LEVEL || '100.0');
+    const ADMIN_MIN_BALANCE = parseFloat(process.env.ADMIN_MIN_BALANCE || '100.0');
+
+    const user = await User.findOne({ userId }).select('exchangeApis wallet');
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    // Get active Binance API
+    const api = user.exchangeApis.find(a => 
+      a.platform === 'binance' && a.isActive && !a.isTest
+    );
+    if (!api) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Active Binance API (real key) required for admin mode' 
+      });
+    }
+
+    let selectedSymbol = symbol;
+    
+    // If no symbol provided, select from top 10 volume pairs with strong signal
+    if (!selectedSymbol) {
+      try {
+        const topPairs = await getTopVolumePairs(10);
+        selectedSymbol = await selectPairWithStrongSignal(topPairs, api.isTest);
+        if (!selectedSymbol) {
+          return res.status(400).json({
+            success: false,
+            error: 'No suitable pair found with strong signal',
+          });
+        }
+      } catch (e) {
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to select default pair: ' + e.message,
+        });
+      }
+    }
+
+    const tradeKey = `${userId}:${selectedSymbol.toUpperCase()}`;
+    if (activeTrades.has(tradeKey)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Trade already active for this symbol',
+      });
+    }
+
+    // Create admin strategy trade
+    const trade = {
+      userId,
+      symbol: selectedSymbol.toUpperCase(),
+      apiId: api._id.toString(),
+      platform: api.platform,
+      isTest: api.isTest,
+      isDemo: !api.isTest,
+      isAdminMode: true, // Flag for admin mode
+      maxLossPerTrade: ADMIN_MAX_LOSS,
+      maxLossOverall: ADMIN_MAX_LOSS,
+      maxProfitBook: ADMIN_MAX_PROFIT,
+      amountPerLevel: ADMIN_AMOUNT_PER_LEVEL,
+      numberOfLevels: 999, // No limit - continues until balance insufficient
+      minBalance: ADMIN_MIN_BALANCE, // Stop when balance < this
+      useMargin: false,
+      leverage: 1,
+      startPrice: 0,
+      currentLevel: 0,
+      totalInvested: 0,
+      orders: [],
+      isActive: true,
+      isStarted: false, // Wait for signal
+      tradeDirection: null,
+      startedAt: new Date(),
+      lastSignal: null,
+      intervalId: null,
+      platformWalletFees: [],
+    };
+
+    // Start the algo trading loop with admin mode logic
+    executeAlgoTradingStep(trade).catch(error => {
+      console.error(`[ADMIN STRATEGY] ❌ Error in initial step:`, error.message);
+    });
+
+    const intervalId = setInterval(async () => {
+      try {
+        await executeAlgoTradingStep(trade);
+        
+        // Check if should continue (balance check for admin mode)
+        if (trade.isAdminMode) {
+          const user = await User.findOne({ userId }).select('wallet');
+          const walletBalances = user?.wallet?.balances || [];
+          const usdtBalance = walletBalances.find(b => 
+            (b.currency || '').toString().toUpperCase() === 'USDT'
+          );
+          const currentBalance = (usdtBalance?.amount || 0);
+          
+          if (currentBalance < trade.minBalance) {
+            console.log(`[ADMIN STRATEGY] ⚠️ Balance insufficient (${currentBalance} < ${trade.minBalance}) - stopping`);
+            clearInterval(intervalId);
+            trade.isActive = false;
+            activeTrades.delete(tradeKey);
+          }
+        }
+      } catch (error) {
+        console.error(`[ADMIN STRATEGY] ❌ Error:`, error.message);
+      }
+    }, 30000);
+
+    trade.intervalId = intervalId;
+    activeTrades.set(tradeKey, trade);
+
+    res.json({
+      success: true,
+      message: 'Admin strategy started',
+      data: {
+        symbol: trade.symbol,
+        startedAt: trade.startedAt,
+        settings: {
+          maxLoss: ADMIN_MAX_LOSS,
+          maxProfit: ADMIN_MAX_PROFIT,
+          amountPerLevel: ADMIN_AMOUNT_PER_LEVEL,
+          minBalance: ADMIN_MIN_BALANCE,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Helper to get top volume pairs
+async function getTopVolumePairs(limit = 10) {
+  try {
+    const response = await axios.get('https://api.binance.com/api/v3/ticker/24hr');
+    const tickers = response.data
+      .filter(t => t.symbol.endsWith('USDT'))
+      .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
+      .slice(0, limit)
+      .map(t => t.symbol);
+    return tickers;
+  } catch (e) {
+    console.error('[ADMIN STRATEGY] Error getting top pairs:', e.message);
+    return [];
+  }
+}
+
+// Helper to select pair with strong signal
+async function selectPairWithStrongSignal(symbols, isTest = false) {
+  for (const symbol of symbols) {
+    try {
+      const candles = await getCandlesticks(symbol, '1m', 500, isTest);
+      if (!candles || candles.length === 0) continue;
+      
+      const currentPrice = await getCurrentPrice(symbol, isTest);
+      const signal = await getTradingSignal(candles, currentPrice);
+      
+      if (signal.strength === 'strong') {
+        return symbol;
+      }
+    } catch (e) {
+      continue;
+    }
+  }
+  return null;
 }
 
 // Export activeTrades map for admin access

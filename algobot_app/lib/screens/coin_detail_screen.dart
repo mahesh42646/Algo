@@ -11,6 +11,7 @@ import '../widgets/notification_bell.dart';
 import '../widgets/tradingview_chart.dart';
 import '../widgets/trade_info_card.dart';
 import 'algo_trading_config_screen.dart';
+import 'manual_trading_screen.dart';
 import '../services/algo_trading_service.dart';
 
 class CoinDetailScreen extends StatefulWidget {
@@ -1349,9 +1350,12 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
               ),
               const SizedBox(height: 16),
               InkWell(
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(dialogContext);
-                  _showManualTradeDialog(context);
+                  await Future.delayed(const Duration(milliseconds: 100));
+                  if (context.mounted) {
+                    _navigateToManualTrade(context);
+                  }
                 },
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
@@ -1378,7 +1382,55 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Place orders manually',
+                              'Place orders manually with level selection',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              InkWell(
+                onTap: () async {
+                  Navigator.pop(dialogContext);
+                  await Future.delayed(const Duration(milliseconds: 100));
+                  if (context.mounted) {
+                    _showAdminStrategyDialog(context);
+                  }
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.purple.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.purple.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.admin_panel_settings, color: Colors.purple, size: 32),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Admin Strategy Mode',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Fixed settings, auto-levels until balance insufficient',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey[600],
@@ -1448,13 +1500,196 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
     }
   }
 
-  void _showManualTradeDialog(BuildContext context) {
-    // TODO: Implement manual trade dialog
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Manual trading coming soon'),
+  void _navigateToManualTrade(BuildContext context) async {
+    try {
+      // Check if exchange is linked
+      final exchangeService = ExchangeService();
+      final isLinked = await exchangeService.isPlatformLinked('binance');
+      
+      if (!isLinked) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please link your Binance API first'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        return;
+      }
+
+      if (context.mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ManualTradingScreen(
+              coin: widget.coin,
+              quoteCurrency: widget.quoteCurrency,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+  
+  void _showAdminStrategyDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Admin Strategy Mode'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Admin Strategy Mode uses fixed settings:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              const Text('• 3% max loss per trade'),
+              const Text('• 3% max profit booking'),
+              const Text('• \$100 per level'),
+              const Text('• No level limits (continues until balance < \$100)'),
+              const SizedBox(height: 12),
+              const Text(
+                'You can select a specific coin pair or use default (top 10 volume pairs with strong signals).',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _startAdminStrategy(context);
+            },
+            child: const Text('Continue'),
+          ),
+        ],
       ),
     );
+  }
+  
+  void _startAdminStrategy(BuildContext context) async {
+    // Show coin pair selection dialog
+    final selectedPair = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Select Coin Pair'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.star),
+              title: const Text('Use Current Pair'),
+              subtitle: Text('${widget.coin.symbol}${widget.quoteCurrency}'),
+              onTap: () => Navigator.pop(dialogContext, {
+                'symbol': widget.coin.symbol,
+                'quote': widget.quoteCurrency,
+              }),
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.auto_awesome),
+              title: const Text('Default (Auto Select)'),
+              subtitle: const Text('Top 10 volume pairs with strong signals'),
+              onTap: () => Navigator.pop(dialogContext, {'auto': 'true'}),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (selectedPair == null) return;
+
+    // Show terms and conditions
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Terms and Conditions'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'By using Admin Strategy Mode, you agree to:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              const Text('• Fixed 3% loss/profit settings'),
+              const Text('• \$100 per level (no customization)'),
+              const Text('• Auto-level addition until balance insufficient'),
+              const Text('• Admin can stop your trades'),
+              const Text('• You can stop trades from Strategy/Coin Detail screens'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Accept & Confirm'),
+          ),
+        ],
+      ),
+    );
+
+    if (accepted != true) return;
+
+    // Start admin strategy
+    try {
+      final symbol = selectedPair['auto'] == 'true' 
+          ? null 
+          : '${selectedPair['symbol']}${selectedPair['quote']}';
+      
+      await _algoService.startAdminStrategy(symbol: symbol);
+      
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Admin strategy started successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        await _loadActiveTrade();
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error starting admin strategy: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildActiveTradeCard() {
@@ -1489,20 +1724,90 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
       positionDetails['Total Quantity'] = totalQty.toStringAsFixed(8);
     }
     
-    return TradeInfoCard(
-      currentPrice: '\$${currentPrice.toStringAsFixed(2)}',
-      currentLevel: currentLevel,
-      totalLevels: numberOfLevels,
-      targetPercent: maxProfitBook,
-      targetPrice: '\$${targetPrice.toStringAsFixed(2)}',
-      totalBalance: '\$${totalBalance.toStringAsFixed(2)}',
-      profitLoss: unrealizedPnL,
-      profitLossPercent: currentPnL,
-      binanceBalance: _binanceBalance,
-      positionDetails: positionDetails.isNotEmpty ? positionDetails : null,
-      isMargin: useMargin,
-      leverage: leverage > 1 ? leverage : null,
+    return Column(
+      children: [
+        TradeInfoCard(
+          currentPrice: '\$${currentPrice.toStringAsFixed(2)}',
+          currentLevel: currentLevel,
+          totalLevels: numberOfLevels,
+          targetPercent: maxProfitBook,
+          targetPrice: '\$${targetPrice.toStringAsFixed(2)}',
+          totalBalance: '\$${totalBalance.toStringAsFixed(2)}',
+          profitLoss: unrealizedPnL,
+          profitLossPercent: currentPnL,
+          binanceBalance: _binanceBalance,
+          positionDetails: positionDetails.isNotEmpty ? positionDetails : null,
+          isMargin: useMargin,
+          leverage: leverage > 1 ? leverage : null,
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _isLoadingMA ? null : _stopActiveTrade,
+              icon: const Icon(Icons.stop_circle),
+              label: const Text('Stop Active Trade'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
+  }
+  
+  Future<void> _stopActiveTrade() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Stop Algo Trade?'),
+        content: const Text(
+          'Are you sure you want to stop the active algo trade? This will close all positions and stop the bot.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Stop'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final symbol = '${widget.coin.symbol}${widget.quoteCurrency}';
+      await _algoService.stopAlgoTrade(symbol);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Algo trade stopped successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Reload active trade data
+        await _loadActiveTrade();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error stopping trade: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }
 

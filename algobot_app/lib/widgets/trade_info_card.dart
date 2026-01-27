@@ -56,17 +56,20 @@ class TradeInfoCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           // Header
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Trade Information',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.primary,
+              Flexible(
+                child: Text(
+                  'Trade Information',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
+                  ),
                 ),
               ),
               if (isMargin && leverage != null)
@@ -105,7 +108,7 @@ class TradeInfoCard extends StatelessWidget {
                 child: _buildInfoItem(
                   context,
                   'Level',
-                  '$currentLevel / $totalLevels',
+                  '$currentLevel / ${totalLevels >= 999 ? '∞' : totalLevels}',
                   Icons.layers,
                 ),
               ),
@@ -162,6 +165,7 @@ class TradeInfoCard extends StatelessWidget {
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Row(
                         children: [
@@ -171,11 +175,15 @@ class TradeInfoCard extends StatelessWidget {
                             color: profitColor,
                           ),
                           const SizedBox(width: 4),
-                          Text(
-                            'P&L',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
+                          Flexible(
+                            child: Text(
+                              'P&L',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
@@ -188,6 +196,8 @@ class TradeInfoCard extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                           color: profitColor,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       Text(
                         '${profitLossPercent >= 0 ? '+' : ''}${profitLossPercent.toStringAsFixed(2)}%',
@@ -195,6 +205,8 @@ class TradeInfoCard extends StatelessWidget {
                           fontSize: 12,
                           color: profitColor.withOpacity(0.8),
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
@@ -270,16 +282,21 @@ class TradeInfoCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
               Icon(icon, size: 14, color: Colors.grey[600]),
               const SizedBox(width: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
+              Flexible(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -291,7 +308,7 @@ class TradeInfoCard extends StatelessWidget {
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
         ],

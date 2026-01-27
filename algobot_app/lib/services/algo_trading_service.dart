@@ -161,6 +161,68 @@ class AlgoTradingService {
     }
   }
 
+  // Start manual trade
+  Future<Map<String, dynamic>> startManualTrade({
+    required String symbol,
+    required String apiId,
+    required double amountPerLevel,
+    required int numberOfLevels,
+  }) async {
+    if (_userId == null) {
+      throw Exception('User not logged in');
+    }
+
+    try {
+      final response = await _apiHandler.post(
+        '/algo-trading/$_userId/start-manual',
+        data: {
+          'symbol': symbol,
+          'apiId': apiId,
+          'amountPerLevel': amountPerLevel,
+          'numberOfLevels': numberOfLevels,
+        },
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return response.data['data'] ?? {};
+      } else {
+        throw Exception(response.data['error'] ?? 'Failed to start manual trade');
+      }
+    } catch (e) {
+      if (Env.enableApiLogs) {
+        print('Error starting manual trade: $e');
+      }
+      rethrow;
+    }
+  }
+
+  // Start admin strategy
+  Future<Map<String, dynamic>> startAdminStrategy({String? symbol}) async {
+    if (_userId == null) {
+      throw Exception('User not logged in');
+    }
+
+    try {
+      final response = await _apiHandler.post(
+        '/algo-trading/$_userId/start-admin',
+        data: {
+          if (symbol != null) 'symbol': symbol,
+        },
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return response.data['data'] ?? {};
+      } else {
+        throw Exception(response.data['error'] ?? 'Failed to start admin strategy');
+      }
+    } catch (e) {
+      if (Env.enableApiLogs) {
+        print('Error starting admin strategy: $e');
+      }
+      rethrow;
+    }
+  }
+
   // Get detailed transaction history for a specific trade
   Future<Map<String, dynamic>> getTradeHistory(String symbol) async {
     if (_userId == null) {
