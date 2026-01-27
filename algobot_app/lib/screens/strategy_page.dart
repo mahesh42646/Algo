@@ -21,6 +21,58 @@ class _StrategyPageState extends State<StrategyPage> {
   List<Map<String, dynamic>> _strategies = [];
   List<Map<String, dynamic>> _activeTrades = [];
   bool _isLoading = true;
+  int _selectedTab = 0; // 0: Default, 1: Popular, 2: User Generated
+
+  // Default strategies (admin strategy)
+  final List<Map<String, dynamic>> _defaultStrategies = [
+    {
+      'name': 'Admin Strategy',
+      'type': 'admin',
+      'description': 'Fixed settings: 3% loss/profit, \$100 per level, no level limits',
+      'maxLossPerTrade': 3.0,
+      'maxProfitBook': 3.0,
+      'amountPerLevel': 100.0,
+      'numberOfLevels': 999,
+      'isDefault': true,
+    },
+  ];
+
+  // Popular strategies
+  final List<Map<String, dynamic>> _popularStrategies = [
+    {
+      'name': 'Popular 3% Strategy',
+      'type': 'popular',
+      'description': 'Most popular: 3% loss/profit, 10 levels, \$10 per level',
+      'maxLossPerTrade': 3.0,
+      'maxLossOverall': 3.0,
+      'maxProfitBook': 3.0,
+      'amountPerLevel': 10.0,
+      'numberOfLevels': 10,
+      'isPopular': true,
+    },
+    {
+      'name': 'Conservative Strategy',
+      'type': 'popular',
+      'description': 'Conservative: 2% loss/profit, 5 levels, \$20 per level',
+      'maxLossPerTrade': 2.0,
+      'maxLossOverall': 2.0,
+      'maxProfitBook': 2.0,
+      'amountPerLevel': 20.0,
+      'numberOfLevels': 5,
+      'isPopular': true,
+    },
+    {
+      'name': 'Aggressive Strategy',
+      'type': 'popular',
+      'description': 'Aggressive: 5% loss/profit, 15 levels, \$5 per level',
+      'maxLossPerTrade': 5.0,
+      'maxLossOverall': 5.0,
+      'maxProfitBook': 5.0,
+      'amountPerLevel': 5.0,
+      'numberOfLevels': 15,
+      'isPopular': true,
+    },
+  ];
 
   @override
   void initState() {
@@ -125,43 +177,264 @@ class _StrategyPageState extends State<StrategyPage> {
             tooltip: 'Refresh',
           ),
           const NotificationBell(),
-        ],
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _strategies.isEmpty && _activeTrades.isEmpty
-              ? _buildEmptyState()
-              : RefreshIndicator(
-                  onRefresh: _loadStrategies,
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
+          : Column(
+              children: [
+                // Tab selector
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
                     children: [
-                      if (_activeTrades.isNotEmpty) ...[
-                        const Text(
-                          'Active Algo Trades',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        ..._activeTrades.map((trade) => _buildActiveTradeCard(trade)),
-                        const SizedBox(height: 24),
-                      ],
-                      if (_strategies.isNotEmpty) ...[
-                        const Text(
-                          'My Strategies',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        ..._strategies.map((strategy) => _buildStrategyCard(strategy)),
-                      ],
+                      Expanded(
+                        child: _buildTabButton('Default', 0),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildTabButton('Popular', 1),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildTabButton('My Strategies', 2),
+                      ),
                     ],
                   ),
                 ),
+                const Divider(height: 1),
+                // Content based on selected tab
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _loadStrategies,
+                    child: _buildTabContent(),
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildTabButton(String label, int index) {
+    final isSelected = _selectedTab == index;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedTab = index;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected 
+              ? Theme.of(context).colorScheme.primary 
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: isSelected ? Colors.white : Colors.grey[700],
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            fontSize: 14,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabContent() {
+    if (_selectedTab == 0) {
+      // Default strategies
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          if (_activeTrades.isNotEmpty) ...[
+            const Text(
+              'Active Trades',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ..._activeTrades.map((trade) => _buildActiveTradeCard(trade)),
+            const SizedBox(height: 24),
+          ],
+          const Text(
+            'Default Strategies',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ..._defaultStrategies.map((strategy) => _buildDefaultStrategyCard(strategy)),
+        ],
+      );
+    } else if (_selectedTab == 1) {
+      // Popular strategies
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const Text(
+            'Popular Strategies',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ..._popularStrategies.map((strategy) => _buildPopularStrategyCard(strategy)),
+        ],
+      );
+    } else {
+      // User generated strategies
+      if (_strategies.isEmpty && _activeTrades.isEmpty) {
+        return _buildEmptyState();
+      }
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          if (_activeTrades.isNotEmpty) ...[
+            const Text(
+              'Active Algo Trades',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ..._activeTrades.map((trade) => _buildActiveTradeCard(trade)),
+            const SizedBox(height: 24),
+          ],
+          if (_strategies.isNotEmpty) ...[
+            const Text(
+              'My Strategies',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ..._strategies.map((strategy) => _buildStrategyCard(strategy)),
+          ],
+        ],
+      );
+    }
+  }
+
+  Widget _buildDefaultStrategyCard(Map<String, dynamic> strategy) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.primary,
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.admin_panel_settings, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                strategy['name'],
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            strategy['description'],
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: _buildStatItem('Max Loss', '${strategy['maxLossPerTrade']}%')),
+              Expanded(child: _buildStatItem('Max Profit', '${strategy['maxProfitBook']}%')),
+              Expanded(child: _buildStatItem('Per Level', '\$${strategy['amountPerLevel']}')),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPopularStrategyCard(Map<String, dynamic> strategy) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.orange,
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.trending_up, color: Colors.orange),
+              const SizedBox(width: 8),
+              Text(
+                strategy['name'],
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            strategy['description'],
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: _buildStatItem('Max Loss', '${strategy['maxLossPerTrade']}%')),
+              Expanded(child: _buildStatItem('Max Profit', '${strategy['maxProfitBook']}%')),
+              Expanded(child: _buildStatItem('Levels', '${strategy['numberOfLevels']}')),
+              Expanded(child: _buildStatItem('Per Level', '\$${strategy['amountPerLevel']}')),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

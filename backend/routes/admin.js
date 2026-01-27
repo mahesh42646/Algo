@@ -495,6 +495,116 @@ router.get('/algo-trades', authenticateAdmin, async (req, res, next) => {
   }
 });
 
+// Place manual trade for a user (admin can place trades on behalf of users)
+router.post('/users/:userId/place-trade', authenticateAdmin, async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const { symbol, apiId, side, quantity, price, orderType = 'LIMIT' } = req.body;
+
+    if (!symbol || !apiId || !side || !quantity) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required parameters: symbol, apiId, side, quantity',
+      });
+    }
+
+    if (!['BUY', 'SELL'].includes(side.toUpperCase())) {
+      return res.status(400).json({
+        success: false,
+        error: 'Side must be BUY or SELL',
+      });
+    }
+
+    const user = await User.findOne({ userId }).select('exchangeApis');
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    const api = user.exchangeApis.find(a => a._id.toString() === apiId && a.isActive);
+    if (!api) {
+      return res.status(400).json({
+        success: false,
+        error: 'API not found or inactive',
+      });
+    }
+
+    // Check permissions
+    const requiredPermission = 'spot_trade';
+    if (!api.permissions.includes(requiredPermission)) {
+      return res.status(403).json({
+        success: false,
+        error: `API does not have ${requiredPermission} permission`,
+      });
+    }
+
+    // Decrypt credentials
+    const { decrypt } = require('../utils/encryption');
+    const apiKey = decrypt(api.apiKey);
+    const apiSecret = decrypt(api.apiSecret);
+    const baseUrl = api.isTest 
+      ? 'https://testnet.binance.vision/api/v3' 
+      : 'https://api.binance.com/api/v3';
+
+    // Place order
+    const axios = require('axios');
+    const crypto = require('crypto');
+    const timestamp = Date.now();
+    
+    let queryString = `symbol=${symbol.toUpperCase()}&side=${side.toUpperCase()}&type=${orderType.toUpperCase()}&quantity=${quantity}`;
+    if (orderType === 'LIMIT' && price) {
+      queryString += `&price=${price}&timeInForce=GTC`;
+    }
+    queryString += `&timestamp=${timestamp}`;
+
+    const signature = crypto
+      .createHmac('sha256', apiSecret)
+      .update(queryString)
+      .digest('hex');
+
+    const response = await axios.post(
+      `${baseUrl}/order?${queryString}&signature=${signature}`,
+      {},
+      {
+        headers: { 'X-MBX-APIKEY': apiKey },
+        timeout: 10000,
+      }
+    );
+
+    // Add notification to user
+    if (!user.notifications) {
+      user.notifications = [];
+    }
+    user.notifications.push({
+      title: 'Trade Placed by Admin',
+      message: `Admin placed a ${side} order for ${quantity} ${symbol}`,
+      type: 'info',
+      read: false,
+      createdAt: new Date(),
+    });
+    await user.save();
+
+    console.log(`[ADMIN] ✅ Admin ${req.admin.username} placed ${side} order for user ${userId}: ${quantity} ${symbol}`);
+
+    res.json({
+      success: true,
+      message: 'Trade placed successfully',
+      data: response.data,
+    });
+  } catch (error) {
+    console.error('[ADMIN] Error placing trade:', error);
+    if (error.response) {
+      return res.status(error.response.status || 500).json({
+        success: false,
+        error: error.response.data?.msg || error.message,
+      });
+    }
+    next(error);
+  }
+});
+
 // Get trading history (all trades - active and completed)
 router.get('/trading-history', authenticateAdmin, async (req, res, next) => {
   try {
@@ -581,6 +691,207 @@ router.get('/trading-history', authenticateAdmin, async (req, res, next) => {
     });
   } catch (error) {
     console.error('[ADMIN] Error getting trading history:', error);
+    next(error);
+  }
+});
+
+// Get user profile with wallet and API balances
+router.get('/users/:userId/profile', authenticateAdmin, async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const user = await User.findOne({ userId }).select('userId email nickname wallet exchangeApis createdAt');
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    // Get deposit address
+    const mode = require('../services/wallet_service').getTatumMode();
+    const walletKey = mode === 'production' ? 'tronProd' : 'tronTest';
+    const depositAddress = user.wallet?.[walletKey]?.address || null;
+
+    // Get platform wallet balances
+    const platformBalances = {
+      USDT: 0,
+      BTC: 0,
+      ETH: 0,
+      USDC: 0,
+    };
+    
+    if (user.wallet?.balances) {
+      for (const balance of user.wallet.balances) {
+        const currency = (balance.currency || '').toUpperCase();
+        if (platformBalances.hasOwnProperty(currency)) {
+          platformBalances[currency] = balance.amount || 0;
+        }
+      }
+    }
+
+    // Get API balances (grouped by test/real)
+    const apiBalances = {
+      test: { USDT: 0, BTC: 0, ETH: 0, USDC: 0 },
+      real: { USDT: 0, BTC: 0, ETH: 0, USDC: 0 },
+      details: [],
+    };
+
+    if (user.exchangeApis && user.exchangeApis.length > 0) {
+      const { decrypt } = require('../utils/encryption');
+      const axios = require('axios');
+      
+      for (const api of user.exchangeApis) {
+        if (!api.isActive) continue;
+        
+        try {
+          const apiKey = decrypt(api.apiKey);
+          const apiSecret = decrypt(api.apiSecret);
+          const baseUrl = api.isTest 
+            ? 'https://testnet.binance.vision/api/v3' 
+            : 'https://api.binance.com/api/v3';
+          
+          // Get account info
+          const timestamp = Date.now();
+          const queryString = `timestamp=${timestamp}`;
+          const signature = require('crypto')
+            .createHmac('sha256', apiSecret)
+            .update(queryString)
+            .digest('hex');
+          
+          const response = await axios.get(
+            `${baseUrl}/account?${queryString}&signature=${signature}`,
+            {
+              headers: { 'X-MBX-APIKEY': apiKey },
+              timeout: 5000,
+            }
+          );
+
+          const balances = {
+            USDT: 0,
+            BTC: 0,
+            ETH: 0,
+            USDC: 0,
+          };
+
+          if (response.data && response.data.balances) {
+            for (const bal of response.data.balances) {
+              const asset = bal.asset.toUpperCase();
+              const free = parseFloat(bal.free || 0);
+              const locked = parseFloat(bal.locked || 0);
+              const total = free + locked;
+              
+              if (balances.hasOwnProperty(asset)) {
+                balances[asset] = total;
+                if (api.isTest) {
+                  apiBalances.test[asset] += total;
+                } else {
+                  apiBalances.real[asset] += total;
+                }
+              }
+            }
+          }
+
+          apiBalances.details.push({
+            apiId: api._id.toString(),
+            label: api.label,
+            platform: api.platform,
+            isTest: api.isTest,
+            balances,
+            permissions: api.permissions,
+          });
+        } catch (e) {
+          console.error(`[ADMIN] Error fetching balance for API ${api._id}:`, e.message);
+          apiBalances.details.push({
+            apiId: api._id.toString(),
+            label: api.label,
+            platform: api.platform,
+            isTest: api.isTest,
+            balances: { USDT: 0, BTC: 0, ETH: 0, USDC: 0 },
+            permissions: api.permissions,
+            error: e.message,
+          });
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        userId: user.userId,
+        email: user.email,
+        nickname: user.nickname,
+        depositAddress,
+        depositMode: mode,
+        platformBalances,
+        apiBalances,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (error) {
+    console.error('[ADMIN] Error getting user profile:', error);
+    next(error);
+  }
+});
+
+// Add balance to user wallet (admin can add test/free money)
+router.post('/users/:userId/wallet/add-balance', authenticateAdmin, async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const { amount, currency = 'USDT', reason = 'Admin adjustment' } = req.body;
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Amount must be greater than 0',
+      });
+    }
+
+    const user = await User.findOne({ userId });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    const { updateLedgerBalance, addWalletTransaction } = require('../services/wallet_service');
+    
+    // Update balance
+    await updateLedgerBalance({ user, amount: parseFloat(amount) });
+    
+    // Add transaction record
+    await addWalletTransaction({
+      user,
+      amount: parseFloat(amount),
+      txHash: `admin-${Date.now()}-${req.admin.username}`,
+      createdAt: new Date(),
+    });
+
+    // Add notification
+    if (!user.notifications) {
+      user.notifications = [];
+    }
+    user.notifications.push({
+      title: 'Balance Added by Admin',
+      message: `Admin added ${amount} ${currency} to your wallet. Reason: ${reason}`,
+      type: 'info',
+      read: false,
+      createdAt: new Date(),
+    });
+    await user.save();
+
+    console.log(`[ADMIN] ✅ Admin ${req.admin.username} added ${amount} ${currency} to user ${userId}`);
+
+    res.json({
+      success: true,
+      message: `Successfully added ${amount} ${currency} to user wallet`,
+      data: {
+        newBalance: user.wallet.balances.find(b => b.currency === currency)?.amount || 0,
+      },
+    });
+  } catch (error) {
+    console.error('[ADMIN] Error adding balance:', error);
     next(error);
   }
 });
