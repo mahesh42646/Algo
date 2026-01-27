@@ -34,8 +34,20 @@ const depositSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['detected', 'gas_funded', 'sweeping', 'completed', 'failed'],
+    enum: ['detected', 'gas_funded', 'sweeping', 'sweep_failed', 'held', 'completed', 'failed', 'retrying'],
     default: 'detected',
+  },
+  balanceCredited: {
+    type: Boolean,
+    default: false,
+  },
+  retryCount: {
+    type: Number,
+    default: 0,
+  },
+  lastRetryAt: {
+    type: Date,
+    default: null,
   },
   error: {
     type: String,

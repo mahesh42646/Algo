@@ -153,13 +153,26 @@ const processDeposit = async ({ address, txHash, amount, chain, token, contractA
   try {
     // STEP 1: IMMEDIATELY credit user's platform wallet balance (before any sweep attempts)
     // This ensures user gets their balance even if sweep fails
-    await updateLedgerBalance({ user, amount });
-    await addWalletTransaction({ user, amount, txHash });
-    
-    user.wallet.depositStatus = 'confirmed';
-    await user.save();
-    
-    console.log(`[DEPOSIT] ✅ ${amount} USDT credited to user platform wallet immediately`);
+    let balanceCredited = false;
+    try {
+      await updateLedgerBalance({ user, amount });
+      await addWalletTransaction({ user, amount, txHash });
+      
+      user.wallet.depositStatus = 'confirmed';
+      await user.save();
+      
+      balanceCredited = true;
+      deposit.balanceCredited = true;
+      await deposit.save();
+      
+      console.log(`[DEPOSIT] ✅ ${amount} USDT credited to user platform wallet immediately`);
+    } catch (creditError) {
+      console.error(`[DEPOSIT] ❌ Failed to credit balance: ${creditError.message}`);
+      deposit.balanceCredited = false;
+      deposit.error = `Balance credit failed: ${creditError.message}`;
+      await deposit.save();
+      throw creditError; // Re-throw to be caught by outer catch
+    }
     
     // STEP 2: Add notification for deposit
     if (!user.notifications) {
@@ -239,9 +252,10 @@ const processDeposit = async ({ address, txHash, amount, chain, token, contractA
         // If sweep fails, user balance is already credited - just log the error
         console.error(`[SWEEP] ❌ Sweep failed: ${sweepError.message}`);
         console.error(`[SWEEP] ⚠️ User balance already credited. Funds remain in user address: ${address}`);
-        deposit.status = 'sweep_failed';
-        deposit.error = `Sweep failed: ${sweepError.message}. User balance already credited.`;
-        await deposit.save();
+      deposit.status = 'sweep_failed';
+      deposit.error = `Sweep failed: ${sweepError.message}. User balance already credited.`;
+      deposit.balanceCredited = true; // Ensure this is marked
+      await deposit.save();
         // Keep unswept funds tracked - will retry on next deposit
         user.wallet.unsweptFunds = newUnsweptTotal;
         await user.save();
@@ -251,38 +265,70 @@ const processDeposit = async ({ address, txHash, amount, chain, token, contractA
       user.wallet.unsweptFunds = newUnsweptTotal;
       await user.save();
       deposit.status = 'held';
+      deposit.balanceCredited = true; // Balance is credited even if held
       await deposit.save();
       console.log(`[DEPOSIT] Unswept funds: ${newUnsweptTotal} USDT (waiting for ${MIN_DEPOSIT_USDT} USDT to auto-sweep)`);
     }
 
     deposit.status = 'completed';
+    deposit.balanceCredited = true;
+    deposit.error = null; // Clear any previous errors
     await deposit.save();
 
     console.log(`[DEPOSIT] ✅ Deposit processing completed: ${amount} USDT credited to user`);
-    return { success: true, swept: shouldSweep };
+    return { success: true, swept: shouldSweep, balanceCredited: true };
   } catch (error) {
     // Even if there's an error, try to credit the user if not already done
-    try {
-      const currentBalance = user.wallet?.balances?.find(b => b.currency === 'USDT')?.amount || 0;
-      if (currentBalance < amount) {
-        console.log(`[DEPOSIT] ⚠️ Error occurred but attempting to credit user balance as fallback`);
-        await updateLedgerBalance({ user, amount });
-        await addWalletTransaction({ user, amount, txHash });
-        user.wallet.depositStatus = 'confirmed';
-        await user.save();
-        console.log(`[DEPOSIT] ✅ User balance credited as fallback`);
+    let balanceCredited = deposit.balanceCredited || false;
+    if (!balanceCredited) {
+      try {
+        const currentBalance = user.wallet?.balances?.find(b => b.currency === 'USDT')?.amount || 0;
+        const expectedBalance = (currentBalance || 0) + amount;
+        // Check if user already has this amount (maybe credited in a previous attempt)
+        const hasAmount = currentBalance >= amount;
+        
+        if (!hasAmount) {
+          console.log(`[DEPOSIT] ⚠️ Error occurred but attempting to credit user balance as fallback`);
+          await updateLedgerBalance({ user, amount });
+          await addWalletTransaction({ user, amount, txHash });
+          user.wallet.depositStatus = 'confirmed';
+          await user.save();
+          
+          balanceCredited = true;
+          deposit.balanceCredited = true;
+          console.log(`[DEPOSIT] ✅ User balance credited as fallback`);
+        } else {
+          console.log(`[DEPOSIT] ℹ️ User already has balance - marking as credited`);
+          balanceCredited = true;
+          deposit.balanceCredited = true;
+        }
+      } catch (fallbackError) {
+        console.error(`[DEPOSIT] ❌ Fallback credit also failed: ${fallbackError.message}`);
+        balanceCredited = false;
       }
-    } catch (fallbackError) {
-      console.error(`[DEPOSIT] ❌ Fallback credit also failed: ${fallbackError.message}`);
     }
     
-    deposit.status = 'failed';
-    deposit.error = error.message;
+    // Mark deposit status based on whether balance was credited
+    if (balanceCredited) {
+      deposit.status = 'failed'; // Failed but balance credited
+      deposit.error = `Processing failed but balance credited: ${error.message}`;
+    } else {
+      deposit.status = 'failed'; // Failed and balance not credited - needs retry
+      deposit.error = error.message;
+    }
     await deposit.save();
+    
     if (user.wallet) {
-      user.wallet.depositStatus = 'failed';
+      user.wallet.depositStatus = balanceCredited ? 'confirmed' : 'failed';
       await user.save();
     }
+    
+    // If balance was credited, don't throw error (deposit succeeded for user)
+    if (balanceCredited) {
+      console.log(`[DEPOSIT] ⚠️ Deposit partially completed: balance credited but processing failed`);
+      return { success: true, balanceCredited: true, error: error.message };
+    }
+    
     throw error;
   }
 };

@@ -153,6 +153,10 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   // Start automatic deposit monitoring for testnet
   const autoMonitor = require('./services/auto_monitor');
   autoMonitor.startAutoMonitoring();
+  
+  // Start deposit retry service
+  const depositRetry = require('./services/deposit_retry_service');
+  depositRetry.startRetryService();
 });
 
 // Graceful shutdown
@@ -160,6 +164,10 @@ process.on('SIGTERM', () => {
   console.log('SIGTERM signal received: closing HTTP server');
   const autoMonitor = require('./services/auto_monitor');
   autoMonitor.stopAutoMonitoring();
+  
+  const depositRetry = require('./services/deposit_retry_service');
+  depositRetry.stopRetryService();
+  
   server.close(() => {
     console.log('HTTP server closed');
     mongoose.connection.close(false, () => {
