@@ -150,61 +150,92 @@ const processDeposit = async ({ address, txHash, amount, chain, token, contractA
     });
   }
 
+  // STEP 1: IMMEDIATELY credit user's platform wallet balance (BEFORE ANYTHING ELSE)
+  // This MUST happen first and be saved to database before any sweep attempts
+  let balanceCredited = false;
   try {
-    // STEP 1: IMMEDIATELY credit user's platform wallet balance (before any sweep attempts)
-    // This ensures user gets their balance even if sweep fails
-    let balanceCredited = false;
-    try {
-      await updateLedgerBalance({ user, amount });
-      await addWalletTransaction({ user, amount, txHash });
-      
-      user.wallet.depositStatus = 'confirmed';
-      await user.save();
-      
-      balanceCredited = true;
-      deposit.balanceCredited = true;
-      await deposit.save();
-      
-      console.log(`[DEPOSIT] ✅ ${amount} USDT credited to user platform wallet immediately`);
-    } catch (creditError) {
-      console.error(`[DEPOSIT] ❌ Failed to credit balance: ${creditError.message}`);
-      deposit.balanceCredited = false;
-      deposit.error = `Balance credit failed: ${creditError.message}`;
-      await deposit.save();
-      throw creditError; // Re-throw to be caught by outer catch
+    // Reload user to ensure we have latest data
+    const freshUser = await User.findOne({ userId: user.userId });
+    if (!freshUser) {
+      throw new Error('User not found');
     }
     
-    // STEP 2: Add notification for deposit
-    if (!user.notifications) {
-      user.notifications = [];
+    await updateLedgerBalance({ user: freshUser, amount });
+    await addWalletTransaction({ user: freshUser, amount, txHash });
+    
+    freshUser.wallet.depositStatus = 'confirmed';
+    await freshUser.save();
+    
+    balanceCredited = true;
+    deposit.balanceCredited = true;
+    deposit.status = 'completed'; // Mark as completed since balance is credited
+    await deposit.save();
+    
+    console.log(`[DEPOSIT] ✅ ${amount} USDT credited to user platform wallet IMMEDIATELY (before sweep)`);
+    console.log(`[DEPOSIT] ✅ User balance updated and saved to database`);
+    
+    // Update local user reference
+    user = freshUser;
+  } catch (creditError) {
+    console.error(`[DEPOSIT] ❌ CRITICAL: Failed to credit balance: ${creditError.message}`);
+    console.error(`[DEPOSIT] ❌ Stack:`, creditError.stack);
+    deposit.balanceCredited = false;
+    deposit.error = `Balance credit failed: ${creditError.message}`;
+    await deposit.save();
+    // Don't throw - let retry service handle it
+    return { success: false, balanceCredited: false, error: creditError.message };
+  }
+  
+  try {
+    
+    // STEP 2: Add notification for deposit (balance already credited)
+    const userForNotification = await User.findOne({ userId: user.userId });
+    if (userForNotification) {
+      if (!userForNotification.notifications) {
+        userForNotification.notifications = [];
+      }
+      userForNotification.notifications.push({
+        title: '✅ Deposit Received',
+        message: `You have received ${amount} USDT. Your balance has been updated.`,
+        type: 'success',
+        read: false,
+        createdAt: new Date(),
+      });
+      await userForNotification.save();
     }
-    user.notifications.push({
-      title: '✅ Deposit Received',
-      message: `You have received ${amount} USDT. Your balance has been updated.`,
-      type: 'success',
-      read: false,
-      createdAt: new Date(),
-    });
-    await user.save();
 
-    // STEP 3: Attempt to sweep funds to master wallet (this is separate from crediting user)
+    // STEP 3: Attempt to sweep funds to master wallet (this is SEPARATE and OPTIONAL)
+    // Balance is already credited, so sweep can fail without affecting user
     const masterWallet = getMasterWallet();
     if (!masterWallet.address || !masterWallet.privateKey) {
       console.warn(`[SWEEP] ⚠️ Master wallet not configured - funds remain in user address but balance is credited`);
       deposit.status = 'completed';
+      deposit.balanceCredited = true;
       deposit.error = 'Master wallet not configured - balance credited but sweep skipped';
       await deposit.save();
-      return { success: true, swept: false, reason: 'Master wallet not configured' };
+      console.log(`[DEPOSIT] ✅ Deposit completed: ${amount} USDT credited (sweep skipped)`);
+      return { success: true, swept: false, balanceCredited: true, reason: 'Master wallet not configured' };
+    }
+
+    // Reload user to get latest balance info
+    const userForSweep = await User.findOne({ userId: user.userId });
+    if (!userForSweep) {
+      console.error(`[SWEEP] ⚠️ User not found for sweep - but balance already credited`);
+      deposit.status = 'completed';
+      deposit.balanceCredited = true;
+      await deposit.save();
+      return { success: true, swept: false, balanceCredited: true };
     }
 
     // Update unswept funds
-    const currentUnswept = user.wallet.unsweptFunds || 0;
+    const currentUnswept = userForSweep.wallet.unsweptFunds || 0;
     const newUnsweptTotal = currentUnswept + amount;
     
     const shouldSweep = newUnsweptTotal >= MIN_DEPOSIT_USDT;
 
     if (shouldSweep) {
       console.log(`[SWEEP] Total unswept funds (${newUnsweptTotal} USDT) >= ${MIN_DEPOSIT_USDT} USDT - initiating sweep`);
+      console.log(`[SWEEP] ℹ️ NOTE: User balance already credited - sweep is separate operation`);
       
       try {
         // Step 1: Fund user wallet with TRX for gas (only if sweeping)
@@ -217,7 +248,7 @@ const processDeposit = async ({ address, txHash, amount, chain, token, contractA
         await deposit.save();
 
         // Step 2: Sweep ALL unswept USDT to master wallet
-        const userPrivateKey = getUserPrivateKey(user);
+        const userPrivateKey = getUserPrivateKey(userForSweep);
         deposit.status = 'sweeping';
         await deposit.save();
         
@@ -240,95 +271,111 @@ const processDeposit = async ({ address, txHash, amount, chain, token, contractA
         }
         
         // Update sweep tracking
-        user.wallet.unsweptFunds = 0;
-        user.wallet.totalSwept = (user.wallet.totalSwept || 0) + newUnsweptTotal;
-        user.wallet.lastSweepAt = new Date();
-        await user.save();
+        userForSweep.wallet.unsweptFunds = 0;
+        userForSweep.wallet.totalSwept = (userForSweep.wallet.totalSwept || 0) + newUnsweptTotal;
+        userForSweep.wallet.lastSweepAt = new Date();
+        await userForSweep.save();
         
         deposit.status = 'swept';
+        deposit.balanceCredited = true; // Ensure marked
         await deposit.save();
         console.log(`[SWEEP] ✅ Swept ${newUnsweptTotal} USDT to master wallet`);
       } catch (sweepError) {
-        // If sweep fails, user balance is already credited - just log the error
+        // If sweep fails, user balance is ALREADY credited - just log the error
         console.error(`[SWEEP] ❌ Sweep failed: ${sweepError.message}`);
-        console.error(`[SWEEP] ⚠️ User balance already credited. Funds remain in user address: ${address}`);
-      deposit.status = 'sweep_failed';
-      deposit.error = `Sweep failed: ${sweepError.message}. User balance already credited.`;
-      deposit.balanceCredited = true; // Ensure this is marked
-      await deposit.save();
+        console.error(`[SWEEP] ⚠️ User balance ALREADY CREDITED. Funds remain in user address: ${address}`);
+        console.error(`[SWEEP] ⚠️ User can use their ${amount} USDT in platform wallet`);
+        deposit.status = 'sweep_failed';
+        deposit.error = `Sweep failed: ${sweepError.message}. User balance already credited.`;
+        deposit.balanceCredited = true; // CRITICAL: Ensure this is marked
+        await deposit.save();
         // Keep unswept funds tracked - will retry on next deposit
-        user.wallet.unsweptFunds = newUnsweptTotal;
-        await user.save();
+        userForSweep.wallet.unsweptFunds = newUnsweptTotal;
+        await userForSweep.save();
       }
     } else {
       // Small deposits: hold in user address and track unswept
-      user.wallet.unsweptFunds = newUnsweptTotal;
-      await user.save();
+      userForSweep.wallet.unsweptFunds = newUnsweptTotal;
+      await userForSweep.save();
       deposit.status = 'held';
       deposit.balanceCredited = true; // Balance is credited even if held
       await deposit.save();
       console.log(`[DEPOSIT] Unswept funds: ${newUnsweptTotal} USDT (waiting for ${MIN_DEPOSIT_USDT} USDT to auto-sweep)`);
     }
 
+    // Final status update - ensure balanceCredited is true
     deposit.status = 'completed';
     deposit.balanceCredited = true;
     deposit.error = null; // Clear any previous errors
     await deposit.save();
 
-    console.log(`[DEPOSIT] ✅ Deposit processing completed: ${amount} USDT credited to user`);
+    console.log(`[DEPOSIT] ✅ Deposit processing completed: ${amount} USDT credited to user platform wallet`);
     return { success: true, swept: shouldSweep, balanceCredited: true };
   } catch (error) {
-    // Even if there's an error, try to credit the user if not already done
+    // This catch should rarely be hit since balance credit happens first
+    // But if it is, try to credit the user if not already done
+    console.error(`[DEPOSIT] ❌ Error in deposit processing: ${error.message}`);
+    console.error(`[DEPOSIT] ❌ Stack:`, error.stack);
+    
     let balanceCredited = deposit.balanceCredited || false;
+    
+    // Double-check if balance was actually credited by checking user's current balance
     if (!balanceCredited) {
       try {
-        const currentBalance = user.wallet?.balances?.find(b => b.currency === 'USDT')?.amount || 0;
-        const expectedBalance = (currentBalance || 0) + amount;
-        // Check if user already has this amount (maybe credited in a previous attempt)
-        const hasAmount = currentBalance >= amount;
-        
-        if (!hasAmount) {
-          console.log(`[DEPOSIT] ⚠️ Error occurred but attempting to credit user balance as fallback`);
-          await updateLedgerBalance({ user, amount });
-          await addWalletTransaction({ user, amount, txHash });
-          user.wallet.depositStatus = 'confirmed';
-          await user.save();
+        const freshUser = await User.findOne({ userId: user.userId });
+        if (freshUser) {
+          const currentBalance = freshUser.wallet?.balances?.find(b => b.currency === 'USDT')?.amount || 0;
+          // Check if user already has this amount (maybe credited in a previous attempt)
+          const hasAmount = currentBalance >= amount;
           
-          balanceCredited = true;
-          deposit.balanceCredited = true;
-          console.log(`[DEPOSIT] ✅ User balance credited as fallback`);
-        } else {
-          console.log(`[DEPOSIT] ℹ️ User already has balance - marking as credited`);
-          balanceCredited = true;
-          deposit.balanceCredited = true;
+          if (!hasAmount) {
+            console.log(`[DEPOSIT] ⚠️ CRITICAL: Balance not credited! Attempting emergency credit...`);
+            await updateLedgerBalance({ user: freshUser, amount });
+            await addWalletTransaction({ user: freshUser, amount, txHash });
+            freshUser.wallet.depositStatus = 'confirmed';
+            await freshUser.save();
+            
+            balanceCredited = true;
+            deposit.balanceCredited = true;
+            console.log(`[DEPOSIT] ✅ User balance credited as emergency fallback`);
+          } else {
+            console.log(`[DEPOSIT] ℹ️ User already has balance - marking as credited`);
+            balanceCredited = true;
+            deposit.balanceCredited = true;
+          }
         }
       } catch (fallbackError) {
-        console.error(`[DEPOSIT] ❌ Fallback credit also failed: ${fallbackError.message}`);
+        console.error(`[DEPOSIT] ❌ CRITICAL: Emergency fallback credit also failed: ${fallbackError.message}`);
         balanceCredited = false;
       }
     }
     
     // Mark deposit status based on whether balance was credited
     if (balanceCredited) {
-      deposit.status = 'failed'; // Failed but balance credited
-      deposit.error = `Processing failed but balance credited: ${error.message}`;
+      deposit.status = 'completed'; // Mark as completed since balance is credited
+      deposit.error = `Processing had issues but balance credited: ${error.message}`;
+      console.log(`[DEPOSIT] ✅ Deposit marked as completed - balance was credited`);
     } else {
       deposit.status = 'failed'; // Failed and balance not credited - needs retry
       deposit.error = error.message;
+      console.error(`[DEPOSIT] ❌ Deposit failed - balance NOT credited - will retry`);
     }
     await deposit.save();
     
-    if (user.wallet) {
-      user.wallet.depositStatus = balanceCredited ? 'confirmed' : 'failed';
-      await user.save();
+    // Update user status
+    const userForStatus = await User.findOne({ userId: user.userId });
+    if (userForStatus && userForStatus.wallet) {
+      userForStatus.wallet.depositStatus = balanceCredited ? 'confirmed' : 'failed';
+      await userForStatus.save();
     }
     
-    // If balance was credited, don't throw error (deposit succeeded for user)
+    // If balance was credited, return success (deposit succeeded for user)
     if (balanceCredited) {
-      console.log(`[DEPOSIT] ⚠️ Deposit partially completed: balance credited but processing failed`);
+      console.log(`[DEPOSIT] ⚠️ Deposit completed with issues: balance credited but some processing failed`);
       return { success: true, balanceCredited: true, error: error.message };
     }
     
+    // If balance not credited, throw error so retry service can handle it
     throw error;
   }
 };

@@ -52,15 +52,24 @@ const checkAddressForDeposits = async (address, silent = false) => {
             contractAddress: tx.token_info.address,
           });
           
-          if (result?.success) {
-            console.log(`[DEPOSIT] ✅ Successfully processed ${amount} USDT deposit for user`);
+          if (result?.success || result?.balanceCredited) {
+            console.log(`[DEPOSIT] ✅ Successfully processed ${amount} USDT deposit - balance credited to user`);
           } else if (result?.ignored) {
             console.log(`[DEPOSIT] ⏭️ Deposit ignored: ${result.reason}`);
+          } else {
+            console.log(`[DEPOSIT] ⚠️ Deposit processing returned:`, result);
           }
         } catch (processError) {
           console.error(`[DEPOSIT] ❌ Processing failed:`, processError.message);
           console.error(`[DEPOSIT] ❌ Stack:`, processError.stack);
-          // Even if processing fails, the deposit was detected - user should be notified
+          // Check if balance was credited despite error
+          const Deposit = require('../schemas/deposit');
+          const deposit = await Deposit.findOne({ txHash });
+          if (deposit && deposit.balanceCredited) {
+            console.log(`[DEPOSIT] ✅ Balance was credited despite processing error - user has their funds`);
+          } else {
+            console.error(`[DEPOSIT] ❌ Balance NOT credited - will be retried by retry service`);
+          }
         }
       }
     }
