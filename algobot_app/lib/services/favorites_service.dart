@@ -49,12 +49,6 @@ class FavoritesService {
     }
   }
   
-  Future<bool> isFavorite(String symbol, String quoteCurrency) async {
-    final favorites = await getFavorites();
-    final pair = '${symbol.toUpperCase()}${quoteCurrency.toUpperCase()}';
-    return favorites.any((fav) => fav.toUpperCase() == pair);
-  }
-  
   Future<void> _saveFavorites(List<String> favorites) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_favoritesKey, json.encode(favorites));
