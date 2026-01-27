@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../config/env.dart';
 import '../models/crypto_coin.dart';
 import '../services/crypto_service.dart';
+import '../services/favorites_service.dart';
 import 'skeleton.dart';
 
 enum SortType { currency, price, change }
@@ -16,6 +17,7 @@ class CryptoListWidget extends StatefulWidget {
 
 class _CryptoListWidgetState extends State<CryptoListWidget> {
   final CryptoService _cryptoService = CryptoService();
+  final FavoritesService _favoritesService = FavoritesService();
   List<CryptoCoin> _allCoins = [];
   List<CryptoCoin> _filteredCoins = [];
   bool _isLoading = true;
@@ -24,6 +26,7 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
   SortType _sortType = SortType.currency;
   SortOrder _sortOrder = SortOrder.ascending;
   String _searchQuery = '';
+  Set<String> _favorites = {};
 
   final List<String> _quoteCurrencies = ['USDT', 'BTC', 'ETH', 'USDC'];
 
@@ -32,8 +35,23 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
     super.initState();
     // Load data after the first frame to ensure widget is fully built
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadFavorites();
       _loadCryptoData();
     });
+  }
+  
+  Future<void> _loadFavorites() async {
+    final favorites = await _favoritesService.getFavorites();
+    if (mounted) {
+      setState(() {
+        _favorites = favorites.toSet();
+      });
+    }
+  }
+  
+  Future<void> _toggleFavorite(CryptoCoin coin) async {
+    await _favoritesService.toggleFavorite(coin.symbol, _selectedQuote);
+    await _loadFavorites();
   }
 
   Future<void> _loadCryptoData({bool retry = false}) async {
@@ -504,6 +522,21 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 child: Row(
                   children: [
+                    IconButton(
+                      icon: Icon(
+                        _favorites.contains('${coin.symbol}$_selectedQuote')
+                            ? Icons.star
+                            : Icons.star_border,
+                        color: _favorites.contains('${coin.symbol}$_selectedQuote')
+                            ? Colors.amber
+                            : Colors.grey,
+                        size: 20,
+                      ),
+                      onPressed: () => _toggleFavorite(coin),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                    const SizedBox(width: 8),
                     Expanded(
                       flex: 2,
                       child: Column(

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'home_page.dart';
 import 'strategy_page.dart';
 import 'circle_page.dart';
-import 'news_page.dart';
+import 'favorites_page.dart';
 import 'mine_page.dart';
 
 class MainNavigationScreen extends StatefulWidget {
@@ -19,7 +19,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     HomePage(),
     StrategyPage(),
     CirclePage(),
-    NewsPage(),
+    FavoritesPage(),
     MinePage(),
   ];
 
@@ -71,9 +71,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   index: 2,
                 ),
                 _buildNavItem(
-                  icon: Icons.notifications,
-                  iconOutlined: Icons.notifications_outlined,
-                  label: 'News',
+                  icon: Icons.star,
+                  iconOutlined: Icons.star_border,
+                  label: 'Favorites',
                   index: 3,
                 ),
                 _buildNavItem(

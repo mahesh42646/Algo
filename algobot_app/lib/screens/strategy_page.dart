@@ -206,6 +206,26 @@ class _StrategyPageState extends State<StrategyPage> {
     final tradeDirection = trade['tradeDirection'] ?? 'WAITING';
     final lastSignal = trade['lastSignal'] ?? {};
 
+    // Extract base and quote from symbol (e.g., BTCUSDT -> BTC, USDT)
+    String baseSymbol = '';
+    String quoteCurrency = 'USDT';
+    if (symbol.length > 4) {
+      // Try common quote currencies
+      final quotes = ['USDT', 'BTC', 'ETH', 'USDC', 'BNB'];
+      for (final quote in quotes) {
+        if (symbol.endsWith(quote)) {
+          baseSymbol = symbol.substring(0, symbol.length - quote.length);
+          quoteCurrency = quote;
+          break;
+        }
+      }
+      if (baseSymbol.isEmpty) {
+        baseSymbol = symbol.substring(0, symbol.length - 4);
+      }
+    } else {
+      baseSymbol = symbol;
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -231,16 +251,48 @@ class _StrategyPageState extends State<StrategyPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      symbol,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                child: GestureDetector(
+                  onTap: () {
+                    // Navigate to coin detail screen
+                    final coin = CryptoCoin(
+                      id: baseSymbol.toLowerCase(),
+                      symbol: baseSymbol,
+                      name: baseSymbol,
+                      currentPrice: 0.0,
+                      priceChangePercentage24h: 0.0,
+                      marketCap: 0.0,
+                      totalVolume: 0.0,
+                    );
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CoinDetailScreen(
+                          coin: coin,
+                          quoteCurrency: quoteCurrency,
+                        ),
                       ),
-                    ),
+                    );
+                  },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            symbol,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(
+                            Icons.arrow_forward_ios,
+                            size: 14,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ],
+                      ),
                     const SizedBox(height: 4),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

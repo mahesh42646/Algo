@@ -9,6 +9,7 @@ import '../services/technical_indicators.dart';
 import '../services/exchange_service.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/tradingview_chart.dart';
+import '../widgets/trade_info_card.dart';
 import 'algo_trading_config_screen.dart';
 import '../services/algo_trading_service.dart';
 
@@ -29,6 +30,7 @@ class CoinDetailScreen extends StatefulWidget {
 class _CoinDetailScreenState extends State<CoinDetailScreen> {
   final ChartService _chartService = ChartService();
   final AlgoTradingService _algoService = AlgoTradingService();
+  final ExchangeService _exchangeService = ExchangeService();
   Map<String, int> _sentiment = {'buy': 0, 'sell': 0, 'neutral': 0};
   Map<String, dynamic> _stats24h = {};
   String _selectedInterval = '5';
@@ -40,7 +42,9 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
   Timer? _indicatorUpdateTimer;
   DateTime? _lastUpdateTime;
   Timer? _tradeUpdateTimer;
+  Timer? _balanceUpdateTimer;
   Map<String, dynamic>? _activeTrade; // Current active trade for this symbol
+  String? _binanceBalance; // Realtime Binance balance
   final Map<String, String> _intervalMap = {
     '1m': '1',
     '3m': '3',
@@ -80,6 +84,40 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
     });
     // Load immediately
     _loadActiveTrade();
+    
+    // Update Binance balance every 5 seconds
+    _balanceUpdateTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (mounted) {
+        _loadBinanceBalance();
+      }
+    });
+    _loadBinanceBalance();
+  }
+  
+  Future<void> _loadBinanceBalance() async {
+    try {
+      final apis = await _exchangeService.getLinkedApis();
+      final activeBinanceApi = apis.firstWhere(
+        (api) => api.platform == 'binance' && api.isActive && !api.isTest,
+        orElse: () => null,
+      );
+      
+      if (activeBinanceApi != null) {
+        final balance = await _exchangeService.getBalance('binance', apiId: activeBinanceApi.id);
+        final usdtBalance = balance.firstWhere(
+          (b) => b.asset.toUpperCase() == widget.quoteCurrency.toUpperCase(),
+          orElse: () => null,
+        );
+        
+        if (mounted && usdtBalance != null) {
+          setState(() {
+            _binanceBalance = '${usdtBalance.total.toStringAsFixed(2)} ${widget.quoteCurrency}';
+          });
+        }
+      }
+    } catch (e) {
+      // Ignore balance errors
+    }
   }
   
   Future<void> _loadActiveTrade() async {
@@ -114,6 +152,7 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
   void dispose() {
     _indicatorUpdateTimer?.cancel();
     _tradeUpdateTimer?.cancel();
+    _balanceUpdateTimer?.cancel();
     super.dispose();
   }
 
@@ -1421,8 +1460,39 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
     final startPrice = _activeTrade!['startPrice'] ?? 0.0;
     final leverage = _activeTrade!['leverage'] ?? 1;
     final useMargin = _activeTrade!['useMargin'] ?? false;
+    final maxLossPerTrade = _activeTrade!['maxLossPerTrade'] ?? 3.0;
+    final maxProfitBook = _activeTrade!['maxProfitBook'] ?? 3.0;
     
-    final pnlColor = currentPnL >= 0 ? Colors.green : Colors.red;
+    // Calculate target price
+    final targetPrice = tradeDirection == 'BUY'
+        ? startPrice * (1 + maxProfitBook / 100)
+        : startPrice * (1 - maxProfitBook / 100);
+    
+    // Position details
+    final positionDetails = <String, dynamic>{};
+    if (_activeTrade!['orders'] != null && (_activeTrade!['orders'] as List).isNotEmpty) {
+      positionDetails['Open Positions'] = (_activeTrade!['orders'] as List).length;
+      final totalQty = (_activeTrade!['orders'] as List).fold<double>(
+        0.0,
+        (sum, order) => sum + (double.tryParse(order['quantity']?.toString() ?? '0') ?? 0.0),
+      );
+      positionDetails['Total Quantity'] = totalQty.toStringAsFixed(8);
+    }
+    
+    return TradeInfoCard(
+      currentPrice: '\$${currentPrice.toStringAsFixed(2)}',
+      currentLevel: currentLevel,
+      totalLevels: numberOfLevels,
+      targetPercent: maxProfitBook,
+      targetPrice: '\$${targetPrice.toStringAsFixed(2)}',
+      totalBalance: '\$${totalBalance.toStringAsFixed(2)}',
+      profitLoss: unrealizedPnL,
+      profitLossPercent: currentPnL,
+      binanceBalance: _binanceBalance,
+      positionDetails: positionDetails.isNotEmpty ? positionDetails : null,
+      isMargin: useMargin,
+      leverage: leverage > 1 ? leverage : null,
+    );
     
     return Container(
       margin: const EdgeInsets.all(16),

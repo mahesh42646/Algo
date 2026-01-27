@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/crypto_list_widget.dart';
+import '../services/user_service.dart';
+import '../services/auth_service.dart';
 import 'api_binding_screen.dart';
 import 'profit_details_screen.dart';
 import 'invite_friends_screen.dart';
 import 'user_guide_screen.dart';
+import 'mine_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -15,7 +18,11 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final PageController _pageController = PageController();
+  final UserService _userService = UserService();
+  final AuthService _authService = AuthService();
   int _currentPage = 0;
+  double _platformBalance = 0.0;
+  bool _isLoadingBalance = true;
 
   final List<Map<String, dynamic>> _carouselItems = [
     {
@@ -59,9 +66,41 @@ class _HomePageState extends State<HomePage> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadPlatformBalance();
+  }
+
+  @override
   void dispose() {
     _pageController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadPlatformBalance() async {
+    try {
+      final userId = _authService.currentUser?.uid;
+      if (userId != null) {
+        final wallet = await _userService.getWallet(userId);
+        final balances = wallet['balances'] as List?;
+        final usdtBalance = balances?.firstWhere(
+          (b) => (b['currency'] ?? '').toString().toUpperCase() == 'USDT',
+          orElse: () => {'amount': 0.0},
+        );
+        if (mounted) {
+          setState(() {
+            _platformBalance = (usdtBalance['amount'] ?? 0.0).toDouble();
+            _isLoadingBalance = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingBalance = false;
+        });
+      }
+    }
   }
 
   void _handlePlatformOptionTap(String title) {
@@ -103,12 +142,54 @@ class _HomePageState extends State<HomePage> {
         elevation: 0,
         title: const Text('Home'),
         actions: [
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MinePage()),
+              );
+            },
+            child: Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.account_balance_wallet,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _isLoadingBalance
+                        ? '...'
+                        : '${_platformBalance.toStringAsFixed(2)} USDT',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           const NotificationBell(),
         ],
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          // Trigger refresh in crypto list widget
+          // Trigger refresh in crypto list widget and balance
+          await _loadPlatformBalance();
           setState(() {});
         },
         child: SingleChildScrollView(

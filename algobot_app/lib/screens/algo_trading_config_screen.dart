@@ -5,6 +5,7 @@ import '../services/algo_trading_service.dart';
 import '../services/exchange_service.dart';
 import '../services/user_service.dart';
 import '../services/auth_service.dart';
+import '../widgets/trade_info_card.dart';
 
 class AlgoTradingConfigScreen extends StatefulWidget {
   final CryptoCoin coin;
@@ -52,7 +53,9 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
   Map<String, dynamic>? _activeTradeDetails;
   Map<String, dynamic>? _tradeHistory;
   Timer? _updateTimer;
+  Timer? _balanceUpdateTimer;
   bool _showHistory = false;
+  String? _binanceBalance; // Realtime Binance balance
 
   @override
   void initState() {
@@ -68,6 +71,34 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
         _loadActiveTradeDetails();
       }
     });
+    
+    // Update Binance balance every 5 seconds
+    _balanceUpdateTimer?.cancel();
+    _balanceUpdateTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (mounted && _selectedApi != null) {
+        _loadApiBalance(_selectedApi!);
+      }
+    });
+  }
+  
+  Future<void> _updateBinanceBalance() async {
+    if (_selectedApi != null && _selectedApi!.platform == 'binance') {
+      try {
+        final balance = await _exchangeService.getBalance('binance', apiId: _selectedApi!.id);
+        final usdtBalance = balance.firstWhere(
+          (b) => b.asset.toUpperCase() == widget.quoteCurrency.toUpperCase(),
+          orElse: () => null,
+        );
+        
+        if (mounted && usdtBalance != null) {
+          setState(() {
+            _binanceBalance = '${usdtBalance.total.toStringAsFixed(2)} ${widget.quoteCurrency}';
+          });
+        }
+      } catch (e) {
+        // Ignore balance errors
+      }
+    }
   }
   
   Future<void> _loadActiveTradeDetails() async {
@@ -207,6 +238,16 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
             'platform': api.platform,
             'permissions': api.permissions,
           };
+          // Update Binance balance for display
+          if (api.platform == 'binance') {
+            final usdtBalance = balance.firstWhere(
+              (b) => b.asset.toUpperCase() == widget.quoteCurrency.toUpperCase(),
+              orElse: () => null,
+            );
+            if (usdtBalance != null) {
+              _binanceBalance = '${usdtBalance.total.toStringAsFixed(2)} ${widget.quoteCurrency}';
+            }
+          }
         });
       }
     } catch (e) {
@@ -234,6 +275,7 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
   @override
   void dispose() {
     _updateTimer?.cancel();
+    _balanceUpdateTimer?.cancel();
     _maxLossPerTradeController.dispose();
     _maxLossOverallController.dispose();
     _maxProfitBookController.dispose();
@@ -1143,6 +1185,7 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
     final currentPrice = _activeTradeDetails!['currentPrice'] ?? 0.0;
     final startPrice = _activeTradeDetails!['startPrice'] ?? 0.0;
     final currentPnL = _activeTradeDetails!['currentPnL'] ?? 0.0;
+    final unrealizedPnL = _activeTradeDetails!['unrealizedPnL'] ?? 0.0;
     final totalBalance = _activeTradeDetails!['totalBalance'] ?? _activeTradeDetails!['totalInvested'] ?? 0.0;
     final currentLevel = _activeTradeDetails!['currentLevel'] ?? 0;
     final numberOfLevels = _activeTradeDetails!['numberOfLevels'] ?? 0;
@@ -1153,135 +1196,58 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
     // Calculate stop loss and target prices
     final maxLossPerTrade = double.tryParse(_maxLossPerTradeController.text) ?? 3.0;
     final maxProfitBook = double.tryParse(_maxProfitBookController.text) ?? 3.0;
-    final stopLossPrice = tradeDirection == 'BUY' 
-        ? startPrice * (1 - maxLossPerTrade / 100)
-        : startPrice * (1 + maxLossPerTrade / 100);
     final targetPrice = tradeDirection == 'BUY'
         ? startPrice * (1 + maxProfitBook / 100)
         : startPrice * (1 - maxProfitBook / 100);
     
-    return Container(
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: currentPnL >= 0 ? Colors.green : Colors.red,
-          width: 2,
+    // Position details from history
+    final positionDetails = <String, dynamic>{};
+    if (_tradeHistory != null && _tradeHistory!['history'] != null) {
+      final history = _tradeHistory!['history'] as List?;
+      if (history != null) {
+        final trades = history.where((h) => h['type'] == 'trade').toList();
+        positionDetails['Open Positions'] = trades.length;
+        if (trades.isNotEmpty) {
+          final totalQty = trades.fold<double>(
+            0.0,
+            (sum, trade) => sum + (double.tryParse(trade['quantity']?.toString() ?? '0') ?? 0.0),
+          );
+          positionDetails['Total Quantity'] = totalQty.toStringAsFixed(8);
+        }
+      }
+    }
+    
+    return Column(
+      children: [
+        TradeInfoCard(
+          currentPrice: '\$${currentPrice.toStringAsFixed(2)}',
+          currentLevel: currentLevel,
+          totalLevels: numberOfLevels,
+          targetPercent: maxProfitBook,
+          targetPrice: '\$${targetPrice.toStringAsFixed(2)}',
+          totalBalance: '\$${totalBalance.toStringAsFixed(2)}',
+          profitLoss: unrealizedPnL,
+          profitLossPercent: currentPnL,
+          binanceBalance: _binanceBalance,
+          positionDetails: positionDetails.isNotEmpty ? positionDetails : null,
+          isMargin: useMargin,
+          leverage: leverage > 1 ? leverage : null,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: (currentPnL >= 0 ? Colors.green : Colors.red).withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    tradeDirection == 'BUY' ? Icons.trending_up : Icons.trending_down,
-                    color: tradeDirection == 'BUY' ? Colors.green : Colors.red,
-                    size: 24,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Active Trade - $tradeDirection',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              if (useMargin && leverage > 1)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '${leverage}x',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _buildTradeMetric('Current Price', '\$${currentPrice.toStringAsFixed(2)}', Colors.grey[700]!),
-              ),
-              Expanded(
-                child: _buildTradeMetric('Entry Price', '\$${startPrice.toStringAsFixed(2)}', Colors.grey[700]!),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildTradeMetric('P&L', '${currentPnL >= 0 ? "+" : ""}${currentPnL.toStringAsFixed(2)}%', currentPnL >= 0 ? Colors.green : Colors.red, isBold: true),
-              ),
-              Expanded(
-                child: _buildTradeMetric('Total Balance', '\$${totalBalance.toStringAsFixed(2)}', Colors.blue, isBold: true),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildTradeMetric('Levels', '$currentLevel / $numberOfLevels', Colors.orange),
-              ),
-              Expanded(
-                child: _buildTradeMetric('Stop Loss', '\$${stopLossPrice.toStringAsFixed(2)}', Colors.red),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _buildTradeMetric('Target Price', '\$${targetPrice.toStringAsFixed(2)}', Colors.green),
-          const SizedBox(height: 16),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: numberOfLevels > 0 ? currentLevel / numberOfLevels : 0,
-              backgroundColor: Colors.grey[300],
-              valueColor: AlwaysStoppedAnimation<Color>(
-                currentLevel >= numberOfLevels ? Colors.green : Colors.blue,
-              ),
-              minHeight: 8,
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _isLoading ? null : _stopActiveTrade,
+            icon: const Icon(Icons.stop_circle),
+            label: const Text('Stop Active Trade'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
             ),
           ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _isLoading ? null : _stopActiveTrade,
-              icon: const Icon(Icons.stop_circle),
-              label: const Text('Stop Active Trade'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
