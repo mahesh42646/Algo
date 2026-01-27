@@ -675,7 +675,7 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
       child: Column(
         children: [
           Text(
-            'Market Sentiment',
+            ' ',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,

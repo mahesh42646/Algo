@@ -160,4 +160,28 @@ class AlgoTradingService {
       };
     }
   }
+
+  // Get detailed transaction history for a specific trade
+  Future<Map<String, dynamic>> getTradeHistory(String symbol) async {
+    if (_userId == null) {
+      throw Exception('User not logged in');
+    }
+
+    try {
+      final response = await _apiHandler.get(
+        '/algo-trading/$_userId/trade-history/$symbol',
+      );
+
+      if (response.statusCode == 200) {
+        return response.data['data'] ?? {};
+      } else {
+        throw Exception(response.data['error'] ?? 'Failed to get trade history');
+      }
+    } catch (e) {
+      if (Env.enableApiLogs) {
+        print('Error getting trade history: $e');
+      }
+      rethrow;
+    }
+  }
 }

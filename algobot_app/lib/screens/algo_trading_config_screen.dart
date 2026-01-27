@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/crypto_coin.dart';
 import '../services/algo_trading_service.dart';
@@ -46,11 +47,58 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
   double _platformWalletBalance = 0.0;
   String? _validationError;
   Map<String, dynamic>? _validationDetails;
+  
+  // Transaction history and live updates
+  Map<String, dynamic>? _activeTradeDetails;
+  Map<String, dynamic>? _tradeHistory;
+  Timer? _updateTimer;
+  bool _showHistory = false;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _startLiveUpdates();
+  }
+  
+  void _startLiveUpdates() {
+    _updateTimer?.cancel();
+    _updateTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (mounted && _hasActiveTrade) {
+        _loadActiveTradeDetails();
+      }
+    });
+  }
+  
+  Future<void> _loadActiveTradeDetails() async {
+    try {
+      final symbol = '${widget.coin.symbol}${widget.quoteCurrency}';
+      final trades = await _algoService.getActiveTrades();
+      final activeTrade = trades.firstWhere(
+        (t) => t['symbol'] == symbol && (t['isStarted'] == true || t['isStarted'] == 'true'),
+        orElse: () => {},
+      );
+      
+      if (activeTrade.isNotEmpty && mounted) {
+        setState(() {
+          _activeTradeDetails = activeTrade;
+        });
+        
+        // Load transaction history
+        try {
+          final history = await _algoService.getTradeHistory(symbol);
+          if (mounted) {
+            setState(() {
+              _tradeHistory = history;
+            });
+          }
+        } catch (e) {
+          // History might not be available yet
+        }
+      }
+    } catch (e) {
+      // Ignore errors in live updates
+    }
   }
 
   Future<void> _loadData() async {
@@ -109,6 +157,11 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
         } else if (_availableApis.isEmpty) {
           // Log for debugging
           print('[ALGO CONFIG] No active APIs found. Total APIs: ${apis.length}');
+        }
+        
+        // Load active trade details if trade exists
+        if (_hasActiveTrade) {
+          _loadActiveTradeDetails();
         }
       }
     } catch (e) {
@@ -180,6 +233,7 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
 
   @override
   void dispose() {
+    _updateTimer?.cancel();
     _maxLossPerTradeController.dispose();
     _maxLossOverallController.dispose();
     _maxProfitBookController.dispose();
@@ -516,50 +570,12 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-              if (_hasActiveTrade)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.warning, color: Colors.orange),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'You have an active algo trade for this pair.',
-                              style: TextStyle(
-                                color: Colors.orange[800],
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _isLoading ? null : _stopActiveTrade,
-                          icon: const Icon(Icons.stop_circle),
-                          label: const Text('Stop Active Trade'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              if (_hasActiveTrade) ...[
+                _buildActiveTradeCard(),
+                const SizedBox(height: 16),
+                _buildTransactionHistorySection(),
+                const SizedBox(height: 16),
+              ],
 
               // API Selection
               if (_availableApis.isNotEmpty) ...[
@@ -959,7 +975,7 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: (_isLoading || _isValidating || _availableApis.isEmpty) 
+                  onPressed: (_isLoading || _isValidating || _availableApis.isEmpty || _hasActiveTrade) 
                       ? null 
                       : _validateBeforeStart,
                   style: ElevatedButton.styleFrom(
@@ -1105,6 +1121,378 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActiveTradeCard() {
+    if (_activeTradeDetails == null) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: Colors.orange.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.orange),
+        ),
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    
+    final currentPrice = _activeTradeDetails!['currentPrice'] ?? 0.0;
+    final startPrice = _activeTradeDetails!['startPrice'] ?? 0.0;
+    final currentPnL = _activeTradeDetails!['currentPnL'] ?? 0.0;
+    final totalBalance = _activeTradeDetails!['totalBalance'] ?? _activeTradeDetails!['totalInvested'] ?? 0.0;
+    final currentLevel = _activeTradeDetails!['currentLevel'] ?? 0;
+    final numberOfLevels = _activeTradeDetails!['numberOfLevels'] ?? 0;
+    final tradeDirection = _activeTradeDetails!['tradeDirection'] ?? 'N/A';
+    final leverage = _activeTradeDetails!['leverage'] ?? 1;
+    final useMargin = _activeTradeDetails!['useMargin'] ?? false;
+    
+    // Calculate stop loss and target prices
+    final maxLossPerTrade = double.tryParse(_maxLossPerTradeController.text) ?? 3.0;
+    final maxProfitBook = double.tryParse(_maxProfitBookController.text) ?? 3.0;
+    final stopLossPrice = tradeDirection == 'BUY' 
+        ? startPrice * (1 - maxLossPerTrade / 100)
+        : startPrice * (1 + maxLossPerTrade / 100);
+    final targetPrice = tradeDirection == 'BUY'
+        ? startPrice * (1 + maxProfitBook / 100)
+        : startPrice * (1 - maxProfitBook / 100);
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: currentPnL >= 0 ? Colors.green : Colors.red,
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (currentPnL >= 0 ? Colors.green : Colors.red).withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    tradeDirection == 'BUY' ? Icons.trending_up : Icons.trending_down,
+                    color: tradeDirection == 'BUY' ? Colors.green : Colors.red,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Active Trade - $tradeDirection',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              if (useMargin && leverage > 1)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${leverage}x',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildTradeMetric('Current Price', '\$${currentPrice.toStringAsFixed(2)}', Colors.grey[700]!),
+              ),
+              Expanded(
+                child: _buildTradeMetric('Entry Price', '\$${startPrice.toStringAsFixed(2)}', Colors.grey[700]!),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildTradeMetric('P&L', '${currentPnL >= 0 ? "+" : ""}${currentPnL.toStringAsFixed(2)}%', currentPnL >= 0 ? Colors.green : Colors.red, isBold: true),
+              ),
+              Expanded(
+                child: _buildTradeMetric('Total Balance', '\$${totalBalance.toStringAsFixed(2)}', Colors.blue, isBold: true),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildTradeMetric('Levels', '$currentLevel / $numberOfLevels', Colors.orange),
+              ),
+              Expanded(
+                child: _buildTradeMetric('Stop Loss', '\$${stopLossPrice.toStringAsFixed(2)}', Colors.red),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _buildTradeMetric('Target Price', '\$${targetPrice.toStringAsFixed(2)}', Colors.green),
+          const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: numberOfLevels > 0 ? currentLevel / numberOfLevels : 0,
+              backgroundColor: Colors.grey[300],
+              valueColor: AlwaysStoppedAnimation<Color>(
+                currentLevel >= numberOfLevels ? Colors.green : Colors.blue,
+              ),
+              minHeight: 8,
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _isLoading ? null : _stopActiveTrade,
+              icon: const Icon(Icons.stop_circle),
+              label: const Text('Stop Active Trade'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTradeMetric(String label, String value, Color color, {bool isBold = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[600],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTransactionHistorySection() {
+    if (_tradeHistory == null) {
+      return const SizedBox.shrink();
+    }
+    
+    final history = _tradeHistory!['history'] as List<dynamic>? ?? [];
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Theme.of(context).dividerColor,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: () {
+              setState(() {
+                _showHistory = !_showHistory;
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Transaction History',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Icon(
+                    _showHistory ? Icons.expand_less : Icons.expand_more,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_showHistory) ...[
+            const Divider(height: 1),
+            if (history.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(
+                  child: Text('No transaction history yet'),
+                ),
+              )
+            else
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: history.length,
+                itemBuilder: (context, index) {
+                  final entry = history[index];
+                  final level = entry['level'] ?? 0;
+                  final type = entry['type'] ?? 'trade';
+                  final description = entry['description'] ?? 'Unknown';
+                  final price = entry['price'];
+                  final quantity = entry['quantity'];
+                  final balance = entry['balance'] ?? 0.0;
+                  final invested = entry['invested'] ?? 0.0;
+                  final pnl = entry['pnl'] ?? 0.0;
+                  final pnlPercent = entry['pnlPercent'] ?? 0.0;
+                  
+                  return Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                          color: Theme.of(context).dividerColor,
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              description,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                            if (level > 0)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  'Level $level',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        if (price != null && quantity != null) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Text(
+                                'Price: \$${price.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Text(
+                                'Qty: ${quantity.toStringAsFixed(8)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Balance: \$${balance.toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                Text(
+                                  'Invested: \$${invested.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (pnl != 0 || pnlPercent != 0)
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    '${pnl >= 0 ? "+" : ""}\$${pnl.toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: pnl >= 0 ? Colors.green : Colors.red,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${pnlPercent >= 0 ? "+" : ""}${pnlPercent.toStringAsFixed(2)}%',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: pnlPercent >= 0 ? Colors.green : Colors.red,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+          ],
         ],
       ),
     );

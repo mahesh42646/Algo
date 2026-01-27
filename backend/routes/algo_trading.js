@@ -495,6 +495,146 @@ router.get('/:userId/trades', async (req, res, next) => {
   }
 });
 
+// Get detailed transaction history for a specific trade
+router.get('/:userId/trade-history/:symbol', async (req, res, next) => {
+  try {
+    const { userId, symbol } = req.params;
+    
+    // Find the trade
+    const tradeKey = `${userId}_${symbol}`;
+    const trade = activeTrades.get(tradeKey);
+    
+    if (!trade) {
+      return res.status(404).json({
+        success: false,
+        error: 'Trade not found',
+      });
+    }
+    
+    // Build detailed transaction history
+    const history = [];
+    let runningBalance = 0.0;
+    let cumulativeInvested = 0.0;
+    
+    // Initial balance (before any trades)
+    history.push({
+      level: 0,
+      type: 'initial',
+      description: 'Initial Balance',
+      balance: 0.0,
+      invested: 0.0,
+      price: null,
+      quantity: null,
+      timestamp: trade.createdAt || trade.startedAt,
+    });
+    
+    // Process each order/level
+    if (trade.orders && trade.orders.length > 0) {
+      for (let i = 0; i < trade.orders.length; i++) {
+        const order = trade.orders[i];
+        const orderPrice = parseFloat(order.price || 0);
+        const orderQuantity = parseFloat(order.quantity || 0);
+        const orderAmount = orderPrice * orderQuantity;
+        
+        cumulativeInvested += orderAmount;
+        runningBalance = cumulativeInvested; // Before P&L
+        
+        // Calculate P&L at this point
+        const currentPrice = await getCurrentPrice(trade.symbol, trade.isTest).catch(() => orderPrice);
+        const priceMovement = orderPrice > 0 
+          ? ((currentPrice - orderPrice) / orderPrice) * 100 
+          : 0;
+        const pnlMultiplier = trade.useMargin && trade.leverage > 1 ? trade.leverage : 1;
+        const pnl = (priceMovement / 100) * orderAmount * pnlMultiplier;
+        
+        history.push({
+          level: i + 1,
+          type: 'trade',
+          description: `Level ${i + 1} - ${order.side} Order`,
+          side: order.side,
+          price: orderPrice,
+          quantity: orderQuantity,
+          amount: orderAmount,
+          balance: runningBalance,
+          invested: cumulativeInvested,
+          currentPrice: currentPrice,
+          pnl: pnl,
+          pnlPercent: priceMovement * pnlMultiplier,
+          timestamp: order.timestamp || trade.startedAt,
+          orderId: order.orderId,
+        });
+      }
+    }
+    
+    // Add current status
+    if (trade.isActive && trade.isStarted) {
+      const currentPrice = await getCurrentPrice(trade.symbol, trade.isTest).catch(() => trade.startPrice);
+      const totalQuantity = trade.orders ? trade.orders.reduce((sum, o) => sum + parseFloat(o.quantity || 0), 0) : 0;
+      const avgEntryPrice = totalQuantity > 0 ? trade.totalInvested / totalQuantity : trade.startPrice;
+      
+      const priceMovement = avgEntryPrice > 0 
+        ? ((currentPrice - avgEntryPrice) / avgEntryPrice) * 100 
+        : 0;
+      const pnlMultiplier = trade.useMargin && trade.leverage > 1 ? trade.leverage : 1;
+      const totalPnL = (priceMovement / 100) * trade.totalInvested * pnlMultiplier;
+      
+      history.push({
+        level: trade.currentLevel,
+        type: 'current',
+        description: `Current Status - Level ${trade.currentLevel}/${trade.numberOfLevels}`,
+        balance: trade.totalInvested + totalPnL,
+        invested: trade.totalInvested,
+        currentPrice: currentPrice,
+        avgEntryPrice: avgEntryPrice,
+        totalQuantity: totalQuantity,
+        pnl: totalPnL,
+        pnlPercent: priceMovement * pnlMultiplier,
+        timestamp: new Date(),
+      });
+    }
+    
+    // Add stop information if stopped
+    if (trade.stoppedAt) {
+      history.push({
+        level: trade.currentLevel,
+        type: 'stopped',
+        description: `Trade Stopped - ${trade.stopReason || 'Manual'}`,
+        balance: trade.totalInvested,
+        invested: trade.totalInvested,
+        reason: trade.stopReason,
+        timestamp: trade.stoppedAt,
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        symbol: trade.symbol,
+        tradeDirection: trade.tradeDirection,
+        isActive: trade.isActive,
+        isStarted: trade.isStarted,
+        currentLevel: trade.currentLevel,
+        numberOfLevels: trade.numberOfLevels,
+        totalInvested: trade.totalInvested,
+        startPrice: trade.startPrice,
+        startedAt: trade.startedAt,
+        stoppedAt: trade.stoppedAt,
+        stopReason: trade.stopReason,
+        useMargin: trade.useMargin,
+        leverage: trade.leverage || 1,
+        maxLossPerTrade: trade.maxLossPerTrade,
+        maxLossOverall: trade.maxLossOverall,
+        maxProfitBook: trade.maxProfitBook,
+        amountPerLevel: trade.amountPerLevel,
+        history: history,
+      },
+    });
+  } catch (error) {
+    console.error(`[ALGO TRADING] ❌ Error getting trade history:`, error);
+    next(error);
+  }
+});
+
 // Get profit details for algo trades
 router.get('/:userId/profits', async (req, res, next) => {
   try {
