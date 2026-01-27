@@ -482,6 +482,53 @@ router.get('/algo-trades', authenticateAdmin, async (req, res, next) => {
   }
 });
 
+// Get deposit status for a user
+router.get('/users/:userId/deposits', authenticateAdmin, async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const Deposit = require('../schemas/deposit');
+    
+    const deposits = await Deposit.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(50);
+    
+    res.json({
+      success: true,
+      count: deposits.length,
+      deposits: deposits.map(d => ({
+        txHash: d.txHash,
+        amount: d.amount,
+        status: d.status,
+        balanceCredited: d.balanceCredited,
+        retryCount: d.retryCount,
+        error: d.error,
+        createdAt: d.createdAt,
+        lastRetryAt: d.lastRetryAt,
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Manually retry a failed deposit
+router.post('/deposits/:txHash/retry', authenticateAdmin, async (req, res, next) => {
+  try {
+    const { txHash } = req.params;
+    const { retryDeposit } = require('../services/deposit_retry_service');
+    
+    const result = await retryDeposit(txHash);
+    
+    res.json({
+      success: true,
+      message: 'Deposit retry initiated',
+      result,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Stop a specific algo trade
 router.post('/algo-trades/stop', authenticateAdmin, async (req, res, next) => {
   try {
