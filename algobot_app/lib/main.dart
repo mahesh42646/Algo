@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -6,6 +8,7 @@ import 'firebase_options.dart';
 import 'config/env.dart';
 import 'services/auth_service.dart';
 import 'services/api_handler.dart';
+import 'services/crash_reporter.dart';
 import 'providers/app_state_provider.dart';
 import 'screens/auth/email_verification_screen.dart';
 import 'screens/auth/password_setup_screen.dart';
@@ -17,7 +20,25 @@ import 'screens/coin_detail_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const AlgoBotApp());
+  
+  // Initialize crash reporter
+  await CrashReporter.initialize();
+  
+  // Run app with crash zone for catching async errors
+  runZonedGuarded(
+    () => runApp(const AlgoBotApp()),
+    (error, stackTrace) {
+      CrashReporter().logCrash(
+        error: error.toString(),
+        stackTrace: stackTrace.toString(),
+        context: 'runZonedGuarded - Uncaught async error',
+      );
+      if (kDebugMode) {
+        print('💥 Uncaught error: $error');
+        print(stackTrace);
+      }
+    },
+  );
 }
 
 class AlgoBotApp extends StatefulWidget {
@@ -95,6 +116,7 @@ class _AlgoBotAppState extends State<AlgoBotApp> {
           return MaterialApp(
             title: Env.appName,
             debugShowCheckedModeBanner: false,
+            navigatorObservers: [CrashReportingNavigatorObserver()],
             theme: ThemeData(
               colorScheme: ColorScheme.fromSeed(
                 seedColor: const Color(0xFF4A90E2), // Light bluish theme

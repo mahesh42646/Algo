@@ -170,24 +170,24 @@ class _StrategyPageState extends State<StrategyPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Strategy'),
-        actions: [
+        actions: <Widget>[
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadStrategies,
             tooltip: 'Refresh',
           ),
           const NotificationBell(),
-        ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(
-              children: [
+              children: <Widget>[
                 // Tab selector
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Row(
-                    children: [
+                    children: <Widget>[
                       Expanded(
                         child: _buildTabButton('Default', 0),
                       ),
