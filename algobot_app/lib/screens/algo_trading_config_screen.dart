@@ -36,43 +36,6 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
   late final TextEditingController _amountPerLevelController;
   late final TextEditingController _numberOfLevelsController;
   
-  @override
-  void initState() {
-    super.initState();
-    // Initialize controllers with strategy settings if provided
-    final settings = widget.strategySettings ?? {};
-    _maxLossPerTradeController = TextEditingController(
-      text: (settings['maxLossPerTrade'] ?? 3.0).toString(),
-    );
-    _maxLossOverallController = TextEditingController(
-      text: (settings['maxLossOverall'] ?? 3.0).toString(),
-    );
-    _maxProfitBookController = TextEditingController(
-      text: (settings['maxProfitBook'] ?? 3.0).toString(),
-    );
-    _amountPerLevelController = TextEditingController(
-      text: (settings['amountPerLevel'] ?? 10.0).toString(),
-    );
-    _numberOfLevelsController = TextEditingController(
-      text: (settings['numberOfLevels'] ?? 10).toString(),
-    );
-    
-    if (settings['useMargin'] == true) {
-      _useMargin = true;
-      _leverage = settings['leverage'] ?? 1;
-    }
-  }
-  
-  @override
-  void dispose() {
-    _maxLossPerTradeController.dispose();
-    _maxLossOverallController.dispose();
-    _maxProfitBookController.dispose();
-    _amountPerLevelController.dispose();
-    _numberOfLevelsController.dispose();
-    super.dispose();
-  }
-
   bool _acceptedTerms = false;
   bool _isLoading = false;
   bool _isValidating = false;
@@ -99,8 +62,43 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
   @override
   void initState() {
     super.initState();
+    // Initialize controllers with strategy settings if provided
+    final settings = widget.strategySettings ?? {};
+    _maxLossPerTradeController = TextEditingController(
+      text: (settings['maxLossPerTrade'] ?? 3.0).toString(),
+    );
+    _maxLossOverallController = TextEditingController(
+      text: (settings['maxLossOverall'] ?? 3.0).toString(),
+    );
+    _maxProfitBookController = TextEditingController(
+      text: (settings['maxProfitBook'] ?? 3.0).toString(),
+    );
+    _amountPerLevelController = TextEditingController(
+      text: (settings['amountPerLevel'] ?? 10.0).toString(),
+    );
+    _numberOfLevelsController = TextEditingController(
+      text: (settings['numberOfLevels'] ?? 10).toString(),
+    );
+    
+    if (settings['useMargin'] == true) {
+      _useMargin = true;
+      _leverage = settings['leverage'] ?? 1;
+    }
+    
     _loadData();
     _startLiveUpdates();
+  }
+  
+  @override
+  void dispose() {
+    _maxLossPerTradeController.dispose();
+    _maxLossOverallController.dispose();
+    _maxProfitBookController.dispose();
+    _amountPerLevelController.dispose();
+    _numberOfLevelsController.dispose();
+    _updateTimer?.cancel();
+    _balanceUpdateTimer?.cancel();
+    super.dispose();
   }
   
   void _startLiveUpdates() {
