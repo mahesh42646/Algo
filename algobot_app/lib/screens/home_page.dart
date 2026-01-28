@@ -228,83 +228,149 @@ class _HomePageState extends State<HomePage> {
           const NotificationBell(),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadData,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildStatsCards(),
-              const SizedBox(height: 16),
-              _buildQuickActions(),
-              const SizedBox(height: 16),
-              const CryptoListWidget(),
-              const SizedBox(height: 20),
-            ],
-          ),
-        ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final screenWidth = constraints.maxWidth;
+          final isSmallScreen = screenWidth < 360;
+          
+          return RefreshIndicator(
+            onRefresh: _loadData,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildStatsCards(),
+                  SizedBox(height: isSmallScreen ? 12 : 16),
+                  _buildQuickActions(),
+                  SizedBox(height: isSmallScreen ? 12 : 16),
+                  const CryptoListWidget(),
+                  SizedBox(height: isSmallScreen ? 12 : 20),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
 
   Widget _buildStatsCards() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      child: _isLoadingStats
-          ? const SizedBox(
-              height: 120,
-              child: Center(child: CircularProgressIndicator()),
-            )
-          : Row(
-              children: [
-                Expanded(
-                  child: _buildStatCard(
-                    'APIs Bound',
-                    _apiCount.toString(),
-                    Icons.link,
-                    Colors.blue,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildStatCard(
-                    'Active Trades',
-                    _tradesCount.toString(),
-                    Icons.trending_up,
-                    Colors.green,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildStatCard(
-                    'P:L Ratio',
-                    _profitLossRatio.toStringAsFixed(2),
-                    Icons.balance,
-                    Colors.orange,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildStatCard(
-                    'Total Profit',
-                    '\$${_totalProfit.toStringAsFixed(2)}',
-                    Icons.attach_money,
-                    _totalProfit >= 0 ? Colors.green : Colors.red,
-                  ),
-                ),
-              ],
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screenWidth = constraints.maxWidth;
+        final isSmallScreen = screenWidth < 360; // Very small phones
+        
+        return Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: isSmallScreen ? 8 : 16,
+            vertical: isSmallScreen ? 8 : 16,
+          ),
+          child: _isLoadingStats
+              ? SizedBox(
+                  height: isSmallScreen ? 100 : 120,
+                  child: const Center(child: CircularProgressIndicator()),
+                )
+              : screenWidth < 600
+                  ? _buildStatsGrid(isSmallScreen, 2) // 2 columns on small screens
+                  : screenWidth < 1200
+                      ? _buildStatsGrid(isSmallScreen, 4) // 4 columns on medium screens
+                      : _buildStatsRow(), // Row on large screens
+        );
+      },
+    );
+  }
+  
+  Widget _buildStatsGrid(bool isSmallScreen, int crossAxisCount) {
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: crossAxisCount,
+      mainAxisSpacing: isSmallScreen ? 8 : 12,
+      crossAxisSpacing: isSmallScreen ? 8 : 12,
+      childAspectRatio: crossAxisCount == 2 ? 1.5 : 1.8,
+      children: [
+        _buildStatCard(
+          'APIs Bound',
+          _apiCount.toString(),
+          Icons.link,
+          Colors.blue,
+          isSmallScreen: isSmallScreen,
+        ),
+        _buildStatCard(
+          'Active Trades',
+          _tradesCount.toString(),
+          Icons.trending_up,
+          Colors.green,
+          isSmallScreen: isSmallScreen,
+        ),
+        _buildStatCard(
+          'P:L Ratio',
+          _profitLossRatio.toStringAsFixed(2),
+          Icons.balance,
+          Colors.orange,
+          isSmallScreen: isSmallScreen,
+        ),
+        _buildStatCard(
+          'Total Profit',
+          '\$${_totalProfit.toStringAsFixed(2)}',
+          Icons.attach_money,
+          _totalProfit >= 0 ? Colors.green : Colors.red,
+          isSmallScreen: isSmallScreen,
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildStatsRow() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildStatCard(
+            'APIs Bound',
+            _apiCount.toString(),
+            Icons.link,
+            Colors.blue,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildStatCard(
+            'Active Trades',
+            _tradesCount.toString(),
+            Icons.trending_up,
+            Colors.green,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildStatCard(
+            'P:L Ratio',
+            _profitLossRatio.toStringAsFixed(2),
+            Icons.balance,
+            Colors.orange,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildStatCard(
+            'Total Profit',
+            '\$${_totalProfit.toStringAsFixed(2)}',
+            Icons.attach_money,
+            _totalProfit >= 0 ? Colors.green : Colors.red,
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+  Widget _buildStatCard(String label, String value, IconData icon, Color color, {bool isSmallScreen = false}) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(isSmallScreen ? 8 : 12),
       decoration: BoxDecoration(
         color: theme.cardColor,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(isSmallScreen ? 8 : 12),
         border: Border.all(
           color: color.withOpacity(0.3),
           width: 1,
@@ -312,23 +378,24 @@ class _HomePageState extends State<HomePage> {
         boxShadow: [
           BoxShadow(
             color: color.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            blurRadius: isSmallScreen ? 4 : 8,
+            offset: Offset(0, isSmallScreen ? 1 : 2),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Row(
             children: [
-              Icon(icon, size: 16, color: color),
-              const SizedBox(width: 4),
+              Icon(icon, size: isSmallScreen ? 14 : 16, color: color),
+              SizedBox(width: isSmallScreen ? 2 : 4),
               Expanded(
                 child: Text(
                   label,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: isSmallScreen ? 9 : 11,
                     color: Colors.grey[600],
                     fontWeight: FontWeight.w500,
                   ),
@@ -338,16 +405,20 @@ class _HomePageState extends State<HomePage> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: color,
+          SizedBox(height: isSmallScreen ? 4 : 8),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: isSmallScreen ? 14 : 16,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -355,79 +426,80 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildQuickActions() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Quick Actions',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).textTheme.titleLarge?.color,
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screenWidth = constraints.maxWidth;
+        final isSmallScreen = screenWidth < 360;
+        
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 8 : 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Quick Actions',
+                style: TextStyle(
+                  fontSize: isSmallScreen ? 16 : 18,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).textTheme.titleLarge?.color,
+                ),
+              ),
+              SizedBox(height: isSmallScreen ? 8 : 12),
+              _buildPlatformOptions(isSmallScreen: isSmallScreen),
+            ],
           ),
-          const SizedBox(height: 12),
-          _buildPlatformOptions(),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildPlatformOptions() {
+  Widget _buildPlatformOptions({bool isSmallScreen = false}) {
     final theme = Theme.of(context);
     
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Quick Actions',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: theme.textTheme.titleLarge?.color,
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screenWidth = constraints.maxWidth;
+        final crossAxisCount = screenWidth < 360 
+            ? 2  // 2 columns on very small screens
+            : screenWidth < 600 
+                ? 2  // 2 columns on small screens
+                : screenWidth < 1200
+                    ? 4  // 4 columns on medium screens
+                    : 4; // 4 columns on large screens
+        
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: isSmallScreen ? 8 : 12,
+            mainAxisSpacing: isSmallScreen ? 8 : 12,
+            childAspectRatio: screenWidth < 360 ? 1.1 : 0.9,
           ),
-          const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final crossAxisCount = constraints.maxWidth > 600 ? 4 : 4;
-              return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: crossAxisCount,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 0.9,
-                ),
-                itemCount: _platformOptions.length,
-                itemBuilder: (context, index) {
-                  final option = _platformOptions[index];
-                  final colors = option['color'] as List<Color>;
-                  
-                  return Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () => _handlePlatformOptionTap(option['title'] as String),
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: theme.cardColor,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: theme.dividerColor.withOpacity(0.5),
-                            width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.03),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
+          itemCount: _platformOptions.length,
+          itemBuilder: (context, index) {
+            final option = _platformOptions[index];
+            final colors = option['color'] as List<Color>;
+            
+            return Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _handlePlatformOptionTap(option['title'] as String),
+                borderRadius: BorderRadius.circular(isSmallScreen ? 12 : 16),
+                child: Container(
+                  padding: EdgeInsets.all(isSmallScreen ? 8 : 12),
+                  decoration: BoxDecoration(
+                    color: theme.cardColor,
+                    borderRadius: BorderRadius.circular(isSmallScreen ? 12 : 16),
+                    border: Border.all(
+                      color: theme.dividerColor.withOpacity(0.5),
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.03),
+                              blurRadius: isSmallScreen ? 4 : 8,
+                              offset: Offset(0, isSmallScreen ? 1 : 2),
                             ),
                           ],
                         ),
@@ -435,27 +507,27 @@ class _HomePageState extends State<HomePage> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Container(
-                              width: 48,
-                              height: 48,
+                              width: isSmallScreen ? 36 : 48,
+                              height: isSmallScreen ? 36 : 48,
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                   colors: colors,
                                 ),
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(isSmallScreen ? 8 : 12),
                               ),
                               child: Icon(
                                 option['icon'] as IconData,
                                 color: Colors.white,
-                                size: 24,
+                                size: isSmallScreen ? 18 : 24,
                               ),
                             ),
-                            const SizedBox(height: 8),
+                            SizedBox(height: isSmallScreen ? 4 : 8),
                             Text(
                               option['title'] as String,
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: isSmallScreen ? 9 : 11,
                                 fontWeight: FontWeight.w500,
                                 color: theme.textTheme.bodyMedium?.color,
                               ),
@@ -472,8 +544,8 @@ class _HomePageState extends State<HomePage> {
               );
             },
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

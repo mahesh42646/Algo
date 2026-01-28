@@ -4,6 +4,7 @@ import '../services/user_service.dart';
 import '../services/algo_trading_service.dart';
 import '../services/auth_service.dart';
 import 'coin_detail_screen.dart';
+import 'algo_trading_config_screen.dart';
 import '../models/crypto_coin.dart';
 
 class StrategyPage extends StatefulWidget {

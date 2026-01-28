@@ -577,6 +577,10 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
         itemCount: _filteredCoins.length,
         itemBuilder: (context, index) {
           final coin = _filteredCoins[index];
+          final isPositive = coin.priceChangePercentage24h >= 0;
+          final changeColor = isPositive 
+              ? Colors.green 
+              : Colors.red;
           
           // Add divider before item (except first)
           return Column(
@@ -587,12 +591,7 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
                   thickness: 0.5,
                   color: isDark ? Colors.grey[800] : Colors.grey[200],
                 ),
-          final isPositive = coin.priceChangePercentage24h >= 0;
-          final changeColor = isPositive 
-              ? Colors.green 
-              : Colors.red;
-
-          return Material(
+              Material(
             color: Colors.transparent,
             child: InkWell(
               onTap: () {
@@ -708,7 +707,8 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
                 ),
               ),
             ),
-            ),
+              ),
+            ],
           );
         },
       ),

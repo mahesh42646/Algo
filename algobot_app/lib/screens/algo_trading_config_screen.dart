@@ -319,17 +319,6 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _updateTimer?.cancel();
-    _balanceUpdateTimer?.cancel();
-    _maxLossPerTradeController.dispose();
-    _maxLossOverallController.dispose();
-    _maxProfitBookController.dispose();
-    _amountPerLevelController.dispose();
-    _numberOfLevelsController.dispose();
-    super.dispose();
-  }
 
   Future<void> _stopActiveTrade() async {
     final confirmed = await showDialog<bool>(
