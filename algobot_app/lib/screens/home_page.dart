@@ -498,52 +498,49 @@ class _HomePageState extends State<HomePage> {
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.03),
-                              blurRadius: isSmallScreen ? 4 : 8,
-                              offset: Offset(0, isSmallScreen ? 1 : 2),
-                            ),
-                          ],
+                        blurRadius: isSmallScreen ? 4 : 8,
+                        offset: Offset(0, isSmallScreen ? 1 : 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: isSmallScreen ? 36 : 48,
+                        height: isSmallScreen ? 36 : 48,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: colors,
+                          ),
+                          borderRadius: BorderRadius.circular(isSmallScreen ? 8 : 12),
                         ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              width: isSmallScreen ? 36 : 48,
-                              height: isSmallScreen ? 36 : 48,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: colors,
-                                ),
-                                borderRadius: BorderRadius.circular(isSmallScreen ? 8 : 12),
-                              ),
-                              child: Icon(
-                                option['icon'] as IconData,
-                                color: Colors.white,
-                                size: isSmallScreen ? 18 : 24,
-                              ),
-                            ),
-                            SizedBox(height: isSmallScreen ? 4 : 8),
-                            Text(
-                              option['title'] as String,
-                              style: TextStyle(
-                                fontSize: isSmallScreen ? 9 : 11,
-                                fontWeight: FontWeight.w500,
-                                color: theme.textTheme.bodyMedium?.color,
-                              ),
-                              textAlign: TextAlign.center,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
+                        child: Icon(
+                          option['icon'] as IconData,
+                          color: Colors.white,
+                          size: isSmallScreen ? 18 : 24,
                         ),
                       ),
-                    ),
-                  );
-                },
-              );
-            },
-          ),
+                      SizedBox(height: isSmallScreen ? 4 : 8),
+                      Text(
+                        option['title'] as String,
+                        style: TextStyle(
+                          fontSize: isSmallScreen ? 9 : 11,
+                          fontWeight: FontWeight.w500,
+                          color: theme.textTheme.bodyMedium?.color,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         );
       },
     );
