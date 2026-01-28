@@ -22,6 +22,10 @@ class _StrategyPageState extends State<StrategyPage> {
   List<Map<String, dynamic>> _activeTrades = [];
   bool _isLoading = true;
   int _selectedTab = 0; // 0: Default, 1: Popular, 2: User Generated
+  
+  // Filters for user strategies
+  String _filterCoinPair = 'all';
+  String _filterStatus = 'all'; // all, active, inactive
 
   // Default strategies (admin strategy)
   final List<Map<String, dynamic>> _defaultStrategies = [
@@ -294,6 +298,32 @@ class _StrategyPageState extends State<StrategyPage> {
       if (_strategies.isEmpty && _activeTrades.isEmpty) {
         return _buildEmptyState();
       }
+      
+      // Filter strategies
+      final filteredStrategies = _strategies.where((strategy) {
+        if (_filterCoinPair != 'all') {
+          final symbol = (strategy['symbol'] ?? '').toString().toUpperCase();
+          if (!symbol.contains(_filterCoinPair.toUpperCase())) {
+            return false;
+          }
+        }
+        if (_filterStatus != 'all') {
+          final status = (strategy['status'] ?? 'active').toString().toLowerCase();
+          if (_filterStatus == 'active' && status != 'active') return false;
+          if (_filterStatus == 'inactive' && status == 'active') return false;
+        }
+        return true;
+      }).toList();
+      
+      // Get unique coin pairs for filter
+      final coinPairs = <String>{'all'};
+      for (var strategy in _strategies) {
+        final symbol = (strategy['symbol'] ?? '').toString();
+        if (symbol.isNotEmpty) {
+          coinPairs.add(symbol);
+        }
+      }
+      
       return ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -310,15 +340,61 @@ class _StrategyPageState extends State<StrategyPage> {
             const SizedBox(height: 24),
           ],
           if (_strategies.isNotEmpty) ...[
-            const Text(
-              'My Strategies',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'My Strategies',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Row(
+                  children: [
+                    // Coin pair filter
+                    DropdownButton<String>(
+                      value: _filterCoinPair,
+                      items: coinPairs.map((pair) {
+                        return DropdownMenuItem(
+                          value: pair,
+                          child: Text(
+                            pair == 'all' ? 'All Pairs' : pair,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _filterCoinPair = value ?? 'all';
+                        });
+                      },
+                      underline: Container(),
+                      isDense: true,
+                    ),
+                    const SizedBox(width: 8),
+                    // Status filter
+                    DropdownButton<String>(
+                      value: _filterStatus,
+                      items: const [
+                        DropdownMenuItem(value: 'all', child: Text('All', style: TextStyle(fontSize: 12))),
+                        DropdownMenuItem(value: 'active', child: Text('Active', style: TextStyle(fontSize: 12))),
+                        DropdownMenuItem(value: 'inactive', child: Text('Inactive', style: TextStyle(fontSize: 12))),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _filterStatus = value ?? 'all';
+                        });
+                      },
+                      underline: Container(),
+                      isDense: true,
+                    ),
+                  ],
+                ),
+              ],
             ),
             const SizedBox(height: 16),
-            ..._strategies.map((strategy) => _buildStrategyCard(strategy)),
+            ...filteredStrategies.map((strategy) => _buildStrategyCard(strategy)),
           ],
         ],
       );
@@ -326,116 +402,268 @@ class _StrategyPageState extends State<StrategyPage> {
   }
 
   Widget _buildDefaultStrategyCard(Map<String, dynamic> strategy) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.primary,
-          width: 2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+    return GestureDetector(
+      onTap: () => _showStrategyActionDialog(strategy, isDefault: true),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.primary,
+            width: 2,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.admin_panel_settings, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(width: 8),
-              Text(
-                strategy['name'],
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            strategy['description'],
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
             ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: _buildStatItem('Max Loss', '${strategy['maxLossPerTrade']}%')),
-              Expanded(child: _buildStatItem('Max Profit', '${strategy['maxProfitBook']}%')),
-              Expanded(child: _buildStatItem('Per Level', '\$${strategy['amountPerLevel']}')),
-            ],
-          ),
-        ],
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.admin_panel_settings, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    strategy['name'],
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              strategy['description'],
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: _buildStatItem('Max Loss', '${strategy['maxLossPerTrade']}%')),
+                Expanded(child: _buildStatItem('Max Profit', '${strategy['maxProfitBook']}%')),
+                Expanded(child: _buildStatItem('Per Level', '\$${strategy['amountPerLevel']}')),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildPopularStrategyCard(Map<String, dynamic> strategy) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.orange,
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+    return GestureDetector(
+      onTap: () => _showStrategyActionDialog(strategy, isPopular: true),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Colors.orange,
+            width: 1,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.trending_up, color: Colors.orange),
-              const SizedBox(width: 8),
-              Text(
-                strategy['name'],
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            strategy['description'],
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
             ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: _buildStatItem('Max Loss', '${strategy['maxLossPerTrade']}%')),
-              Expanded(child: _buildStatItem('Max Profit', '${strategy['maxProfitBook']}%')),
-              Expanded(child: _buildStatItem('Levels', '${strategy['numberOfLevels']}')),
-              Expanded(child: _buildStatItem('Per Level', '\$${strategy['amountPerLevel']}')),
-            ],
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.trending_up, color: Colors.orange),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    strategy['name'],
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              strategy['description'],
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: _buildStatItem('Max Loss', '${strategy['maxLossPerTrade']}%')),
+                Expanded(child: _buildStatItem('Max Profit', '${strategy['maxProfitBook']}%')),
+                Expanded(child: _buildStatItem('Levels', '${strategy['numberOfLevels']}')),
+                Expanded(child: _buildStatItem('Per Level', '\$${strategy['amountPerLevel']}')),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  void _showStrategyActionDialog(Map<String, dynamic> strategy, {bool isDefault = false, bool isPopular = false}) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(strategy['name']),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Select an action:'),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.search),
+              title: const Text('Select Coin Pair'),
+              subtitle: const Text('Choose a coin to apply this strategy'),
+              onTap: () {
+                Navigator.pop(context);
+                _selectCoinForStrategy(strategy);
+              },
+            ),
+            if (isDefault)
+              ListTile(
+                leading: const Icon(Icons.admin_panel_settings),
+                title: const Text('Start Admin Strategy'),
+                subtitle: const Text('Start with default pair selection'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _startAdminStrategy();
+                },
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
           ),
         ],
       ),
     );
+  }
+  
+  void _selectCoinForStrategy(Map<String, dynamic> strategy) {
+    // Show dialog to enter symbol or navigate to home
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Apply ${strategy['name']}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Enter coin symbol (e.g., BTC, ETH) or select from home'),
+            const SizedBox(height: 16),
+            TextField(
+              decoration: const InputDecoration(
+                labelText: 'Coin Symbol',
+                hintText: 'BTC',
+              ),
+              onSubmitted: (value) {
+                if (value.isNotEmpty) {
+                  Navigator.pop(context);
+                  _applyStrategyToCoin(strategy, value.toUpperCase());
+                }
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.of(context).pushNamed('/home');
+            },
+            child: const Text('Select from List'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  void _applyStrategyToCoin(Map<String, dynamic> strategy, String baseSymbol) {
+    // Navigate to coin detail with strategy settings
+    final coin = CryptoCoin(
+      id: baseSymbol.toLowerCase(),
+      symbol: baseSymbol,
+      name: baseSymbol,
+      currentPrice: 0.0,
+      priceChange24h: 0.0,
+      priceChangePercentage24h: 0.0,
+      volume24h: 0.0,
+    );
+    
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AlgoTradingConfigScreen(
+          coin: coin,
+          quoteCurrency: 'USDT',
+          strategySettings: {
+            'maxLossPerTrade': strategy['maxLossPerTrade'] ?? 3.0,
+            'maxLossOverall': strategy['maxLossOverall'] ?? 3.0,
+            'maxProfitBook': strategy['maxProfitBook'] ?? 3.0,
+            'amountPerLevel': strategy['amountPerLevel'] ?? 10.0,
+            'numberOfLevels': strategy['numberOfLevels'] ?? 10,
+            'useMargin': strategy['useMargin'] ?? false,
+            'leverage': strategy['leverage'] ?? 1,
+          },
+        ),
+      ),
+    );
+  }
+  
+  void _startAdminStrategy() async {
+    try {
+      await _algoService.startAdminStrategy();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Admin strategy started successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _loadStrategies();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error starting admin strategy: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildEmptyState() {
@@ -629,128 +857,254 @@ class _StrategyPageState extends State<StrategyPage> {
     final createdAt = strategy['createdAt'];
 
     final isAlgoTrading = type == 'algo_trading';
+    
+    // Check if this strategy has an active trade
+    final activeTrade = _activeTrades.firstWhere(
+      (trade) => trade['symbol'] == symbol,
+      orElse: () => {},
+    );
+    final hasActiveTrade = activeTrade.isNotEmpty;
+    final currentPnL = hasActiveTrade ? (activeTrade['currentPnL'] ?? 0.0) : 0.0;
+    final unrealizedPnL = hasActiveTrade ? (activeTrade['unrealizedPnL'] ?? 0.0) : 0.0;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        if (isAlgoTrading)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: const Text(
-                              'ALGO',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue,
+    return GestureDetector(
+      onTap: () {
+        if (symbol != null && symbol.toString().isNotEmpty) {
+          _navigateToCoinDetailWithStrategy(strategy);
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(12),
+          border: hasActiveTrade 
+              ? Border.all(color: currentPnL >= 0 ? Colors.green : Colors.red, width: 2)
+              : null,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          if (isAlgoTrading)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'ALGO',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue,
+                                ),
                               ),
                             ),
-                          ),
-                        if (isAlgoTrading) const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            name,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                          if (isAlgoTrading) const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              name,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
+                        ],
+                      ),
+                      if (symbol != null && symbol.toString().isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          '$symbol on ${platform?.toUpperCase() ?? "Unknown"}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (hasActiveTrade)
+                  IconButton(
+                    icon: const Icon(Icons.stop_circle, color: Colors.red),
+                    onPressed: () => _stopTrade(symbol.toString()),
+                    tooltip: 'Stop Trade',
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: status == 'active' 
+                          ? Colors.green.withOpacity(0.1)
+                          : status == 'paused'
+                              ? Colors.orange.withOpacity(0.1)
+                              : Colors.grey.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      status.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: status == 'active'
+                            ? Colors.green
+                            : status == 'paused'
+                                ? Colors.orange
+                                : Colors.grey,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            if (hasActiveTrade) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: (currentPnL >= 0 ? Colors.green : Colors.red).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Current P&L',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        Text(
+                          '${currentPnL >= 0 ? '+' : ''}${currentPnL.toStringAsFixed(2)}%',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: currentPnL >= 0 ? Colors.green : Colors.red,
                           ),
                         ),
                       ],
                     ),
-                    if (symbol != null && symbol.toString().isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        '$symbol on ${platform?.toUpperCase() ?? "Unknown"}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          'Unrealized P&L',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
                         ),
-                      ),
-                    ],
+                        Text(
+                          '\$${unrealizedPnL >= 0 ? '+' : ''}${unrealizedPnL.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: unrealizedPnL >= 0 ? Colors.green : Colors.red,
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: status == 'active' 
-                      ? Colors.green.withOpacity(0.1)
-                      : status == 'paused'
-                          ? Colors.orange.withOpacity(0.1)
-                          : Colors.grey.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  status.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: status == 'active'
-                        ? Colors.green
-                        : status == 'paused'
-                            ? Colors.orange
-                            : Colors.grey,
-                  ),
+            ],
+            if (isAlgoTrading && config.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Divider(),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 16,
+                runSpacing: 8,
+                children: [
+                  _buildConfigItem('Max Loss/Trade', '${config['maxLossPerTrade'] ?? 'N/A'}%'),
+                  _buildConfigItem('Max Loss Overall', '${config['maxLossOverall'] ?? 'N/A'}%'),
+                  _buildConfigItem('Profit Target', '${config['maxProfitBook'] ?? 'N/A'}%'),
+                  _buildConfigItem('Amount/Level', '\$${config['amountPerLevel'] ?? 'N/A'}'),
+                  _buildConfigItem('Levels', '${config['numberOfLevels'] ?? 'N/A'}'),
+                  _buildConfigItem('Mode', (config['useMargin'] == true || config['useMargin'] == 'true') ? 'Margin' : 'Spot'),
+                ],
+              ),
+            ],
+            if (createdAt != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Created: ${_formatDate(createdAt)}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[500],
                 ),
               ),
             ],
-          ),
-          if (isAlgoTrading && config.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            const Divider(),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 16,
-              runSpacing: 8,
-              children: [
-                _buildConfigItem('Max Loss/Trade', '${config['maxLossPerTrade'] ?? 'N/A'}%'),
-                _buildConfigItem('Max Loss Overall', '${config['maxLossOverall'] ?? 'N/A'}%'),
-                _buildConfigItem('Profit Target', '${config['maxProfitBook'] ?? 'N/A'}%'),
-                _buildConfigItem('Amount/Level', '\$${config['amountPerLevel'] ?? 'N/A'}'),
-                _buildConfigItem('Levels', '${config['numberOfLevels'] ?? 'N/A'}'),
-                _buildConfigItem('Mode', (config['useMargin'] == true || config['useMargin'] == 'true') ? 'Margin' : 'Spot'),
-              ],
-            ),
           ],
-          if (createdAt != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Created: ${_formatDate(createdAt)}',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[500],
-              ),
-            ),
-          ],
-        ],
+        ),
+      ),
+    );
+  }
+  
+  void _navigateToCoinDetailWithStrategy(Map<String, dynamic> strategy) {
+    final symbol = strategy['symbol']?.toString() ?? '';
+    if (symbol.isEmpty) return;
+    
+    // Extract base and quote from symbol (e.g., BTCUSDT -> BTC, USDT)
+    String baseSymbol = '';
+    String quoteCurrency = 'USDT';
+    if (symbol.length > 4) {
+      final quotes = ['USDT', 'BTC', 'ETH', 'USDC', 'BNB'];
+      for (final quote in quotes) {
+        if (symbol.endsWith(quote)) {
+          baseSymbol = symbol.substring(0, symbol.length - quote.length);
+          quoteCurrency = quote;
+          break;
+        }
+      }
+      if (baseSymbol.isEmpty) {
+        baseSymbol = symbol.substring(0, symbol.length - 4);
+      }
+    } else {
+      baseSymbol = symbol;
+    }
+    
+    final coin = CryptoCoin(
+      id: baseSymbol.toLowerCase(),
+      symbol: baseSymbol,
+      name: baseSymbol,
+      currentPrice: 0.0,
+      priceChange24h: 0.0,
+      priceChangePercentage24h: 0.0,
+      volume24h: 0.0,
+    );
+    
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CoinDetailScreen(
+          coin: coin,
+          quoteCurrency: quoteCurrency,
+        ),
       ),
     );
   }

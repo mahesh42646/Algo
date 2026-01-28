@@ -523,16 +523,17 @@ class _MinePageState extends State<MinePage> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.add_circle_outline, size: 20),
-                          SizedBox(width: 8),
+                          const Icon(Icons.add_circle_outline, size: 20, color: Colors.white),
+                          const SizedBox(width: 8),
                           Text(
                             'Deposit USDT (TRC20)',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
+                              color: Colors.white,
                             ),
                           ),
                         ],

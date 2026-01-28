@@ -10,11 +10,13 @@ import '../widgets/trade_info_card.dart';
 class AlgoTradingConfigScreen extends StatefulWidget {
   final CryptoCoin coin;
   final String quoteCurrency;
+  final Map<String, dynamic>? strategySettings; // Pre-filled strategy settings
 
   const AlgoTradingConfigScreen({
     super.key,
     required this.coin,
     required this.quoteCurrency,
+    this.strategySettings,
   });
 
   @override
@@ -28,11 +30,48 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
   final UserService _userService = UserService();
 
   // Form controllers
-  final TextEditingController _maxLossPerTradeController = TextEditingController(text: '3.0');
-  final TextEditingController _maxLossOverallController = TextEditingController(text: '3.0');
-  final TextEditingController _maxProfitBookController = TextEditingController(text: '3.0');
-  final TextEditingController _amountPerLevelController = TextEditingController(text: '10.0');
-  final TextEditingController _numberOfLevelsController = TextEditingController(text: '10');
+  late final TextEditingController _maxLossPerTradeController;
+  late final TextEditingController _maxLossOverallController;
+  late final TextEditingController _maxProfitBookController;
+  late final TextEditingController _amountPerLevelController;
+  late final TextEditingController _numberOfLevelsController;
+  
+  @override
+  void initState() {
+    super.initState();
+    // Initialize controllers with strategy settings if provided
+    final settings = widget.strategySettings ?? {};
+    _maxLossPerTradeController = TextEditingController(
+      text: (settings['maxLossPerTrade'] ?? 3.0).toString(),
+    );
+    _maxLossOverallController = TextEditingController(
+      text: (settings['maxLossOverall'] ?? 3.0).toString(),
+    );
+    _maxProfitBookController = TextEditingController(
+      text: (settings['maxProfitBook'] ?? 3.0).toString(),
+    );
+    _amountPerLevelController = TextEditingController(
+      text: (settings['amountPerLevel'] ?? 10.0).toString(),
+    );
+    _numberOfLevelsController = TextEditingController(
+      text: (settings['numberOfLevels'] ?? 10).toString(),
+    );
+    
+    if (settings['useMargin'] == true) {
+      _useMargin = true;
+      _leverage = settings['leverage'] ?? 1;
+    }
+  }
+  
+  @override
+  void dispose() {
+    _maxLossPerTradeController.dispose();
+    _maxLossOverallController.dispose();
+    _maxProfitBookController.dispose();
+    _amountPerLevelController.dispose();
+    _numberOfLevelsController.dispose();
+    super.dispose();
+  }
 
   bool _acceptedTerms = false;
   bool _isLoading = false;

@@ -3,6 +3,8 @@ import '../widgets/notification_bell.dart';
 import '../widgets/crypto_list_widget.dart';
 import '../services/user_service.dart';
 import '../services/auth_service.dart';
+import '../services/exchange_service.dart';
+import '../services/algo_trading_service.dart';
 import 'api_binding_screen.dart';
 import 'profit_details_screen.dart';
 import 'invite_friends_screen.dart';
@@ -17,30 +19,20 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final PageController _pageController = PageController();
   final UserService _userService = UserService();
   final AuthService _authService = AuthService();
-  int _currentPage = 0;
+  final ExchangeService _exchangeService = ExchangeService();
+  final AlgoTradingService _algoService = AlgoTradingService();
+  
   double _platformBalance = 0.0;
   bool _isLoadingBalance = true;
-
-  final List<Map<String, dynamic>> _carouselItems = [
-    {
-      'title': 'Don\'t trust anyone',
-      'subtitle': 'Please keep your personal information safe and avoid false information',
-      'color': Colors.red,
-    },
-    {
-      'title': 'Welcome to AlgoBot',
-      'subtitle': 'Start trading with our advanced strategies',
-      'color': Colors.blue,
-    },
-    {
-      'title': 'New Features Available',
-      'subtitle': 'Check out our latest updates',
-      'color': Colors.green,
-    },
-  ];
+  
+  // Stats
+  int _apiCount = 0;
+  int _tradesCount = 0;
+  double _profitLossRatio = 0.0;
+  double _totalProfit = 0.0;
+  bool _isLoadingStats = true;
 
   final List<Map<String, dynamic>> _platformOptions = [
     {
@@ -68,13 +60,14 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _loadPlatformBalance();
+    _loadData();
   }
 
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
+  Future<void> _loadData() async {
+    await Future.wait([
+      _loadPlatformBalance(),
+      _loadStats(),
+    ]);
   }
 
   Future<void> _loadPlatformBalance() async {
@@ -98,6 +91,55 @@ class _HomePageState extends State<HomePage> {
       if (mounted) {
         setState(() {
           _isLoadingBalance = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadStats() async {
+    setState(() {
+      _isLoadingStats = true;
+    });
+    
+    try {
+      // Load API count
+      final apis = await _exchangeService.getLinkedApis();
+      final activeApis = apis.where((api) => api.isActive).length;
+      
+      // Load trades count
+      final activeTrades = await _algoService.getActiveTrades();
+      
+      // Load profit details
+      final profitDetails = await _algoService.getProfitDetails(period: 'all');
+      final totalProfit = (profitDetails['totalProfit'] ?? 0.0).toDouble();
+      final tradeHistory = profitDetails['tradeHistory'] as List? ?? [];
+      
+      // Calculate profit:loss ratio
+      double totalProfitAmount = 0.0;
+      double totalLossAmount = 0.0;
+      for (var trade in tradeHistory) {
+        final profit = (trade['profit'] ?? 0.0).toDouble();
+        if (profit > 0) {
+          totalProfitAmount += profit;
+        } else {
+          totalLossAmount += profit.abs();
+        }
+      }
+      final ratio = totalLossAmount > 0 ? totalProfitAmount / totalLossAmount : (totalProfitAmount > 0 ? 999.0 : 0.0);
+      
+      if (mounted) {
+        setState(() {
+          _apiCount = activeApis;
+          _tradesCount = activeTrades.length;
+          _profitLossRatio = ratio;
+          _totalProfit = totalProfit;
+          _isLoadingStats = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingStats = false;
         });
       }
     }
@@ -187,21 +229,16 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async {
-          // Trigger refresh in crypto list widget and balance
-          await _loadPlatformBalance();
-          setState(() {});
-        },
+        onRefresh: _loadData,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildCarousel(),
-              const SizedBox(height: 20),
-              _buildNotificationBanner(),
-              const SizedBox(height: 24),
-              _buildPlatformOptions(),
+              _buildStatsCards(),
+              const SizedBox(height: 16),
+              _buildQuickActions(),
+              const SizedBox(height: 16),
               const CryptoListWidget(),
               const SizedBox(height: 20),
             ],
@@ -211,143 +248,128 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildCarousel() {
-    final theme = Theme.of(context);
-    
-    return Column(
-      children: [
-        SizedBox(
-          height: 160,
-          child: PageView.builder(
-            controller: _pageController,
-            onPageChanged: (index) {
-              setState(() {
-                _currentPage = index;
-              });
-            },
-            itemCount: _carouselItems.length,
-            itemBuilder: (context, index) {
-              final item = _carouselItems[index];
-              return Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      item['color'] as Color,
-                      (item['color'] as Color).withOpacity(0.8),
-                    ],
+  Widget _buildStatsCards() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      child: _isLoadingStats
+          ? const SizedBox(
+              height: 120,
+              child: Center(child: CircularProgressIndicator()),
+            )
+          : Row(
+              children: [
+                Expanded(
+                  child: _buildStatCard(
+                    'APIs Bound',
+                    _apiCount.toString(),
+                    Icons.link,
+                    Colors.blue,
                   ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: (item['color'] as Color).withOpacity(0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
                 ),
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      item['title'] as String,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      item['subtitle'] as String,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.white70,
-                      ),
-                    ),
-                  ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildStatCard(
+                    'Active Trades',
+                    _tradesCount.toString(),
+                    Icons.trending_up,
+                    Colors.green,
+                  ),
                 ),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(
-            _carouselItems.length,
-            (index) => AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              width: _currentPage == index ? 24 : 8,
-              height: 8,
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(4),
-                color: _currentPage == index
-                    ? theme.colorScheme.primary
-                    : Colors.grey[300],
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildStatCard(
+                    'P:L Ratio',
+                    _profitLossRatio.toStringAsFixed(2),
+                    Icons.balance,
+                    Colors.orange,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildStatCard(
+                    'Total Profit',
+                    '\$${_totalProfit.toStringAsFixed(2)}',
+                    Icons.attach_money,
+                    _totalProfit >= 0 ? Colors.green : Colors.red,
+                  ),
+                ),
+              ],
             ),
-          ),
-        ),
-      ],
     );
   }
 
-  Widget _buildNotificationBanner() {
+  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+          color: color.withOpacity(0.3),
+          width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: color.withOpacity(0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              Icons.notifications_outlined,
-              color: theme.colorScheme.primary,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Removing LGCT from Gate.io Spot Trading',
-              style: TextStyle(
-                fontSize: 13,
-                color: theme.textTheme.bodyMedium?.color,
+          Row(
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActions() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Quick Actions',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).textTheme.titleLarge?.color,
             ),
           ),
-          Icon(
-            Icons.chevron_right,
-            color: theme.textTheme.bodySmall?.color,
-            size: 20,
-          ),
+          const SizedBox(height: 12),
+          _buildPlatformOptions(),
         ],
       ),
     );

@@ -66,17 +66,23 @@ class _FavoritesPageState extends State<FavoritesPage> {
         }
       }
 
-      // Filter coins and match with their favorite quote currency
+      // Filter coins and match with their favorite quote currency (deduplicate)
       final favoriteCoinsWithQuote = <Map<String, dynamic>>[];
+      final seenKeys = <String>{};
       for (final coin in allCoins) {
         // Check if coin symbol matches any favorite (case-insensitive)
         final coinSymbolUpper = coin.symbol.toUpperCase();
         if (favoritePairs.containsKey(coinSymbolUpper)) {
-          favoriteCoinsWithQuote.add({
-            'coin': coin,
-            'quote': favoritePairs[coinSymbolUpper]!,
-            'favoriteKey': '${coinSymbolUpper}${favoritePairs[coinSymbolUpper]!}',
-          });
+          final favoriteKey = '${coinSymbolUpper}${favoritePairs[coinSymbolUpper]!}';
+          // Only add if not already seen (prevent duplicates)
+          if (!seenKeys.contains(favoriteKey)) {
+            seenKeys.add(favoriteKey);
+            favoriteCoinsWithQuote.add({
+              'coin': coin,
+              'quote': favoritePairs[coinSymbolUpper]!,
+              'favoriteKey': favoriteKey,
+            });
+          }
         }
       }
 

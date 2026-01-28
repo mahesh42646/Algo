@@ -62,6 +62,20 @@ class _NotificationPanelState extends State<NotificationPanel> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
+        // Mark all as read before clearing
+        for (var notification in _notifications) {
+          if (notification['read'] != true) {
+            final notificationId = notification['_id']?.toString() ?? 
+                                   notification['id']?.toString() ?? '';
+            if (notificationId.isNotEmpty) {
+              try {
+                await _notificationService.markAsRead(user.uid, notificationId);
+              } catch (e) {
+                // Ignore individual mark as read errors
+              }
+            }
+          }
+        }
         await _notificationService.clearAllNotifications(user.uid);
         await _loadNotifications();
       }
@@ -72,6 +86,48 @@ class _NotificationPanelState extends State<NotificationPanel> {
         );
       }
     }
+  }
+
+  void _handleNotificationTap(Map<String, dynamic> notification) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    // Mark as read
+    final notificationId = notification['_id']?.toString() ?? 
+                           notification['id']?.toString() ?? '';
+    if (notificationId.isNotEmpty && notification['read'] != true) {
+      try {
+        await _notificationService.markAsRead(user.uid, notificationId);
+        await _loadNotifications();
+      } catch (e) {
+        // Ignore mark as read errors
+      }
+    }
+
+    // Navigate based on notification content
+    final title = (notification['title'] ?? '').toString().toLowerCase();
+    final message = (notification['message'] ?? '').toString().toLowerCase();
+    
+    // Close notification panel first
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+
+    // Navigate to appropriate screen
+    if (title.contains('profile') || message.contains('profile')) {
+      // Navigate to mine page
+      Navigator.of(context).pushNamed('/mine');
+    } else if (title.contains('algo') && (title.contains('start') || message.contains('start'))) {
+      // Navigate to algo trading screen or strategy page
+      Navigator.of(context).pushNamed('/strategy');
+    } else if (title.contains('stop') || message.contains('stop') || title.contains('trade')) {
+      // Navigate to strategy page
+      Navigator.of(context).pushNamed('/strategy');
+    } else if (title.contains('admin') || message.contains('admin')) {
+      // Admin notification - just mark as seen (already done above)
+      return;
+    }
+    // Default: just mark as seen (already done above)
   }
 
   Color _getTypeColor(String type) {
@@ -193,9 +249,8 @@ class _NotificationPanelState extends State<NotificationPanel> {
                 ),
               )
             else
-              Flexible(
+              Expanded(
                 child: ListView.builder(
-                  shrinkWrap: true,
                   itemCount: _notifications.length,
                   itemBuilder: (context, index) {
                     final notification = _notifications[index];
@@ -267,16 +322,26 @@ class _NotificationPanelState extends State<NotificationPanel> {
                         ),
                         trailing: IconButton(
                           icon: const Icon(Icons.close, size: 18),
-                          onPressed: () {
+                          onPressed: () async {
                             final notificationId = notification['_id']?.toString() ?? 
                                                    notification['id']?.toString() ?? '';
                             if (notificationId.isNotEmpty) {
-                              _deleteNotification(notificationId);
+                              // Mark as read before deleting
+                              final user = FirebaseAuth.instance.currentUser;
+                              if (user != null && !isRead) {
+                                try {
+                                  await _notificationService.markAsRead(user.uid, notificationId);
+                                } catch (e) {
+                                  // Ignore mark as read errors
+                                }
+                              }
+                              await _deleteNotification(notificationId);
                             }
                           },
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
                         ),
+                        onTap: () => _handleNotificationTap(notification),
                       ),
                     );
                   },

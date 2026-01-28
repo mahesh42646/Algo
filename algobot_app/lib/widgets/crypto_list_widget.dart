@@ -27,17 +27,49 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
   SortOrder _sortOrder = SortOrder.ascending;
   String _searchQuery = '';
   Set<String> _favorites = {};
+  final TextEditingController _searchController = TextEditingController();
+  List<String> _searchSuggestions = [];
+  bool _showSuggestions = false;
 
   final List<String> _quoteCurrencies = ['USDT', 'BTC', 'ETH', 'USDC'];
 
   @override
   void initState() {
     super.initState();
+    _searchController.addListener(_onSearchChanged);
     // Load data after the first frame to ensure widget is fully built
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadFavorites();
       _loadCryptoData();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    final query = _searchController.text;
+    setState(() {
+      _searchQuery = query;
+      if (query.isNotEmpty && _allCoins.isNotEmpty) {
+        // Generate suggestions from matching coins
+        _searchSuggestions = _allCoins
+            .where((coin) =>
+                coin.symbol.toLowerCase().startsWith(query.toLowerCase()) ||
+                coin.name.toLowerCase().startsWith(query.toLowerCase()))
+            .take(5)
+            .map((coin) => coin.symbol)
+            .toList();
+        _showSuggestions = _searchSuggestions.isNotEmpty;
+      } else {
+        _showSuggestions = false;
+        _searchSuggestions = [];
+      }
+    });
+    _applySort();
   }
   
   Future<void> _loadFavorites() async {
@@ -305,27 +337,77 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
                 context: context,
                 builder: (context) => AlertDialog(
                   title: const Text('Search'),
-                  content: TextField(
-                    autofocus: true,
-                    decoration: const InputDecoration(
-                      hintText: 'Search by symbol or name',
-                      prefixIcon: Icon(Icons.search),
-                    ),
-                    onChanged: (value) {
-                      if (mounted) {
-                        setState(() {
-                          _searchQuery = value;
-                        });
-                        _applySort();
-                      }
+                  content: StatefulBuilder(
+                    builder: (context, setDialogState) {
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextField(
+                            controller: _searchController,
+                            autofocus: true,
+                            decoration: InputDecoration(
+                              hintText: 'Search by symbol or name',
+                              prefixIcon: const Icon(Icons.search),
+                              suffixIcon: _searchQuery.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(Icons.clear),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        setDialogState(() {
+                                          _searchQuery = '';
+                                          _showSuggestions = false;
+                                        });
+                                        _applySort();
+                                      },
+                                    )
+                                  : null,
+                            ),
+                            onChanged: (value) {
+                              setDialogState(() {
+                                _onSearchChanged();
+                              });
+                            },
+                            onSubmitted: (value) {
+                              Navigator.pop(context);
+                            },
+                          ),
+                          if (_showSuggestions && _searchSuggestions.isNotEmpty)
+                            Container(
+                              constraints: const BoxConstraints(maxHeight: 200),
+                              child: ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: _searchSuggestions.length,
+                                itemBuilder: (context, index) {
+                                  final suggestion = _searchSuggestions[index];
+                                  return ListTile(
+                                    dense: true,
+                                    leading: const Icon(Icons.search, size: 18),
+                                    title: Text(suggestion),
+                                    onTap: () {
+                                      _searchController.text = suggestion;
+                                      setDialogState(() {
+                                        _searchQuery = suggestion;
+                                        _showSuggestions = false;
+                                      });
+                                      _applySort();
+                                      Navigator.pop(context);
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
+                        ],
+                      );
                     },
                   ),
                   actions: [
                     TextButton(
                       onPressed: () {
                         if (mounted) {
+                          _searchController.clear();
                           setState(() {
                             _searchQuery = '';
+                            _showSuggestions = false;
                           });
                           _applySort();
                           Navigator.of(context).pop();
@@ -488,17 +570,23 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
 
     return ConstrainedBox(
       constraints: const BoxConstraints(maxHeight: 500),
-      child: ListView.separated(
+      child: ListView.builder(
         shrinkWrap: true,
         physics: const AlwaysScrollableScrollPhysics(),
+        cacheExtent: 200, // Cache only 200 pixels worth of items
         itemCount: _filteredCoins.length,
-        separatorBuilder: (context, index) => Divider(
-          height: 1,
-          thickness: 0.5,
-          color: isDark ? Colors.grey[800] : Colors.grey[200],
-        ),
         itemBuilder: (context, index) {
           final coin = _filteredCoins[index];
+          
+          // Add divider before item (except first)
+          return Column(
+            children: [
+              if (index > 0)
+                Divider(
+                  height: 1,
+                  thickness: 0.5,
+                  color: isDark ? Colors.grey[800] : Colors.grey[200],
+                ),
           final isPositive = coin.priceChangePercentage24h >= 0;
           final changeColor = isPositive 
               ? Colors.green 
@@ -619,6 +707,7 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
                   ],
                 ),
               ),
+            ),
             ),
           );
         },

@@ -93,17 +93,8 @@ router.post('/:userId', async (req, res, next) => {
       });
     }
 
-    // Check if API for this platform already exists
-    const existingApi = user.exchangeApis.find(
-      api => api.platform === platform.toLowerCase() && api.isActive
-    );
-
-    if (existingApi) {
-      return res.status(409).json({
-        success: false,
-        error: `Active API for ${platform} already exists. Please delete it first or update it.`,
-      });
-    }
+    // Allow multiple APIs per platform (test and real)
+    // No restriction - users can add multiple APIs for the same platform
 
     // Encrypt API credentials before storing (256-bit AES encryption)
     const encryptedKey = encrypt(apiKey.trim());

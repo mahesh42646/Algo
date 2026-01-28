@@ -830,17 +830,17 @@ class _ApiBindingScreenState extends State<ApiBindingScreen> {
           ),
         ),
         ...ExchangeService.supportedPlatforms.map((platform) {
-          final isLinked = _linkedApis.any(
+          final linkedCount = _linkedApis.where(
             (api) => api.platform == platform['id'] && api.isActive,
-          );
-          return _buildPlatformCard(platform, isLinked);
+          ).length;
+          return _buildPlatformCard(platform, linkedCount);
         }),
         const SizedBox(height: 20),
       ],
     );
   }
 
-  Widget _buildPlatformCard(Map<String, dynamic> platform, bool isLinked) {
+  Widget _buildPlatformCard(Map<String, dynamic> platform, int linkedCount) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: ListTile(
@@ -866,14 +866,31 @@ class _ApiBindingScreenState extends State<ApiBindingScreen> {
           platform['name'] as String,
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
-        subtitle: Text(platform['description'] as String),
-        trailing: isLinked
-            ? const Chip(
-                label: Text('Linked', style: TextStyle(color: Colors.white)),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(platform['description'] as String),
+            if (linkedCount > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '$linkedCount API${linkedCount > 1 ? 's' : ''} linked (can add more)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.green[700],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        trailing: linkedCount > 0
+            ? Chip(
+                label: Text('$linkedCount Linked', style: const TextStyle(color: Colors.white)),
                 backgroundColor: Colors.green,
               )
             : Icon(Icons.chevron_right, color: Colors.grey[400]),
-        onTap: isLinked ? null : () => _showAddApiDialog(platform),
+        onTap: () => _showAddApiDialog(platform),
       ),
     );
   }
