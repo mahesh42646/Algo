@@ -333,93 +333,57 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
               color: theme.textTheme.bodyMedium?.color,
             ),
             onPressed: () {
+              final mq = MediaQuery.of(context);
+              final screenWidth = mq.size.width;
+              final maxW = (screenWidth - 48).clamp(280.0, 400.0);
               showDialog(
                 context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Search'),
-                  content: StatefulBuilder(
-                    builder: (context, setDialogState) {
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          TextField(
-                            controller: _searchController,
-                            autofocus: true,
-                            decoration: InputDecoration(
-                              hintText: 'Search by symbol or name',
-                              prefixIcon: const Icon(Icons.search),
-                              suffixIcon: _searchQuery.isNotEmpty
-                                  ? IconButton(
-                                      icon: const Icon(Icons.clear),
-                                      onPressed: () {
-                                        _searchController.clear();
-                                        setDialogState(() {
-                                          _searchQuery = '';
-                                          _showSuggestions = false;
-                                        });
-                                        _applySort();
-                                      },
-                                    )
-                                  : null,
-                            ),
-                            onChanged: (value) {
-                              setDialogState(() {
-                                _onSearchChanged();
-                              });
-                            },
-                            onSubmitted: (value) {
-                              Navigator.pop(context);
-                            },
-                          ),
-                          if (_showSuggestions && _searchSuggestions.isNotEmpty)
-                            Container(
-                              constraints: const BoxConstraints(maxHeight: 200),
-                              child: ListView.builder(
-                                shrinkWrap: true,
-                                itemCount: _searchSuggestions.length,
-                                itemBuilder: (context, index) {
-                                  final suggestion = _searchSuggestions[index];
-                                  return ListTile(
-                                    dense: true,
-                                    leading: const Icon(Icons.search, size: 18),
-                                    title: Text(suggestion),
-                                    onTap: () {
-                                      _searchController.text = suggestion;
-                                      setDialogState(() {
-                                        _searchQuery = suggestion;
-                                        _showSuggestions = false;
-                                      });
-                                      _applySort();
-                                      Navigator.pop(context);
-                                    },
-                                  );
-                                },
-                              ),
-                            ),
-                        ],
-                      );
-                    },
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () {
-                        if (mounted) {
-                          _searchController.clear();
+                builder: (context) => Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: maxW),
+                    child: AlertDialog(
+                      contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                      title: const Text('Search'),
+                      content: TextField(
+                        controller: _searchController,
+                        autofocus: true,
+                        decoration: const InputDecoration(
+                          hintText: 'Search by symbol or name',
+                          prefixIcon: Icon(Icons.search),
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        onChanged: (value) {
+                          if (!mounted) return;
                           setState(() {
-                            _searchQuery = '';
-                            _showSuggestions = false;
+                            _searchQuery = value;
                           });
                           _applySort();
+                        },
+                        onSubmitted: (value) {
                           Navigator.of(context).pop();
-                        }
-                      },
-                      child: const Text('Clear'),
+                        },
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () {
+                            if (!mounted) return;
+                            _searchController.clear();
+                            setState(() {
+                              _searchQuery = '';
+                            });
+                            _applySort();
+                            Navigator.of(context).pop();
+                          },
+                          child: const Text('Clear'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('Done'),
+                        ),
+                      ],
                     ),
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Done'),
-                    ),
-                  ],
+                  ),
                 ),
               );
             },
@@ -451,13 +415,17 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
             child: GestureDetector(
               onTap: () => _toggleSort(SortType.currency),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    'Currency',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                      color: theme.textTheme.bodySmall?.color,
+                  Flexible(
+                    child: Text(
+                      'Currency',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: theme.textTheme.bodySmall?.color,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   const SizedBox(width: 4),
@@ -479,13 +447,17 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
               onTap: () => _toggleSort(SortType.price),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    'Price',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                      color: theme.textTheme.bodySmall?.color,
+                  Flexible(
+                    child: Text(
+                      'Price',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: theme.textTheme.bodySmall?.color,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   const SizedBox(width: 4),
@@ -507,13 +479,17 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
               onTap: () => _toggleSort(SortType.change),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    '24h',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                      color: theme.textTheme.bodySmall?.color,
+                  Flexible(
+                    child: Text(
+                      '24h',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: theme.textTheme.bodySmall?.color,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   const SizedBox(width: 4),
@@ -606,7 +582,7 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
                 }
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 child: Row(
                   children: [
                     IconButton(
@@ -623,19 +599,22 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 4),
                     Expanded(
                       flex: 2,
                       child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             coin.getPair(_selectedQuote),
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
-                              fontSize: 14,
+                              fontSize: 13,
                               color: theme.textTheme.bodyLarge?.color,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           if (coin.symbol == 'ZEC')
                             Padding(
@@ -674,30 +653,37 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
                         style: TextStyle(
                           color: theme.textTheme.bodyLarge?.color,
                           fontWeight: FontWeight.w500,
-                          fontSize: 14,
+                          fontSize: 13,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     Expanded(
                       flex: 2,
                       child: Align(
                         alignment: Alignment.centerRight,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: changeColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            '${isPositive ? '+' : ''}${coin.priceChangePercentage24h.toStringAsFixed(2)}%',
-                            textAlign: TextAlign.end,
-                            style: TextStyle(
-                              color: changeColor,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: changeColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '${isPositive ? '+' : ''}${coin.priceChangePercentage24h.toStringAsFixed(2)}%',
+                              textAlign: TextAlign.end,
+                              style: TextStyle(
+                                color: changeColor,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ),

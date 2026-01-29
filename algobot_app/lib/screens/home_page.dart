@@ -184,46 +184,60 @@ class _HomePageState extends State<HomePage> {
         elevation: 0,
         title: const Text('Home'),
         actions: [
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const MinePage()),
-              );
-            },
-            child: Container(
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.account_balance_wallet,
-                    size: 16,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    _isLoadingBalance
-                        ? '...'
-                        : '${_platformBalance.toStringAsFixed(2)} USDT',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.primary,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              return GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const MinePage()),
+                  );
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(right: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  constraints: const BoxConstraints(maxWidth: 140),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                      width: 1,
                     ),
                   ),
-                ],
-              ),
-            ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.account_balance_wallet,
+                        size: 14,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            _isLoadingBalance
+                                ? '...'
+                                : '${_platformBalance.toStringAsFixed(2)} USDT',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
           const NotificationBell(),
         ],
@@ -259,7 +273,7 @@ class _HomePageState extends State<HomePage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final screenWidth = constraints.maxWidth;
-        final isSmallScreen = screenWidth < 360; // Very small phones
+        final isSmallScreen = screenWidth < 380; // Small phones
         
         return Padding(
           padding: EdgeInsets.symmetric(
@@ -288,7 +302,8 @@ class _HomePageState extends State<HomePage> {
       crossAxisCount: crossAxisCount,
       mainAxisSpacing: isSmallScreen ? 8 : 12,
       crossAxisSpacing: isSmallScreen ? 8 : 12,
-      childAspectRatio: crossAxisCount == 2 ? 1.5 : 1.8,
+      // Taller cells to avoid bottom overflow (smaller ratio = taller cell)
+      childAspectRatio: crossAxisCount == 2 ? 1.2 : 1.45,
       children: [
         _buildStatCard(
           'APIs Bound',
@@ -367,60 +382,69 @@ class _HomePageState extends State<HomePage> {
   Widget _buildStatCard(String label, String value, IconData icon, Color color, {bool isSmallScreen = false}) {
     final theme = Theme.of(context);
     return Container(
-      padding: EdgeInsets.all(isSmallScreen ? 8 : 12),
+      padding: EdgeInsets.symmetric(
+        horizontal: isSmallScreen ? 6 : 10,
+        vertical: isSmallScreen ? 6 : 8,
+      ),
       decoration: BoxDecoration(
         color: theme.cardColor,
-        borderRadius: BorderRadius.circular(isSmallScreen ? 8 : 12),
+        borderRadius: BorderRadius.circular(isSmallScreen ? 10 : 14),
         border: Border.all(
           color: color.withOpacity(0.3),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.1),
-            blurRadius: isSmallScreen ? 4 : 8,
-            offset: Offset(0, isSmallScreen ? 1 : 2),
+            color: color.withOpacity(0.12),
+            blurRadius: isSmallScreen ? 6 : 10,
+            offset: Offset(0, isSmallScreen ? 1 : 3),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(
+      child: LayoutBuilder(
+        builder: (context, c) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: isSmallScreen ? 14 : 16, color: color),
-              SizedBox(width: isSmallScreen ? 2 : 4),
-              Expanded(
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: isSmallScreen ? 14 : 16, color: color),
+                  SizedBox(width: isSmallScreen ? 4 : 6),
+                  Flexible(
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: isSmallScreen ? 10 : 11,
+                        color: Colors.grey[700],
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: isSmallScreen ? 4 : 6),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
                 child: Text(
-                  label,
+                  value,
                   style: TextStyle(
-                    fontSize: isSmallScreen ? 9 : 11,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
+                    fontSize: isSmallScreen ? 13 : 15,
+                    fontWeight: FontWeight.w700,
+                    color: color,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
-          ),
-          SizedBox(height: isSmallScreen ? 4 : 8),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize: isSmallScreen ? 14 : 16,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -474,20 +498,24 @@ class _HomePageState extends State<HomePage> {
             crossAxisCount: crossAxisCount,
             crossAxisSpacing: isSmallScreen ? 8 : 12,
             mainAxisSpacing: isSmallScreen ? 8 : 12,
-            childAspectRatio: screenWidth < 360 ? 1.1 : 0.9,
+            childAspectRatio: screenWidth < 360 ? 0.85 : 0.88,
           ),
           itemCount: _platformOptions.length,
           itemBuilder: (context, index) {
             final option = _platformOptions[index];
             final colors = option['color'] as List<Color>;
+            final title = option['title'] as String;
             
             return Material(
               color: Colors.transparent,
               child: InkWell(
-                onTap: () => _handlePlatformOptionTap(option['title'] as String),
+                onTap: () => _handlePlatformOptionTap(title),
                 borderRadius: BorderRadius.circular(isSmallScreen ? 12 : 16),
                 child: Container(
-                  padding: EdgeInsets.all(isSmallScreen ? 8 : 12),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isSmallScreen ? 6 : 10,
+                    vertical: isSmallScreen ? 6 : 8,
+                  ),
                   decoration: BoxDecoration(
                     color: theme.cardColor,
                     borderRadius: BorderRadius.circular(isSmallScreen ? 12 : 16),
@@ -504,11 +532,12 @@ class _HomePageState extends State<HomePage> {
                     ],
                   ),
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Container(
-                        width: isSmallScreen ? 36 : 48,
-                        height: isSmallScreen ? 36 : 48,
+                        width: isSmallScreen ? 32 : 40,
+                        height: isSmallScreen ? 32 : 40,
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             begin: Alignment.topLeft,
@@ -520,20 +549,23 @@ class _HomePageState extends State<HomePage> {
                         child: Icon(
                           option['icon'] as IconData,
                           color: Colors.white,
-                          size: isSmallScreen ? 18 : 24,
+                          size: isSmallScreen ? 16 : 20,
                         ),
                       ),
-                      SizedBox(height: isSmallScreen ? 4 : 8),
-                      Text(
-                        option['title'] as String,
-                        style: TextStyle(
-                          fontSize: isSmallScreen ? 9 : 11,
-                          fontWeight: FontWeight.w500,
-                          color: theme.textTheme.bodyMedium?.color,
+                      SizedBox(height: isSmallScreen ? 4 : 6),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: isSmallScreen ? 10 : 12,
+                            fontWeight: FontWeight.w500,
+                            color: theme.textTheme.bodyMedium?.color,
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
