@@ -317,45 +317,71 @@ class _CirclePageState extends State<CirclePage> {
         final currentLanguage = _languageNames[appState.language] ?? 'English';
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            children: [
-              Icon(Icons.public, color: Theme.of(context).colorScheme.primary, size: 20),
-              const SizedBox(width: 8),
-              const Text(
-                'Discover Circle',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.grey[800]
-                      : Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        currentLanguage,
-                        style: const TextStyle(fontSize: 14),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isSmall = constraints.maxWidth < 380;
+              
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.public,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: isSmall ? 18 : 20,
+                  ),
+                  SizedBox(width: isSmall ? 4 : 8),
+                  Flexible(
+                    child: Text(
+                      'Discover Circle',
+                      style: TextStyle(
+                        fontSize: isSmall ? 16 : 18,
+                        fontWeight: FontWeight.bold,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(width: 4),
-                    Icon(Icons.arrow_drop_down, size: 20, color: Colors.grey[600]),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(Icons.filter_list, color: Colors.grey[600]),
-            ],
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isSmall ? 8 : 12,
+                      vertical: isSmall ? 4 : 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.grey[800]
+                          : Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            currentLanguage,
+                            style: TextStyle(fontSize: isSmall ? 12 : 14),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.arrow_drop_down,
+                          size: isSmall ? 18 : 20,
+                          color: Colors.grey[600],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(
+                    Icons.filter_list,
+                    color: Colors.grey[600],
+                    size: isSmall ? 18 : 20,
+                  ),
+                ],
+              );
+            },
           ),
         );
       },
@@ -398,12 +424,13 @@ class _CirclePageState extends State<CirclePage> {
           Row(
             children: [
               CircleAvatar(
-                radius: 24,
+                radius: isSmall ? 20 : 24,
                 backgroundColor: Theme.of(context).brightness == Brightness.dark
                     ? Colors.grey[700]
                     : Colors.grey[300],
                 child: Icon(
                   Icons.person,
+                  size: isSmall ? 18 : 22,
                   color: Theme.of(context).brightness == Brightness.dark
                       ? Colors.grey[400]
                       : Colors.grey,
@@ -460,274 +487,103 @@ class _CirclePageState extends State<CirclePage> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isWide = constraints.maxWidth > 300;
-              if (isWide) {
-                return Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '7 Days Profit Rate',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Theme.of(context).brightness == Brightness.dark
-                                  ? Colors.grey[400]
-                                  : Colors.grey[600],
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              '${strategy['profit7Days']}%',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '7 Days Profit(USDT)',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Theme.of(context).brightness == Brightness.dark
-                                  ? Colors.grey[400]
-                                  : Colors.grey[600],
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              '${strategy['profit7DaysUsdt']}',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Total Profit',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Theme.of(context).brightness == Brightness.dark
-                                  ? Colors.grey[400]
-                                  : Colors.grey[600],
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              '${strategy['totalProfit']}%',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Synced Profit(USDT)',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Theme.of(context).brightness == Brightness.dark
-                                  ? Colors.grey[400]
-                                  : Colors.grey[600],
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              '${strategy['syncedProfit']}',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              } else {
-                return Column(
+              SizedBox(width: isSmall ? 8 : 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '7 Days Profit Rate',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Theme.of(context).brightness == Brightness.dark
-                                      ? Colors.grey[400]
-                                      : Colors.grey[600],
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${strategy['profit7Days']}%',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.green,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Total Profit',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Theme.of(context).brightness == Brightness.dark
-                                      ? Colors.grey[400]
-                                      : Colors.grey[600],
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${strategy['totalProfit']}%',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.green,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                    Text(
+                      strategy['name'] as String,
+                      style: TextStyle(
+                        fontSize: isSmall ? 14 : 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '7 Days Profit(USDT)',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Theme.of(context).brightness == Brightness.dark
-                                      ? Colors.grey[400]
-                                      : Colors.grey[600],
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${strategy['profit7DaysUsdt']}',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Synced Profit(USDT)',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Theme.of(context).brightness == Brightness.dark
-                                      ? Colors.grey[400]
-                                      : Colors.grey[600],
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${strategy['syncedProfit']}',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                    Text(
+                      '${strategy['members']} people joined',
+                      style: TextStyle(
+                        fontSize: isSmall ? 11 : 12,
+                        color: Colors.grey[600],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
-                );
-              }
-            },
-          ),
-          const SizedBox(height: 16),
+                ),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.orange[100],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Icon(
+                      Icons.local_fire_department,
+                      size: isSmall ? 14 : 16,
+                      color: Colors.orange,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[100],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Icon(
+                      Icons.account_balance,
+                      size: isSmall ? 14 : 16,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ],
+              ),
+          SizedBox(height: isSmall ? 10 : 12),
           Row(
             children: [
-              Icon(Icons.sync, color: Theme.of(context).colorScheme.primary, size: 16),
+              Icon(
+                Icons.sync,
+                color: Theme.of(context).colorScheme.primary,
+                size: isSmall ? 14 : 16,
+              ),
               const SizedBox(width: 4),
               Flexible(
                 child: Text(
                   'Sync strategy is turned on',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  style: TextStyle(
+                    fontSize: isSmall ? 11 : 12,
+                    color: Colors.grey[600],
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               ElevatedButton(
                 onPressed: () {},
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.orange,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                  minimumSize: const Size(60, 36),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isSmall ? 14 : 18,
+                    vertical: isSmall ? 6 : 8,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: const Text('View', style: TextStyle(fontSize: 12)),
+                child: Text(
+                  'View',
+                  style: TextStyle(fontSize: isSmall ? 11 : 12),
+                ),
               ),
             ],
           ),
