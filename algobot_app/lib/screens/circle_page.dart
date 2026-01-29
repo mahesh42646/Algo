@@ -402,108 +402,116 @@ class _CirclePageState extends State<CirclePage> {
   }
 
   Widget _buildStrategyCard(Map<String, dynamic> strategy) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Theme.of(context).brightness == Brightness.dark
-                ? Colors.black.withOpacity(0.3)
-                : Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: isSmall ? 20 : 24,
-                backgroundColor: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.grey[700]
-                    : Colors.grey[300],
-                child: Icon(
-                  Icons.person,
-                  size: isSmall ? 18 : 22,
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.grey[400]
-                      : Colors.grey,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      strategy['name'] as String,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      '${strategy['members']} people joined',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.orange[100],
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Icon(Icons.local_fire_department, size: 16, color: Colors.orange),
-                  ),
-                  const SizedBox(width: 4),
-                  Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.blue[100],
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Icon(Icons.account_balance, size: 16, color: Colors.blue),
-                  ),
-                ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isSmall = constraints.maxWidth < 380;
+        
+        return Container(
+          margin: EdgeInsets.only(bottom: isSmall ? 12 : 16),
+          padding: EdgeInsets.all(isSmall ? 12 : 16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.black.withOpacity(0.3)
+                    : Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
-              SizedBox(width: isSmall ? 8 : 12),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      strategy['name'] as String,
-                      style: TextStyle(
-                        fontSize: isSmall ? 14 : 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: isSmall ? 20 : 24,
+                    backgroundColor: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey[700]
+                        : Colors.grey[300],
+                    child: Icon(
+                      Icons.person,
+                      size: isSmall ? 18 : 22,
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.grey[400]
+                          : Colors.grey,
                     ),
-                    Text(
-                      '${strategy['members']} people joined',
+                  ),
+                  SizedBox(width: isSmall ? 8 : 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          strategy['name'] as String,
+                          style: TextStyle(
+                            fontSize: isSmall ? 14 : 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          '${strategy['members']} people joined',
+                          style: TextStyle(
+                            fontSize: isSmall ? 11 : 12,
+                            color: Colors.grey[600],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[100],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Icon(
+                          Icons.local_fire_department,
+                          size: isSmall ? 14 : 16,
+                          color: Colors.orange,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[100],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Icon(
+                          Icons.account_balance,
+                          size: isSmall ? 14 : 16,
+                          color: Colors.blue,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              SizedBox(height: isSmall ? 10 : 12),
+              Row(
+                children: [
+                  Icon(
+                    Icons.sync,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: isSmall ? 14 : 16,
+                  ),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      'Sync strategy is turned on',
                       style: TextStyle(
                         fontSize: isSmall ? 11 : 12,
                         color: Colors.grey[600],
@@ -511,84 +519,34 @@ class _CirclePageState extends State<CirclePage> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  ],
-                ),
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.orange[100],
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Icon(
-                      Icons.local_fire_department,
-                      size: isSmall ? 14 : 16,
-                      color: Colors.orange,
-                    ),
                   ),
-                  const SizedBox(width: 4),
-                  Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.blue[100],
-                      borderRadius: BorderRadius.circular(4),
+                  const SizedBox(width: 6),
+                  ElevatedButton(
+                    onPressed: () {},
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isSmall ? 14 : 18,
+                        vertical: isSmall ? 6 : 8,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
-                    child: Icon(
-                      Icons.account_balance,
-                      size: isSmall ? 14 : 16,
-                      color: Colors.blue,
+                    child: Text(
+                      'View',
+                      style: TextStyle(fontSize: isSmall ? 11 : 12),
                     ),
                   ),
                 ],
               ),
-          SizedBox(height: isSmall ? 10 : 12),
-          Row(
-            children: [
-              Icon(
-                Icons.sync,
-                color: Theme.of(context).colorScheme.primary,
-                size: isSmall ? 14 : 16,
-              ),
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  'Sync strategy is turned on',
-                  style: TextStyle(
-                    fontSize: isSmall ? 11 : 12,
-                    color: Colors.grey[600],
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 6),
-              ElevatedButton(
-                onPressed: () {},
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isSmall ? 14 : 18,
-                    vertical: isSmall ? 6 : 8,
-                  ),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: Text(
-                  'View',
-                  style: TextStyle(fontSize: isSmall ? 11 : 12),
-                ),
-              ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
