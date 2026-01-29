@@ -333,57 +333,54 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
               color: theme.textTheme.bodyMedium?.color,
             ),
             onPressed: () {
-              final mq = MediaQuery.of(context);
-              final screenWidth = mq.size.width;
-              final maxW = (screenWidth - 48).clamp(280.0, 400.0);
+              final screenWidth = MediaQuery.sizeOf(context).width;
+              final maxDialogWidth = screenWidth > 400 ? 380.0 : (screenWidth - 32);
               showDialog(
                 context: context,
-                builder: (context) => Center(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: maxW),
-                    child: AlertDialog(
-                      contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                      title: const Text('Search'),
-                      content: TextField(
-                        controller: _searchController,
-                        autofocus: true,
-                        decoration: const InputDecoration(
-                          hintText: 'Search by symbol or name',
-                          prefixIcon: Icon(Icons.search),
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                        ),
-                        onChanged: (value) {
-                          if (!mounted) return;
-                          setState(() {
-                            _searchQuery = value;
-                          });
-                          _applySort();
-                        },
-                        onSubmitted: (value) {
-                          Navigator.of(context).pop();
-                        },
+                builder: (context) => AlertDialog(
+                  contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+                  title: const Text('Search'),
+                  content: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: maxDialogWidth),
+                    child: TextField(
+                      controller: _searchController,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        hintText: 'Search by symbol or name',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                        isDense: true,
                       ),
-                      actions: [
-                        TextButton(
-                          onPressed: () {
-                            if (!mounted) return;
-                            _searchController.clear();
-                            setState(() {
-                              _searchQuery = '';
-                            });
-                            _applySort();
-                            Navigator.of(context).pop();
-                          },
-                          child: const Text('Clear'),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('Done'),
-                        ),
-                      ],
+                      onChanged: (value) {
+                        if (!mounted) return;
+                        setState(() {
+                          _searchQuery = value;
+                        });
+                        _applySort();
+                      },
+                      onSubmitted: (value) {
+                        Navigator.of(context).pop();
+                      },
                     ),
                   ),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        if (!mounted) return;
+                        _searchController.clear();
+                        setState(() {
+                          _searchQuery = '';
+                        });
+                        _applySort();
+                        Navigator.of(context).pop();
+                      },
+                      child: const Text('Clear'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Done'),
+                    ),
+                  ],
                 ),
               );
             },

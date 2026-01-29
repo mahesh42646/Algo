@@ -302,8 +302,8 @@ class _HomePageState extends State<HomePage> {
       crossAxisCount: crossAxisCount,
       mainAxisSpacing: isSmallScreen ? 8 : 12,
       crossAxisSpacing: isSmallScreen ? 8 : 12,
-      // Taller cells to avoid bottom overflow (smaller ratio = taller cell)
-      childAspectRatio: crossAxisCount == 2 ? 1.2 : 1.45,
+      // Taller cells to avoid bottom overflow; ratio = width/height (smaller = taller)
+      childAspectRatio: crossAxisCount == 2 ? 1.65 : 2.0,
       children: [
         _buildStatCard(
           'APIs Bound',
@@ -381,29 +381,29 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildStatCard(String label, String value, IconData icon, Color color, {bool isSmallScreen = false}) {
     final theme = Theme.of(context);
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: isSmallScreen ? 6 : 10,
-        vertical: isSmallScreen ? 6 : 8,
-      ),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(isSmallScreen ? 10 : 14),
-        border: Border.all(
-          color: color.withOpacity(0.3),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.12),
-            blurRadius: isSmallScreen ? 6 : 10,
-            offset: Offset(0, isSmallScreen ? 1 : 3),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: isSmallScreen ? 6 : 10,
+            vertical: isSmallScreen ? 6 : 8,
           ),
-        ],
-      ),
-      child: LayoutBuilder(
-        builder: (context, c) {
-          return Column(
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            borderRadius: BorderRadius.circular(isSmallScreen ? 10 : 14),
+            border: Border.all(
+              color: color.withOpacity(0.3),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.12),
+                blurRadius: isSmallScreen ? 6 : 10,
+                offset: Offset(0, isSmallScreen ? 1 : 3),
+              ),
+            ],
+          ),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
@@ -411,13 +411,13 @@ class _HomePageState extends State<HomePage> {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(icon, size: isSmallScreen ? 14 : 16, color: color),
+                  Icon(icon, size: isSmallScreen ? 16 : 18, color: color),
                   SizedBox(width: isSmallScreen ? 4 : 6),
                   Flexible(
                     child: Text(
                       label,
                       style: TextStyle(
-                        fontSize: isSmallScreen ? 10 : 11,
+                        fontSize: isSmallScreen ? 10 : 12,
                         color: Colors.grey[700],
                         fontWeight: FontWeight.w600,
                       ),
@@ -434,7 +434,7 @@ class _HomePageState extends State<HomePage> {
                 child: Text(
                   value,
                   style: TextStyle(
-                    fontSize: isSmallScreen ? 13 : 15,
+                    fontSize: isSmallScreen ? 14 : 16,
                     fontWeight: FontWeight.w700,
                     color: color,
                   ),
@@ -443,9 +443,9 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ],
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -498,7 +498,7 @@ class _HomePageState extends State<HomePage> {
             crossAxisCount: crossAxisCount,
             crossAxisSpacing: isSmallScreen ? 8 : 12,
             mainAxisSpacing: isSmallScreen ? 8 : 12,
-            childAspectRatio: screenWidth < 360 ? 0.85 : 0.88,
+            childAspectRatio: screenWidth < 360 ? 1.0 : 0.95,
           ),
           itemCount: _platformOptions.length,
           itemBuilder: (context, index) {

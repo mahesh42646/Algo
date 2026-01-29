@@ -177,99 +177,117 @@ class _CirclePageState extends State<CirclePage> {
   Widget _buildHeroBanner() {
     return Column(
       children: [
-        SizedBox(
-          height: 200,
-          child: PageView.builder(
-            controller: _bannerController,
-            onPageChanged: (index) => setState(() => _currentBannerPage = index),
-            itemCount: 3,
-            itemBuilder: (context, index) {
-              return Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF1A237E), Color(0xFF283593)],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                padding: const EdgeInsets.all(24),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.blue[700],
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              Env.appName,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Users profit over',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            '185,000,000 USDT',
-                            style: TextStyle(
-                              color: Color(0xFFFFD700),
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          OutlinedButton(
-                            onPressed: () {},
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Colors.white),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: const Text(
-                              'Enjoy daily profit',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final screenWidth = constraints.maxWidth;
+            final isSmallScreen = screenWidth < 380;
+            return SizedBox(
+              height: isSmallScreen ? 180 : 200,
+              child: PageView.builder(
+                controller: _bannerController,
+                onPageChanged: (index) => setState(() => _currentBannerPage = index),
+                itemCount: 3,
+                itemBuilder: (context, index) {
+                  return Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF1A237E), Color(0xFF283593)],
                       ),
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                    const SizedBox(width: 16),
-                    Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        color: Colors.amber[100],
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.account_balance_wallet,
-                        size: 60,
-                        color: Color(0xFFFFD700),
-                      ),
+                    padding: EdgeInsets.all(isSmallScreen ? 16 : 24),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue[700],
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  Env.appName,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: isSmallScreen ? 12 : 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: isSmallScreen ? 8 : 12),
+                              Text(
+                                'Users profit over',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: isSmallScreen ? 13 : 16,
+                                ),
+                              ),
+                              SizedBox(height: isSmallScreen ? 4 : 8),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  '185,000,000 USDT',
+                                  style: TextStyle(
+                                    color: const Color(0xFFFFD700),
+                                    fontSize: isSmallScreen ? 24 : 32,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: isSmallScreen ? 8 : 12),
+                              OutlinedButton(
+                                onPressed: () {},
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(color: Colors.white),
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: isSmallScreen ? 12 : 16,
+                                    vertical: isSmallScreen ? 6 : 8,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Enjoy daily profit',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: isSmallScreen ? 12 : 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(width: isSmallScreen ? 8 : 16),
+                        Container(
+                          width: isSmallScreen ? 80 : 120,
+                          height: isSmallScreen ? 80 : 120,
+                          decoration: BoxDecoration(
+                            color: Colors.amber[100],
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.account_balance_wallet,
+                            size: isSmallScreen ? 40 : 60,
+                            color: const Color(0xFFFFD700),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              );
-            },
-          ),
+                  );
+                },
+              ),
+            );
+          },
         ),
         const SizedBox(height: 12),
         Row(
@@ -394,6 +412,7 @@ class _CirclePageState extends State<CirclePage> {
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
@@ -402,6 +421,8 @@ class _CirclePageState extends State<CirclePage> {
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     Text(
                       '${strategy['members']} people joined',
@@ -409,11 +430,14 @@ class _CirclePageState extends State<CirclePage> {
                         fontSize: 12,
                         color: Colors.grey[600],
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
                     padding: const EdgeInsets.all(4),
@@ -445,74 +469,95 @@ class _CirclePageState extends State<CirclePage> {
                   children: [
                     Expanded(
                       child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             '7 Days Profit Rate',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 11,
                               color: Theme.of(context).brightness == Brightness.dark
                                   ? Colors.grey[400]
                                   : Colors.grey[600],
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 4),
-                          Text(
-                            '${strategy['profit7Days']}%',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green,
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              '${strategy['profit7Days']}%',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green,
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 8),
                           Text(
                             '7 Days Profit(USDT)',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 11,
                               color: Theme.of(context).brightness == Brightness.dark
                                   ? Colors.grey[400]
                                   : Colors.grey[600],
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 4),
-                          Text(
-                            '${strategy['profit7DaysUsdt']}',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              '${strategy['profit7DaysUsdt']}',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             'Total Profit',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 11,
                               color: Theme.of(context).brightness == Brightness.dark
                                   ? Colors.grey[400]
                                   : Colors.grey[600],
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 4),
-                          Text(
-                            '${strategy['totalProfit']}%',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green,
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              '${strategy['totalProfit']}%',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green,
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 8),
                           Text(
                             'Synced Profit(USDT)',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 11,
                               color: Theme.of(context).brightness == Brightness.dark
                                   ? Colors.grey[400]
                                   : Colors.grey[600],
@@ -521,14 +566,16 @@ class _CirclePageState extends State<CirclePage> {
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 4),
-                          Text(
-                            '${strategy['syncedProfit']}',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              '${strategy['syncedProfit']}',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
