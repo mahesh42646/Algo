@@ -480,45 +480,27 @@ class _HomePageState extends State<HomePage> {
   Widget _buildPlatformOptions({bool isSmallScreen = false}) {
     final theme = Theme.of(context);
     
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final screenWidth = constraints.maxWidth;
-        final crossAxisCount = screenWidth < 360 
-            ? 2  // 2 columns on very small screens
-            : screenWidth < 600 
-                ? 2  // 2 columns on small screens
-                : screenWidth < 1200
-                    ? 4  // 4 columns on medium screens
-                    : 4; // 4 columns on large screens
+    return Row(
+      children: _platformOptions.map((option) {
+        final colors = option['color'] as List<Color>;
+        final title = option['title'] as String;
         
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            crossAxisSpacing: isSmallScreen ? 8 : 12,
-            mainAxisSpacing: isSmallScreen ? 8 : 12,
-            childAspectRatio: screenWidth < 360 ? 1.0 : 0.95,
-          ),
-          itemCount: _platformOptions.length,
-          itemBuilder: (context, index) {
-            final option = _platformOptions[index];
-            final colors = option['color'] as List<Color>;
-            final title = option['title'] as String;
-            
-            return Material(
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 4 : 6),
+            child: Material(
               color: Colors.transparent,
               child: InkWell(
                 onTap: () => _handlePlatformOptionTap(title),
-                borderRadius: BorderRadius.circular(isSmallScreen ? 12 : 16),
+                borderRadius: BorderRadius.circular(isSmallScreen ? 10 : 12),
                 child: Container(
                   padding: EdgeInsets.symmetric(
-                    horizontal: isSmallScreen ? 6 : 10,
-                    vertical: isSmallScreen ? 6 : 8,
+                    horizontal: isSmallScreen ? 4 : 8,
+                    vertical: isSmallScreen ? 8 : 12,
                   ),
                   decoration: BoxDecoration(
                     color: theme.cardColor,
-                    borderRadius: BorderRadius.circular(isSmallScreen ? 12 : 16),
+                    borderRadius: BorderRadius.circular(isSmallScreen ? 10 : 12),
                     border: Border.all(
                       color: theme.dividerColor.withOpacity(0.5),
                       width: 1,
@@ -544,7 +526,7 @@ class _HomePageState extends State<HomePage> {
                             end: Alignment.bottomRight,
                             colors: colors,
                           ),
-                          borderRadius: BorderRadius.circular(isSmallScreen ? 8 : 12),
+                          borderRadius: BorderRadius.circular(isSmallScreen ? 8 : 10),
                         ),
                         child: Icon(
                           option['icon'] as IconData,
@@ -552,13 +534,13 @@ class _HomePageState extends State<HomePage> {
                           size: isSmallScreen ? 16 : 20,
                         ),
                       ),
-                      SizedBox(height: isSmallScreen ? 4 : 6),
+                      SizedBox(height: isSmallScreen ? 6 : 8),
                       FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
                           title,
                           style: TextStyle(
-                            fontSize: isSmallScreen ? 10 : 12,
+                            fontSize: isSmallScreen ? 10 : 11,
                             fontWeight: FontWeight.w500,
                             color: theme.textTheme.bodyMedium?.color,
                           ),
@@ -571,10 +553,10 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
               ),
-            );
-          },
+            ),
+          ),
         );
-      },
+      }).toList(),
     );
   }
 }
