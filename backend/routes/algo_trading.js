@@ -1231,45 +1231,19 @@ async function closeAllPositions(trade, reason) {
       }
     }
     
-    // Get account balance for the base asset
-    const baseAsset = trade.symbol.replace('USDT', '').replace('BUSD', '');
-    
-    const timestamp = Date.now();
-    const queryString = `timestamp=${timestamp}`;
-    const signature = crypto
-      .createHmac('sha256', trade.apiSecret)
-      .update(queryString)
-      .digest('hex');
-
-    const binanceBaseUrl = getBinanceApiUrl(trade.isTest);
-    const accountResponse = await axios.get(
-      `${binanceBaseUrl}/account?${queryString}&signature=${signature}`,
-      {
-        headers: {
-          'X-MBX-APIKEY': trade.apiKey,
-        },
-        timeout: 10000,
-      }
-    );
-
-    const balance = accountResponse.data.balances.find(
-      b => b.asset === baseAsset && parseFloat(b.free) > 0
-    );
-
-    if (balance && parseFloat(b.free) > 0) {
-      // Place market sell order
-      const sellTimestamp = Date.now();
-      const sellQueryString = `symbol=${trade.symbol}&side=SELL&type=MARKET&quantity=${parseFloat(balance.free).toFixed(8)}&timestamp=${sellTimestamp}`;
-      
-      const sellSignature = crypto
+    // Try to close positions on exchange (best effort - trade will stop either way)
+    try {
+      const baseAsset = trade.symbol.replace('USDT', '').replace('BUSD', '');
+      const timestamp = Date.now();
+      const queryString = `timestamp=${timestamp}`;
+      const signature = crypto
         .createHmac('sha256', trade.apiSecret)
-        .update(sellQueryString)
+        .update(queryString)
         .digest('hex');
 
       const binanceBaseUrl = getBinanceApiUrl(trade.isTest);
-      await axios.post(
-        `${binanceBaseUrl}/order?${sellQueryString}&signature=${sellSignature}`,
-        null,
+      const accountResponse = await axios.get(
+        `${binanceBaseUrl}/account?${queryString}&signature=${signature}`,
         {
           headers: {
             'X-MBX-APIKEY': trade.apiKey,
@@ -1278,116 +1252,144 @@ async function closeAllPositions(trade, reason) {
         }
       );
 
-      console.log(`[ALGO TRADING CLOSE] ✅ Closed all positions for ${trade.symbol} (Quantity: ${balance.free})`);
+      const balance = accountResponse.data.balances.find(
+        (bal) => bal.asset === baseAsset && parseFloat(bal.free) > 0
+      );
+
+      if (balance && parseFloat(balance.free) > 0) {
+        const sellTimestamp = Date.now();
+        const sellQueryString = `symbol=${trade.symbol}&side=SELL&type=MARKET&quantity=${parseFloat(balance.free).toFixed(8)}&timestamp=${sellTimestamp}`;
+        const sellSignature = crypto
+          .createHmac('sha256', trade.apiSecret)
+          .update(sellQueryString)
+          .digest('hex');
+
+        await axios.post(
+          `${getBinanceApiUrl(trade.isTest)}/order?${sellQueryString}&signature=${sellSignature}`,
+          null,
+          {
+            headers: {
+              'X-MBX-APIKEY': trade.apiKey,
+            },
+            timeout: 10000,
+          }
+        );
+
+        console.log(`[ALGO TRADING CLOSE] ✅ Closed all positions for ${trade.symbol} (Quantity: ${balance.free})`);
+      }
+    } catch (sellErr) {
+      console.error(`[ALGO TRADING CLOSE] ⚠️ Sell/balance step failed (trade will still stop):`, sellErr.message);
     }
 
-    // Stop the trade
+    // Stop the trade - clear interval and remove from active immediately so it always stops
     if (trade.intervalId) {
       clearInterval(trade.intervalId);
+      trade.intervalId = null;
     }
     trade.isActive = false;
     trade.stoppedAt = new Date();
     trade.stopReason = reason;
-
-    // Refund upfront fee for remaining levels
-    const userForRefund = await User.findOne({ userId: trade.userId }).select('wallet');
-    if (userForRefund && trade.upfrontFee > 0) {
-      const remainingLevels = Math.max(0, (trade.numberOfLevels || 0) - (trade.currentLevel || 0));
-      const n = trade.numberOfLevels || 1;
-      const refundAmount = (remainingLevels / n) * trade.upfrontFee;
-      if (refundAmount > 0) {
-        const walletBalances = userForRefund.wallet?.balances || [];
-        const usdtBalance = walletBalances.find(b => (b.currency || '').toUpperCase() === 'USDT');
-        if (usdtBalance) {
-          usdtBalance.amount = (usdtBalance.amount || 0) + refundAmount;
-          await userForRefund.save();
-          console.log(`[ALGO TRADING CLOSE] 💰 Refunded \$${refundAmount.toFixed(2)} for ${remainingLevels} unused level(s)`);
-        }
-      }
-    }
-
-    if (!completedTrades.has(trade.userId)) completedTrades.set(trade.userId, []);
-    completedTrades.get(trade.userId).push({ ...trade, profit: actualProfit });
-
-    const totalFees = (trade.platformWalletFees || []).reduce((a, b) => a + b, 0);
-    const ordersSafe = (trade.orders || []).map((o) => ({
-      side: o.side,
-      price: parseFloat(o.price) || 0,
-      quantity: parseFloat(o.quantity) || 0,
-      timestamp: o.timestamp,
-      orderId: o.orderId,
-    }));
-    await TradeHistory.create({
-      userId: trade.userId,
-      symbol: trade.symbol,
-      profit: actualProfit,
-      stoppedAt: trade.stoppedAt,
-      stopReason: trade.stopReason,
-      currentLevel: trade.currentLevel || 0,
-      numberOfLevels: trade.numberOfLevels || 0,
-      totalInvested: trade.totalInvested || 0,
-      tradeDirection: trade.tradeDirection,
-      platformWalletFees: trade.platformWalletFees || [],
-      totalFees,
-      startPrice: trade.startPrice,
-      startedAt: trade.startedAt,
-      useMargin: trade.useMargin,
-      leverage: trade.leverage || 1,
-      maxProfitBook: trade.maxProfitBook,
-      amountPerLevel: trade.amountPerLevel,
-      isManual: trade.isManual || false,
-      isAdminMode: trade.isAdminMode || false,
-      isTest: trade.isTest || false,
-      upfrontFee: trade.upfrontFee,
-      orders: ordersSafe,
-    }).catch((err) => console.error('[ALGO TRADING] ❌ Failed to persist trade history:', err.message));
-
     const tradeKey = `${trade.userId}:${trade.symbol}`;
     activeTrades.delete(tradeKey);
 
-    // Add notification and update strategy status
-    const user = await User.findOne({ userId: trade.userId }).select('notifications strategies');
-    if (user) {
-      const reasonMessages = {
-        'profit': 'Profit target reached',
-        'max_loss': 'Maximum loss limit reached',
-        'insufficient_funds': 'Insufficient platform wallet balance',
-        'admin_stopped': 'Stopped by administrator',
-        'user_stopped': 'Stopped by you',
-      };
-      if (!user.notifications) {
-        user.notifications = [];
+    // Refund, persist, notify - best effort; trade is already stopped and removed from activeTrades
+    try {
+      const userForRefund = await User.findOne({ userId: trade.userId }).select('wallet');
+      if (userForRefund && trade.upfrontFee > 0) {
+        const remainingLevels = Math.max(0, (trade.numberOfLevels || 0) - (trade.currentLevel || 0));
+        const n = trade.numberOfLevels || 1;
+        const refundAmount = (remainingLevels / n) * trade.upfrontFee;
+        if (refundAmount > 0) {
+          const walletBalances = userForRefund.wallet?.balances || [];
+          const usdtBalance = walletBalances.find((bal) => (bal.currency || '').toUpperCase() === 'USDT');
+          if (usdtBalance) {
+            usdtBalance.amount = (usdtBalance.amount || 0) + refundAmount;
+            await userForRefund.save();
+            console.log(`[ALGO TRADING CLOSE] 💰 Refunded \$${refundAmount.toFixed(2)} for ${remainingLevels} unused level(s)`);
+          }
+        }
       }
-      user.notifications.push({
-        title: `Algo Trading Stopped - ${trade.symbol} 🛑`,
-        message: `${reasonMessages[reason] || reason}. Levels: ${trade.currentLevel}. Fees: \$${totalFees.toFixed(2)}`,
-        type: reason === 'profit' ? 'success' : reason === 'max_loss' ? 'warning' : 'error',
-        read: false,
-        createdAt: new Date(),
+
+      if (!completedTrades.has(trade.userId)) completedTrades.set(trade.userId, []);
+      completedTrades.get(trade.userId).push({ ...trade, profit: actualProfit });
+
+      const totalFees = (trade.platformWalletFees || []).reduce((a, b) => a + b, 0);
+      const ordersSafe = (trade.orders || []).map((o) => ({
+        side: o.side,
+        price: parseFloat(o.price) || 0,
+        quantity: parseFloat(o.quantity) || 0,
+        timestamp: o.timestamp,
+        orderId: o.orderId,
+      }));
+      await TradeHistory.create({
+        userId: trade.userId,
+        symbol: trade.symbol,
+        profit: actualProfit,
+        stoppedAt: trade.stoppedAt,
+        stopReason: trade.stopReason,
+        currentLevel: trade.currentLevel || 0,
+        numberOfLevels: trade.numberOfLevels || 0,
+        totalInvested: trade.totalInvested || 0,
+        tradeDirection: trade.tradeDirection,
+        platformWalletFees: trade.platformWalletFees || [],
+        totalFees,
+        startPrice: trade.startPrice,
+        startedAt: trade.startedAt,
+        useMargin: trade.useMargin,
+        leverage: trade.leverage || 1,
+        maxProfitBook: trade.maxProfitBook,
+        amountPerLevel: trade.amountPerLevel,
+        isManual: trade.isManual || false,
+        isAdminMode: trade.isAdminMode || false,
+        isTest: trade.isTest || false,
+        upfrontFee: trade.upfrontFee,
+        orders: ordersSafe,
+      }).catch((err) => console.error('[ALGO TRADING] ❌ Failed to persist trade history:', err.message));
+
+      const user = await User.findOne({ userId: trade.userId }).select('notifications strategies');
+      if (user) {
+        const reasonMessages = {
+          'profit': 'Profit target reached',
+          'max_loss': 'Maximum loss limit reached',
+          'insufficient_funds': 'Insufficient platform wallet balance',
+          'admin_stopped': 'Stopped by administrator',
+          'user_stopped': 'Stopped by you',
+        };
+        const totalFeesMsg = (trade.platformWalletFees || []).reduce((a, b) => a + b, 0);
+        if (!user.notifications) {
+          user.notifications = [];
+        }
+        user.notifications.push({
+          title: `Algo Trading Stopped - ${trade.symbol} 🛑`,
+          message: `${reasonMessages[reason] || reason}. Levels: ${trade.currentLevel}. Fees: \$${totalFeesMsg.toFixed(2)}`,
+          type: reason === 'profit' ? 'success' : reason === 'max_loss' ? 'warning' : 'error',
+          read: false,
+          createdAt: new Date(),
+        });
+
+        const strategy = user.strategies.find(
+          (s) => s.type === 'algo_trading' && s.symbol === trade.symbol && s.status === 'active'
+        );
+        if (strategy) {
+          strategy.status = 'inactive';
+          console.log(`[ALGO TRADING CLOSE] 📝 Updated strategy status to inactive: ${strategy.name}`);
+        }
+
+        await user.save();
+        console.log(`[ALGO TRADING CLOSE] 📬 Notification sent to user ${trade.userId}`);
+      }
+
+      console.log(`[ALGO TRADING CLOSE] 📊 Trade Summary:`, {
+        symbol: trade.symbol,
+        reason,
+        levels: trade.currentLevel,
+        totalInvested: (trade.totalInvested || 0).toFixed(2),
+        totalFees: (trade.platformWalletFees || []).reduce((a, b) => a + b, 0).toFixed(2),
+        duration: trade.startedAt ? Math.round((Date.now() - trade.startedAt.getTime()) / 1000 / 60) : 0,
       });
-
-      // Update strategy status to inactive
-      const strategy = user.strategies.find(
-        s => s.type === 'algo_trading' && s.symbol === trade.symbol && s.status === 'active'
-      );
-      if (strategy) {
-        strategy.status = 'inactive';
-        console.log(`[ALGO TRADING CLOSE] 📝 Updated strategy status to inactive: ${strategy.name}`);
-      }
-
-      await user.save();
-      
-      console.log(`[ALGO TRADING CLOSE] 📬 Notification sent to user ${trade.userId}`);
+    } catch (postStopErr) {
+      console.error('[ALGO TRADING CLOSE] ⚠️ Post-stop step failed (trade already stopped):', postStopErr.message);
     }
-
-    console.log(`[ALGO TRADING CLOSE] 📊 Trade Summary:`, {
-      symbol: trade.symbol,
-      reason,
-      levels: trade.currentLevel,
-      totalInvested: (trade.totalInvested || 0).toFixed(2),
-      totalFees: totalFees.toFixed(2),
-      duration: trade.startedAt ? Math.round((Date.now() - trade.startedAt.getTime()) / 1000 / 60) : 0, // minutes
-    });
 
   } catch (error) {
     console.error(`[ALGO TRADING CLOSE] ❌ Error closing positions:`, error.message);
