@@ -1355,7 +1355,6 @@ async function closeAllPositions(trade, reason) {
         'admin_stopped': 'Stopped by administrator',
         'user_stopped': 'Stopped by you',
       };
-      const totalFees = (trade.platformWalletFees || []).reduce((a, b) => a + b, 0);
       if (!user.notifications) {
         user.notifications = [];
       }
@@ -1381,14 +1380,13 @@ async function closeAllPositions(trade, reason) {
       console.log(`[ALGO TRADING CLOSE] 📬 Notification sent to user ${trade.userId}`);
     }
 
-    const totalFees = trade.platformWalletFees.reduce((a, b) => a + b, 0);
     console.log(`[ALGO TRADING CLOSE] 📊 Trade Summary:`, {
       symbol: trade.symbol,
       reason,
       levels: trade.currentLevel,
-      totalInvested: trade.totalInvested.toFixed(2),
+      totalInvested: (trade.totalInvested || 0).toFixed(2),
       totalFees: totalFees.toFixed(2),
-      duration: Math.round((Date.now() - trade.startedAt.getTime()) / 1000 / 60), // minutes
+      duration: trade.startedAt ? Math.round((Date.now() - trade.startedAt.getTime()) / 1000 / 60) : 0, // minutes
     });
 
   } catch (error) {
