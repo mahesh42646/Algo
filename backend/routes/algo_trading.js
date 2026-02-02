@@ -7,6 +7,8 @@ const axios = require('axios');
 
 // Store active algo trades in memory (in production, use Redis or database)
 const activeTrades = new Map();
+// Stopped trades per user for history and profits (manual, algo, admin)
+const completedTrades = new Map(); // userId -> array of { ...trade, profit }
 
 // Helper function to get Binance API URL based on test mode
 function getBinanceApiUrl(isTest = false) {
@@ -337,6 +339,11 @@ router.post('/:userId/stop', async (req, res, next) => {
     trade.stoppedAt = new Date();
     trade.stopReason = 'user_stopped';
 
+    const profit = trade.totalInvested > 0
+      ? (trade.totalInvested * ((trade.maxProfitBook || 3) / 100)) - (trade.platformWalletFees || []).reduce((a, b) => a + b, 0)
+      : 0;
+    if (!completedTrades.has(userId)) completedTrades.set(userId, []);
+    completedTrades.get(userId).push({ ...trade, profit });
     activeTrades.delete(tradeKey);
 
     // Update strategy status
@@ -509,11 +516,13 @@ router.get('/:userId/trades', async (req, res, next) => {
 router.get('/:userId/trade-history/:symbol', async (req, res, next) => {
   try {
     const { userId, symbol } = req.params;
-    
-    // Find the trade
-    const tradeKey = `${userId}_${symbol}`;
-    const trade = activeTrades.get(tradeKey);
-    
+    const symbolUpper = symbol.toUpperCase();
+    const tradeKey = `${userId}:${symbolUpper}`;
+    let trade = activeTrades.get(tradeKey);
+    if (!trade) {
+      const completed = completedTrades.get(userId) || [];
+      trade = completed.find((t) => (t.symbol || '').toUpperCase() === symbolUpper) || null;
+    }
     if (!trade) {
       return res.status(404).json({
         success: false,
@@ -645,56 +654,37 @@ router.get('/:userId/trade-history/:symbol', async (req, res, next) => {
   }
 });
 
-// Get profit details for algo trades
+// Get profit details for algo trades (manual, algo, admin)
 router.get('/:userId/profits', async (req, res, next) => {
   try {
     const { userId } = req.params;
     const { period = '7d' } = req.query; // 7d, 30d, all
 
-    // Get all trades (active and stopped) for this user
-    const userTrades = [];
-    for (const [key, trade] of activeTrades.entries()) {
-      if (trade.userId === userId) {
-        userTrades.push(trade);
-      }
-    }
-
-    // Calculate profits
+    const completed = completedTrades.get(userId) || [];
     let totalProfit = 0;
     let todayProfit = 0;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const tradeHistory = [];
-    for (const trade of userTrades) {
-      if (trade.stoppedAt) {
-        // Calculate profit for stopped trades
-        const profit = trade.totalInvested > 0 
-          ? (trade.totalInvested * (trade.maxProfitBook / 100)) - trade.platformWalletFees.reduce((a, b) => a + b, 0)
-          : 0;
-        
-        totalProfit += profit;
-        
-        if (new Date(trade.stoppedAt) >= today) {
-          todayProfit += profit;
-        }
-
-        tradeHistory.push({
-          symbol: trade.symbol,
-          profit: profit,
-          stoppedAt: trade.stoppedAt,
-          reason: trade.stopReason,
-          levels: trade.currentLevel,
-        });
-      }
-    }
+    const tradeHistory = completed.map((t) => {
+      const profit = typeof t.profit === 'number' ? t.profit : 0;
+      totalProfit += profit;
+      if (t.stoppedAt && new Date(t.stoppedAt) >= today) todayProfit += profit;
+      return {
+        symbol: t.symbol,
+        profit,
+        stoppedAt: t.stoppedAt,
+        reason: t.stopReason,
+        levels: t.currentLevel,
+      };
+    });
 
     res.json({
       success: true,
       data: {
-        totalProfit: totalProfit,
-        todayProfit: todayProfit,
-        tradeHistory: tradeHistory,
+        totalProfit,
+        todayProfit,
+        tradeHistory,
       },
     });
   } catch (error) {
@@ -1349,6 +1339,11 @@ async function closeAllPositions(trade, reason) {
     trade.stoppedAt = new Date();
     trade.stopReason = reason;
 
+    const profit = trade.totalInvested > 0
+      ? (trade.totalInvested * ((trade.maxProfitBook || 3) / 100)) - (trade.platformWalletFees || []).reduce((a, b) => a + b, 0)
+      : 0;
+    if (!completedTrades.has(trade.userId)) completedTrades.set(trade.userId, []);
+    completedTrades.get(trade.userId).push({ ...trade, profit });
     const tradeKey = `${trade.userId}:${trade.symbol}`;
     activeTrades.delete(tradeKey);
 
@@ -1718,6 +1713,13 @@ router.post('/:userId/start-admin', async (req, res, next) => {
             console.log(`[ADMIN STRATEGY] ⚠️ Balance insufficient (${currentBalance} < ${trade.minBalance}) - stopping`);
             clearInterval(intervalId);
             trade.isActive = false;
+            trade.stoppedAt = new Date();
+            trade.stopReason = 'insufficient_funds';
+            const profit = trade.totalInvested > 0
+              ? (trade.totalInvested * ((trade.maxProfitBook || 3) / 100)) - (trade.platformWalletFees || []).reduce((a, b) => a + b, 0)
+              : 0;
+            if (!completedTrades.has(userId)) completedTrades.set(userId, []);
+            completedTrades.get(userId).push({ ...trade, profit });
             activeTrades.delete(tradeKey);
           }
         }

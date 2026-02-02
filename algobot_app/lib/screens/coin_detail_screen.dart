@@ -1692,21 +1692,35 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
     }
   }
 
+  static double _toDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is int) return (v as int).toDouble();
+    if (v is double) return v;
+    return double.tryParse(v.toString()) ?? 0.0;
+  }
+
+  static int _toInt(dynamic v) {
+    if (v == null) return 0;
+    if (v is int) return v;
+    if (v is double) return (v as double).toInt();
+    return int.tryParse(v.toString()) ?? 0;
+  }
+
   Widget _buildActiveTradeCard() {
     if (_activeTrade == null) return const SizedBox.shrink();
     
-    final currentPnL = _activeTrade!['currentPnL'] ?? 0.0;
-    final unrealizedPnL = _activeTrade!['unrealizedPnL'] ?? 0.0;
-    final totalBalance = _activeTrade!['totalBalance'] ?? _activeTrade!['totalInvested'] ?? 0.0;
-    final currentLevel = _activeTrade!['currentLevel'] ?? 0;
-    final numberOfLevels = _activeTrade!['numberOfLevels'] ?? 0;
+    final currentPnL = _toDouble(_activeTrade!['currentPnL']);
+    final unrealizedPnL = _toDouble(_activeTrade!['unrealizedPnL']);
+    final totalBalance = _toDouble(_activeTrade!['totalBalance'] ?? _activeTrade!['totalInvested']);
+    final currentLevel = _toInt(_activeTrade!['currentLevel']);
+    final numberOfLevels = _toInt(_activeTrade!['numberOfLevels']);
     final tradeDirection = _activeTrade!['tradeDirection'] ?? 'N/A';
-    final currentPrice = _activeTrade!['currentPrice'] ?? widget.coin.currentPrice;
-    final startPrice = _activeTrade!['startPrice'] ?? 0.0;
-    final leverage = _activeTrade!['leverage'] ?? 1;
-    final useMargin = _activeTrade!['useMargin'] ?? false;
-    final maxLossPerTrade = _activeTrade!['maxLossPerTrade'] ?? 3.0;
-    final maxProfitBook = _activeTrade!['maxProfitBook'] ?? 3.0;
+    final currentPrice = _toDouble(_activeTrade!['currentPrice'] ?? widget.coin.currentPrice);
+    final startPrice = _toDouble(_activeTrade!['startPrice']);
+    final leverage = _toInt(_activeTrade!['leverage'] ?? 1);
+    final useMargin = _activeTrade!['useMargin'] == true;
+    final maxLossPerTrade = _toDouble(_activeTrade!['maxLossPerTrade']) > 0 ? _toDouble(_activeTrade!['maxLossPerTrade']) : 3.0;
+    final maxProfitBook = _toDouble(_activeTrade!['maxProfitBook']) > 0 ? _toDouble(_activeTrade!['maxProfitBook']) : 3.0;
     
     // Calculate target price
     final targetPrice = tradeDirection == 'BUY'

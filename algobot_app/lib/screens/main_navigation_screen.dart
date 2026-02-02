@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'home_page.dart';
 import 'strategy_page.dart';
-import 'circle_page.dart';
+import 'history_page.dart';
 import 'favorites_page.dart';
 import 'mine_page.dart';
 
@@ -14,11 +14,13 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
+  final GlobalKey<HomePageState> _homeKey = GlobalKey<HomePageState>();
+  final GlobalKey<HistoryPageState> _historyKey = GlobalKey<HistoryPageState>();
 
-  final List<Widget> _pages = const [
-    HomePage(),
+  List<Widget> get _pages => [
+    HomePage(key: _homeKey),
     StrategyPage(),
-    CirclePage(),
+    HistoryPage(key: _historyKey),
     FavoritesPage(),
     MinePage(),
   ];
@@ -65,9 +67,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   index: 1,
                 ),
                 _buildNavItem(
-                  icon: Icons.public,
-                  iconOutlined: Icons.public_outlined,
-                  label: 'Circle',
+                  icon: Icons.history,
+                  iconOutlined: Icons.history,
+                  label: 'History',
                   index: 2,
                 ),
                 _buildNavItem(
@@ -106,6 +108,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         color: Colors.transparent,
         child: InkWell(
           onTap: () {
+            if (_currentIndex != index) {
+              if (index == 0) _homeKey.currentState?.refresh();
+              if (index == 2) _historyKey.currentState?.refresh();
+            }
             setState(() {
               _currentIndex = index;
             });

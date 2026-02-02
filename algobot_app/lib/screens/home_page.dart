@@ -15,10 +15,11 @@ class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<HomePage> createState() => HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class HomePageState extends State<HomePage> {
+  void refresh() => _loadData();
   final UserService _userService = UserService();
   final AuthService _authService = AuthService();
   final ExchangeService _exchangeService = ExchangeService();
@@ -96,29 +97,32 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  static double _toDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is int) return (v as int).toDouble();
+    if (v is double) return v;
+    return double.tryParse(v.toString()) ?? 0.0;
+  }
+
   Future<void> _loadStats() async {
     setState(() {
       _isLoadingStats = true;
     });
     
     try {
-      // Load API count
       final apis = await _exchangeService.getLinkedApis();
       final activeApis = apis.where((api) => api.isActive).length;
       
-      // Load trades count
       final activeTrades = await _algoService.getActiveTrades();
       
-      // Load profit details
       final profitDetails = await _algoService.getProfitDetails(period: 'all');
-      final totalProfit = (profitDetails['totalProfit'] ?? 0.0).toDouble();
+      final totalProfit = _toDouble(profitDetails['totalProfit']);
       final tradeHistory = profitDetails['tradeHistory'] as List? ?? [];
       
-      // Calculate profit:loss ratio
       double totalProfitAmount = 0.0;
       double totalLossAmount = 0.0;
       for (var trade in tradeHistory) {
-        final profit = (trade['profit'] ?? 0.0).toDouble();
+        final profit = _toDouble(trade is Map ? trade['profit'] : null);
         if (profit > 0) {
           totalProfitAmount += profit;
         } else {
@@ -139,6 +143,10 @@ class _HomePageState extends State<HomePage> {
     } catch (e) {
       if (mounted) {
         setState(() {
+          _apiCount = 0;
+          _tradesCount = 0;
+          _profitLossRatio = 0.0;
+          _totalProfit = 0.0;
           _isLoadingStats = false;
         });
       }
@@ -300,10 +308,10 @@ class _HomePageState extends State<HomePage> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       crossAxisCount: crossAxisCount,
-      mainAxisSpacing: isSmallScreen ? 8 : 12,
-      crossAxisSpacing: isSmallScreen ? 8 : 12,
+      mainAxisSpacing: isSmallScreen ? 8 : 8,
+      crossAxisSpacing: isSmallScreen ? 8 : 8,
       // Taller cells to avoid bottom overflow; ratio = width/height (smaller = taller)
-      childAspectRatio: crossAxisCount == 2 ? 1.65 : 2.0,
+      childAspectRatio: crossAxisCount == 1 ? 1 : 2,
       children: [
         _buildStatCard(
           'APIs Bound',
