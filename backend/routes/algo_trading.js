@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../schemas/user');
+const TradeHistory = require('../schemas/trade_history');
 const { decrypt } = require('../utils/encryption');
 const crypto = require('crypto');
 const axios = require('axios');
@@ -494,7 +495,7 @@ router.get('/:userId/trades', async (req, res, next) => {
   }
 });
 
-// Get detailed transaction history for a specific trade
+// Get detailed transaction history for a specific trade (active from memory, completed from DB)
 router.get('/:userId/trade-history/:symbol', async (req, res, next) => {
   try {
     const { userId, symbol } = req.params;
@@ -502,8 +503,15 @@ router.get('/:userId/trade-history/:symbol', async (req, res, next) => {
     const tradeKey = `${userId}:${symbolUpper}`;
     let trade = activeTrades.get(tradeKey);
     if (!trade) {
-      const completed = completedTrades.get(userId) || [];
-      trade = completed.find((t) => (t.symbol || '').toUpperCase() === symbolUpper) || null;
+      const fromDb = await TradeHistory.findOne({ userId, symbol: symbolUpper }).sort({ stoppedAt: -1 }).lean();
+      if (fromDb) {
+        trade = {
+          ...fromDb,
+          isActive: false,
+          isStarted: fromDb.currentLevel > 0,
+          platformWalletFees: fromDb.platformWalletFees || [],
+        };
+      }
     }
     if (!trade) {
       return res.status(404).json({
@@ -636,13 +644,13 @@ router.get('/:userId/trade-history/:symbol', async (req, res, next) => {
   }
 });
 
-// Get profit details for algo trades (manual, algo, admin)
+// Get profit details for algo trades (manual, algo, admin) - from database, persists across restarts
 router.get('/:userId/profits', async (req, res, next) => {
   try {
     const { userId } = req.params;
     const { period = '7d' } = req.query; // 7d, 30d, all
 
-    const completed = completedTrades.get(userId) || [];
+    const completed = await TradeHistory.find({ userId }).sort({ stoppedAt: -1 }).lean();
     let totalProfit = 0;
     let todayProfit = 0;
     const today = new Date();
@@ -658,6 +666,10 @@ router.get('/:userId/profits', async (req, res, next) => {
         stoppedAt: t.stoppedAt,
         reason: t.stopReason,
         levels: t.currentLevel,
+        totalFees: t.totalFees ?? 0,
+        platformWalletFees: t.platformWalletFees || [],
+        numberOfLevels: t.numberOfLevels,
+        totalInvested: t.totalInvested,
       };
     });
 
@@ -1296,6 +1308,40 @@ async function closeAllPositions(trade, reason) {
 
     if (!completedTrades.has(trade.userId)) completedTrades.set(trade.userId, []);
     completedTrades.get(trade.userId).push({ ...trade, profit: actualProfit });
+
+    const totalFees = (trade.platformWalletFees || []).reduce((a, b) => a + b, 0);
+    const ordersSafe = (trade.orders || []).map((o) => ({
+      side: o.side,
+      price: parseFloat(o.price) || 0,
+      quantity: parseFloat(o.quantity) || 0,
+      timestamp: o.timestamp,
+      orderId: o.orderId,
+    }));
+    await TradeHistory.create({
+      userId: trade.userId,
+      symbol: trade.symbol,
+      profit: actualProfit,
+      stoppedAt: trade.stoppedAt,
+      stopReason: trade.stopReason,
+      currentLevel: trade.currentLevel || 0,
+      numberOfLevels: trade.numberOfLevels || 0,
+      totalInvested: trade.totalInvested || 0,
+      tradeDirection: trade.tradeDirection,
+      platformWalletFees: trade.platformWalletFees || [],
+      totalFees,
+      startPrice: trade.startPrice,
+      startedAt: trade.startedAt,
+      useMargin: trade.useMargin,
+      leverage: trade.leverage || 1,
+      maxProfitBook: trade.maxProfitBook,
+      amountPerLevel: trade.amountPerLevel,
+      isManual: trade.isManual || false,
+      isAdminMode: trade.isAdminMode || false,
+      isTest: trade.isTest || false,
+      upfrontFee: trade.upfrontFee,
+      orders: ordersSafe,
+    }).catch((err) => console.error('[ALGO TRADING] ❌ Failed to persist trade history:', err.message));
+
     const tradeKey = `${trade.userId}:${trade.symbol}`;
     activeTrades.delete(tradeKey);
 

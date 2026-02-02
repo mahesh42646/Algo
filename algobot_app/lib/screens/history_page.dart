@@ -310,6 +310,7 @@ class HistoryPageState extends State<HistoryPage> {
   Widget _buildCompletedTradeTile(ThemeData theme, Map<String, dynamic> trade) {
     final symbol = trade['symbol']?.toString() ?? '—';
     final profit = _toDouble(trade['profit']);
+    final totalFees = _toDouble(trade['totalFees']);
     final isProfit = profit >= 0;
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -317,7 +318,7 @@ class HistoryPageState extends State<HistoryPage> {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         title: Text(symbol, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text(
-          'Stopped ${_formatDate(trade['stoppedAt'])} · Levels: ${trade['levels'] ?? '—'}',
+          'Stopped ${_formatDate(trade['stoppedAt'])} · Levels: ${trade['levels'] ?? '—'}${totalFees > 0 ? ' · Fees: \$${totalFees.toStringAsFixed(2)}' : ''}',
           style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
         ),
         trailing: Text(
@@ -404,13 +405,17 @@ class HistoryPageState extends State<HistoryPage> {
     final reason = trade['reason']?.toString() ?? '—';
     final levels = trade['levels']?.toString() ?? '—';
     final stoppedAt = _formatDate(trade['stoppedAt']);
+    final totalFees = _toDouble(trade['totalFees']);
+    final platformWalletFees = trade['platformWalletFees'] as List? ?? [];
+    final numberOfLevels = trade['numberOfLevels']?.toString() ?? '—';
+    final totalInvested = _toDouble(trade['totalInvested']);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.45,
+        initialChildSize: 0.55,
         minChildSize: 0.3,
-        maxChildSize: 0.7,
+        maxChildSize: 0.8,
         expand: false,
         builder: (_, scrollController) => SingleChildScrollView(
           controller: scrollController,
@@ -433,7 +438,24 @@ class HistoryPageState extends State<HistoryPage> {
               Text('Completed: $symbol', style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 12),
               _detailRow('Profit/Loss', '${profit >= 0 ? '+' : ''}${profit.toStringAsFixed(2)} USDT', color: profit >= 0 ? Colors.green : Colors.red),
-              _detailRow('Levels', levels),
+              _detailRow('Levels', '$levels / $numberOfLevels'),
+              if (totalInvested > 0) _detailRow('Total invested', '\$${totalInvested.toStringAsFixed(2)}'),
+              _detailRow('Platform fees (wallet)', '\$${totalFees.toStringAsFixed(2)} USDT'),
+              if (platformWalletFees.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text('Fees by level', style: Theme.of(context).textTheme.titleSmall),
+                ...platformWalletFees.asMap().entries.map((e) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Level ${e.key + 1}', style: TextStyle(fontSize: 12, color: Theme.of(context).textTheme.bodySmall?.color)),
+                      Text('\$${_toDouble(e.value).toStringAsFixed(2)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                )),
+              ],
+              const SizedBox(height: 8),
               _detailRow('Stopped', stoppedAt),
               _detailRow('Reason', reason),
               const SizedBox(height: 16),
