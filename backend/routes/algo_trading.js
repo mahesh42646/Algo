@@ -311,7 +311,7 @@ async function getExchangeBalance(apiKey, apiSecret, symbol, isTest = false) {
   }
 }
 
-// Stop algo trading
+// Stop algo trading (closes positions on exchange and stores actual P&L)
 router.post('/:userId/stop', async (req, res, next) => {
   try {
     const { userId } = req.params;
@@ -334,65 +334,14 @@ router.post('/:userId/stop', async (req, res, next) => {
       });
     }
 
-    // Stop the interval
+    // Stop the interval first so no more steps run
     if (trade.intervalId) {
       clearInterval(trade.intervalId);
+      trade.intervalId = null;
     }
 
-    // Mark as inactive
-    trade.isActive = false;
-    trade.stoppedAt = new Date();
-    trade.stopReason = 'user_stopped';
-
-    // Refund upfront fee for remaining levels (cancel before place = full refund)
-    const user = await User.findOne({ userId }).select('wallet strategies notifications');
-    if (user) {
-      if (trade.upfrontFee > 0) {
-        const remainingLevels = Math.max(0, (trade.numberOfLevels || 0) - (trade.currentLevel || 0));
-        const n = trade.numberOfLevels || 1;
-        const refundAmount = (remainingLevels / n) * trade.upfrontFee;
-        if (refundAmount > 0) {
-          const walletBalances = user.wallet?.balances || [];
-          const usdtBalance = walletBalances.find(b => (b.currency || '').toUpperCase() === 'USDT');
-          if (usdtBalance) {
-            usdtBalance.amount = (usdtBalance.amount || 0) + refundAmount;
-            console.log(`[ALGO TRADING STOP] 💰 Refunded \$${refundAmount.toFixed(2)} for ${remainingLevels} unused level(s)`);
-            await user.save();
-          }
-        }
-      }
-    }
-
-    const profit = trade.totalInvested > 0
-      ? (trade.totalInvested * ((trade.maxProfitBook || 3) / 100)) - (trade.platformWalletFees || []).reduce((a, b) => a + b, 0)
-      : 0;
-    if (!completedTrades.has(userId)) completedTrades.set(userId, []);
-    completedTrades.get(userId).push({ ...trade, profit });
-    activeTrades.delete(tradeKey);
-
-    // Update strategy status
-    if (user) {
-      const strategy = user.strategies.find(
-        s => s.type === 'algo_trading' && s.symbol === symbol.toUpperCase() && s.status === 'active'
-      );
-      if (strategy) {
-        strategy.status = 'inactive';
-        console.log(`[ALGO TRADING STOP] 📝 Updated strategy status to inactive: ${strategy.name}`);
-      }
-
-      if (!user.notifications) {
-        user.notifications = [];
-      }
-      user.notifications.push({
-        title: `Algo Trading Stopped - ${symbol.toUpperCase()} 🛑`,
-        message: `You stopped the algo trade for ${symbol.toUpperCase()}.`,
-        type: 'info',
-        read: false,
-        createdAt: new Date(),
-      });
-
-      await user.save();
-    }
+    // Close positions on exchange, compute actual P&L, refund, and push to completedTrades
+    await closeAllPositions(trade, 'user_stopped');
 
     console.log(`[ALGO TRADING] ⏹️ Stopped algo trading for ${symbol} (User: ${userId})`);
 
@@ -1252,6 +1201,24 @@ async function closeAllPositions(trade, reason) {
   try {
     console.log(`[ALGO TRADING CLOSE] 🔚 Closing positions for ${trade.symbol} (Reason: ${reason})`);
     
+    // Compute actual profit/loss at close (unrealized P&L = realized when we market sell)
+    let actualProfit = 0;
+    if (trade.orders && trade.orders.length > 0 && trade.totalInvested > 0) {
+      try {
+        const currentPrice = await getCurrentPrice(trade.symbol, trade.isTest);
+        const totalQuantity = trade.orders.reduce((sum, o) => sum + parseFloat(o.quantity || 0), 0);
+        const avgEntryPrice = totalQuantity > 0 ? trade.totalInvested / totalQuantity : 0;
+        if (avgEntryPrice > 0) {
+          actualProfit = trade.tradeDirection === 'BUY'
+            ? (currentPrice - avgEntryPrice) * totalQuantity
+            : (avgEntryPrice - currentPrice) * totalQuantity;
+          console.log(`[ALGO TRADING CLOSE] 📊 Actual P&L at close: ${actualProfit >= 0 ? '+' : ''}${actualProfit.toFixed(2)} USDT`);
+        }
+      } catch (priceErr) {
+        console.error(`[ALGO TRADING CLOSE] ⚠️ Could not get price for P&L: ${priceErr.message}`);
+      }
+    }
+    
     // Get account balance for the base asset
     const baseAsset = trade.symbol.replace('USDT', '').replace('BUSD', '');
     
@@ -1327,11 +1294,8 @@ async function closeAllPositions(trade, reason) {
       }
     }
 
-    const profit = trade.totalInvested > 0
-      ? (trade.totalInvested * ((trade.maxProfitBook || 3) / 100)) - (trade.platformWalletFees || []).reduce((a, b) => a + b, 0)
-      : 0;
     if (!completedTrades.has(trade.userId)) completedTrades.set(trade.userId, []);
-    completedTrades.get(trade.userId).push({ ...trade, profit });
+    completedTrades.get(trade.userId).push({ ...trade, profit: actualProfit });
     const tradeKey = `${trade.userId}:${trade.symbol}`;
     activeTrades.delete(tradeKey);
 
@@ -1343,14 +1307,15 @@ async function closeAllPositions(trade, reason) {
         'max_loss': 'Maximum loss limit reached',
         'insufficient_funds': 'Insufficient platform wallet balance',
         'admin_stopped': 'Stopped by administrator',
+        'user_stopped': 'Stopped by you',
       };
-      
+      const totalFees = (trade.platformWalletFees || []).reduce((a, b) => a + b, 0);
       if (!user.notifications) {
         user.notifications = [];
       }
       user.notifications.push({
         title: `Algo Trading Stopped - ${trade.symbol} 🛑`,
-        message: `${reasonMessages[reason] || reason}. Total levels: ${trade.currentLevel}, Total fees: \$${trade.platformWalletFees.reduce((a, b) => a + b, 0).toFixed(2)}`,
+        message: `${reasonMessages[reason] || reason}. Levels: ${trade.currentLevel}. Fees: \$${totalFees.toFixed(2)}`,
         type: reason === 'profit' ? 'success' : reason === 'max_loss' ? 'warning' : 'error',
         read: false,
         createdAt: new Date(),
@@ -1700,29 +1665,8 @@ router.post('/:userId/start-admin', async (req, res, next) => {
           if (currentBalance < trade.minBalance) {
             console.log(`[ADMIN STRATEGY] ⚠️ Balance insufficient (${currentBalance} < ${trade.minBalance}) - stopping`);
             clearInterval(intervalId);
-            trade.isActive = false;
-            trade.stoppedAt = new Date();
-            trade.stopReason = 'insufficient_funds';
-            if (trade.upfrontFee > 0 && user) {
-              const remainingLevels = Math.max(0, (trade.numberOfLevels || 0) - (trade.currentLevel || 0));
-              const n = Math.max(1, trade.numberOfLevels || 1);
-              const refundAmount = (remainingLevels / n) * trade.upfrontFee;
-              if (refundAmount > 0) {
-                const walletBalances = user.wallet?.balances || [];
-                const usdtBalance = walletBalances.find(b => (b.currency || '').toUpperCase() === 'USDT');
-                if (usdtBalance) {
-                  usdtBalance.amount = (usdtBalance.amount || 0) + refundAmount;
-                  await user.save();
-                  console.log(`[ADMIN STRATEGY] 💰 Refunded \$${refundAmount.toFixed(2)} for ${remainingLevels} unused level(s)`);
-                }
-              }
-            }
-            const profit = trade.totalInvested > 0
-              ? (trade.totalInvested * ((trade.maxProfitBook || 3) / 100)) - (trade.platformWalletFees || []).reduce((a, b) => a + b, 0)
-              : 0;
-            if (!completedTrades.has(userId)) completedTrades.set(userId, []);
-            completedTrades.get(userId).push({ ...trade, profit });
-            activeTrades.delete(tradeKey);
+            trade.intervalId = null;
+            await closeAllPositions(trade, 'insufficient_funds');
           }
         }
       } catch (error) {
