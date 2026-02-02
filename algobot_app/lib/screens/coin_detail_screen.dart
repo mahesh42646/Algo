@@ -1760,8 +1760,8 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: _isLoadingMA ? null : _stopActiveTrade,
-              icon: const Icon(Icons.stop_circle),
-              label: const Text('Stop Active Trade'),
+              icon: Icon(_activeTrade!['isStarted'] == true ? Icons.stop_circle : Icons.cancel),
+              label: Text(_activeTrade!['isStarted'] == true ? 'Stop Active Trade' : 'Cancel Trade (fee refunded)'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
@@ -1775,22 +1775,25 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
   }
   
   Future<void> _stopActiveTrade() async {
+    final isStarted = _activeTrade?['isStarted'] == true;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Stop Algo Trade?'),
-        content: const Text(
-          'Are you sure you want to stop the active algo trade? This will close all positions and stop the bot.',
+        title: Text(isStarted ? 'Stop Algo Trade?' : 'Cancel Trade?'),
+        content: Text(
+          isStarted
+              ? 'Stop the active algo trade? This will close all positions. Remaining levels\' fees will be refunded.'
+              : 'Cancel this trade? No orders were placed; your fee will be refunded.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: const Text('No'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Stop'),
+            child: Text(isStarted ? 'Stop' : 'Cancel trade'),
           ),
         ],
       ),

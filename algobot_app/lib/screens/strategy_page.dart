@@ -122,16 +122,20 @@ class _StrategyPageState extends State<StrategyPage> {
     }
   }
 
-  Future<void> _stopTrade(String symbol) async {
+  Future<void> _stopTrade(String symbol, {bool isStarted = false}) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Stop Trade'),
-        content: Text('Are you sure you want to stop the algo trade for $symbol?'),
+        title: Text(isStarted ? 'Stop Trade' : 'Cancel Trade'),
+        content: Text(
+          isStarted
+              ? 'Stop the algo trade for $symbol? Remaining levels\' fees will be refunded.'
+              : 'Cancel the trade for $symbol? No orders were placed; your fee will be refunded.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: const Text('No'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -139,7 +143,7 @@ class _StrategyPageState extends State<StrategyPage> {
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Stop'),
+            child: Text(isStarted ? 'Stop' : 'Cancel trade'),
           ),
         ],
       ),
@@ -816,9 +820,9 @@ class _StrategyPageState extends State<StrategyPage> {
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.stop_circle, color: Colors.red),
-                onPressed: () => _stopTrade(symbol),
-                tooltip: 'Stop Trade',
+                icon: Icon(isStarted ? Icons.stop_circle : Icons.cancel, color: Colors.red),
+                onPressed: () => _stopTrade(symbol, isStarted: isStarted),
+                tooltip: isStarted ? 'Stop trade' : 'Cancel trade (fee refunded)',
               ),
             ],
           ),
@@ -948,9 +952,15 @@ class _StrategyPageState extends State<StrategyPage> {
                 ),
                 if (hasActiveTrade)
                   IconButton(
-                    icon: const Icon(Icons.stop_circle, color: Colors.red),
-                    onPressed: () => _stopTrade(symbol.toString()),
-                    tooltip: 'Stop Trade',
+                    icon: Icon(
+                      (activeTrade['isStarted'] == true) ? Icons.stop_circle : Icons.cancel,
+                      color: Colors.red,
+                    ),
+                    onPressed: () => _stopTrade(
+                      symbol.toString(),
+                      isStarted: activeTrade['isStarted'] == true,
+                    ),
+                    tooltip: (activeTrade['isStarted'] == true) ? 'Stop trade' : 'Cancel trade (fee refunded)',
                   )
                 else
                   Container(

@@ -233,6 +233,47 @@ class HistoryPageState extends State<HistoryPage> {
     );
   }
 
+  Future<void> _cancelOrStopTrade(Map<String, dynamic> trade) async {
+    final symbol = trade['symbol']?.toString() ?? '';
+    if (symbol.isEmpty) return;
+    final isStarted = trade['isStarted'] == true;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(isStarted ? 'Stop trade' : 'Cancel trade'),
+        content: Text(
+          isStarted
+              ? 'Stop the trade for $symbol? Remaining levels\' fees will be refunded.'
+              : 'Cancel the trade for $symbol? No orders were placed; your fee will be refunded.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            child: Text(isStarted ? 'Stop' : 'Cancel trade'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await _algoService.stopAlgoTrade(symbol);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Trade cancelled'), backgroundColor: Colors.green),
+        );
+        _loadData();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   Widget _buildActiveTradeTile(ThemeData theme, Map<String, dynamic> trade) {
     final symbol = trade['symbol']?.toString() ?? '—';
     final level = trade['currentLevel'];
@@ -240,15 +281,26 @@ class HistoryPageState extends State<HistoryPage> {
     final pnl = _toDouble(trade['unrealizedPnL']);
     final totalBalance = _toDouble(trade['totalBalance'] ?? trade['totalInvested']);
     final isProfit = pnl >= 0;
+    final isStarted = trade['isStarted'] == true;
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         title: Text(symbol, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text('Level $level / $totalLevels · Balance: \$${totalBalance.toStringAsFixed(2)}'),
-        trailing: Text(
-          '${pnl >= 0 ? '+' : ''}${pnl.toStringAsFixed(2)}',
-          style: TextStyle(fontWeight: FontWeight.bold, color: isProfit ? Colors.green : Colors.red),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '${pnl >= 0 ? '+' : ''}${pnl.toStringAsFixed(2)}',
+              style: TextStyle(fontWeight: FontWeight.bold, color: isProfit ? Colors.green : Colors.red),
+            ),
+            IconButton(
+              icon: Icon(isStarted ? Icons.stop_circle : Icons.cancel, color: Colors.red, size: 22),
+              onPressed: () => _cancelOrStopTrade(trade),
+              tooltip: isStarted ? 'Stop trade' : 'Cancel trade (fee refunded)',
+            ),
+          ],
         ),
         onTap: () => _showActiveTradeDetail(trade),
       ),
@@ -322,6 +374,23 @@ class HistoryPageState extends State<HistoryPage> {
               _detailRow('Total Balance', '\$${totalBalance.toStringAsFixed(2)}'),
               _detailRow('Unrealized P&L', '${pnl >= 0 ? '+' : ''}${pnl.toStringAsFixed(2)} USDT', color: pnl >= 0 ? Colors.green : Colors.red),
               _detailRow('P&L %', '${currentPnL >= 0 ? '+' : ''}${currentPnL.toStringAsFixed(2)}%', color: currentPnL >= 0 ? Colors.green : Colors.red),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _cancelOrStopTrade(trade);
+                  },
+                  icon: Icon(trade['isStarted'] == true ? Icons.stop_circle : Icons.cancel),
+                  label: Text(trade['isStarted'] == true ? 'Stop trade' : 'Cancel trade (fee refunded)'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
             ],
           ),
         ),

@@ -156,9 +156,13 @@ router.post('/:userId/start', async (req, res, next) => {
 
     console.log(`[ALGO TRADING START] ✅ Platform wallet balance: \$${platformWalletBalance.toFixed(2)} (Required: \$${requiredWalletBalance.toFixed(2)} for all levels)`);
 
-    // Reserve platform wallet balance (3% of total for all levels) - will be deducted at each level
-    // Don't deduct upfront, deduct at each level execution
-    console.log(`[ALGO TRADING START] 💰 Platform wallet balance reserved: \$${requiredWalletBalance.toFixed(2)} (will be deducted at each level)`);
+    // Deduct upfront fee (3% of total) - refunded proportionally on cancel for remaining levels
+    const upfrontFee = requiredWalletBalance;
+    if (usdtBalance) {
+      usdtBalance.amount = Math.max(0, (usdtBalance.amount || 0) - upfrontFee);
+      await user.save();
+      console.log(`[ALGO TRADING START] 💰 Deducted upfront fee: \$${upfrontFee.toFixed(2)} (refundable on cancel for unused levels)`);
+    }
 
     // Create trade object - starts in WAITING state until strong signal
     const trade = {
@@ -187,7 +191,8 @@ router.post('/:userId/start', async (req, res, next) => {
       startedAt: new Date(),
       lastSignal: null,
       intervalId: null,
-      platformWalletFees: [], // Track all fees (deducted at each level)
+      platformWalletFees: [], // Legacy; fees now taken upfront
+      upfrontFee, // Refunded proportionally on cancel for remaining levels
     };
 
     // Start the algo trading loop
@@ -339,6 +344,25 @@ router.post('/:userId/stop', async (req, res, next) => {
     trade.stoppedAt = new Date();
     trade.stopReason = 'user_stopped';
 
+    // Refund upfront fee for remaining levels (cancel before place = full refund)
+    const user = await User.findOne({ userId }).select('wallet strategies notifications');
+    if (user) {
+      if (trade.upfrontFee > 0) {
+        const remainingLevels = Math.max(0, (trade.numberOfLevels || 0) - (trade.currentLevel || 0));
+        const n = trade.numberOfLevels || 1;
+        const refundAmount = (remainingLevels / n) * trade.upfrontFee;
+        if (refundAmount > 0) {
+          const walletBalances = user.wallet?.balances || [];
+          const usdtBalance = walletBalances.find(b => (b.currency || '').toUpperCase() === 'USDT');
+          if (usdtBalance) {
+            usdtBalance.amount = (usdtBalance.amount || 0) + refundAmount;
+            console.log(`[ALGO TRADING STOP] 💰 Refunded \$${refundAmount.toFixed(2)} for ${remainingLevels} unused level(s)`);
+            await user.save();
+          }
+        }
+      }
+    }
+
     const profit = trade.totalInvested > 0
       ? (trade.totalInvested * ((trade.maxProfitBook || 3) / 100)) - (trade.platformWalletFees || []).reduce((a, b) => a + b, 0)
       : 0;
@@ -347,7 +371,6 @@ router.post('/:userId/stop', async (req, res, next) => {
     activeTrades.delete(tradeKey);
 
     // Update strategy status
-    const user = await User.findOne({ userId }).select('strategies notifications');
     if (user) {
       const strategy = user.strategies.find(
         s => s.type === 'algo_trading' && s.symbol === symbol.toUpperCase() && s.status === 'active'
@@ -486,16 +509,26 @@ router.get('/:userId/trades', async (req, res, next) => {
           });
         } catch (priceError) {
           console.error(`[ALGO TRADING] Error getting price for ${trade.symbol}:`, priceError.message);
-          // Still return trade data without current price
+          // Still return trade data so user can cancel (e.g. symbol delisted)
           userTrades.push({
             symbol: trade.symbol,
             currentLevel: trade.currentLevel,
-            totalInvested: trade.totalInvested,
             numberOfLevels: trade.numberOfLevels,
             isStarted: trade.isStarted,
-            tradeDirection: trade.tradeDirection,
+            tradeDirection: trade.tradeDirection || null,
             startedAt: trade.startedAt,
+            startPrice: trade.startPrice || 0,
+            currentPrice: trade.startPrice || 0,
+            totalInvested: trade.totalInvested,
+            currentPnL: 0,
+            unrealizedPnL: 0,
+            realizedPnL: 0,
+            totalBalance: trade.totalInvested,
+            orders: trade.orders || [],
             lastSignal: trade.lastSignal,
+            useMargin: trade.useMargin,
+            leverage: trade.leverage || 1,
+            platformWalletFees: trade.platformWalletFees || [],
             error: 'Failed to get current price',
           });
         }
@@ -699,8 +732,14 @@ async function executeAlgoTradingStep(trade) {
     const status = trade.isStarted ? 'ACTIVE' : 'WAITING';
     console.log(`[ALGO TRADING STEP] 🔄 Processing step for ${trade.symbol} (Status: ${status}, Level: ${trade.currentLevel}/${trade.numberOfLevels})`);
     
-    // Get current price
-    const currentPrice = await getCurrentPrice(trade.symbol, trade.isTest);
+    // Get current price (e.g. 400 if symbol delisted/unavailable - skip step, user can cancel)
+    let currentPrice;
+    try {
+      currentPrice = await getCurrentPrice(trade.symbol, trade.isTest);
+    } catch (priceErr) {
+      console.error(`[ALGO TRADING STEP] ⚠️ Price unavailable for ${trade.symbol}: ${priceErr.message}`);
+      return;
+    }
     
     // If trade hasn't started yet, wait for strong signal
     if (!trade.isStarted) {
@@ -733,42 +772,8 @@ async function executeAlgoTradingStep(trade) {
         trade.startPrice = currentPrice;
         trade.tradeDirection = signal.direction;
         trade.isStarted = true;
-        
-        // Deduct platform wallet fee for first level (3% for test, 0.3% for demo)
-        const feePercentage = trade.isTest ? 0.03 : 0.003;
-        const levelFee = trade.amountPerLevel * feePercentage;
-        const user = await User.findOne({ userId: trade.userId }).select('wallet notifications');
-        
-        if (user) {
-          const walletBalances = user.wallet?.balances || [];
-          const usdtBalance = walletBalances.find(b => b.currency === 'USDT');
-          
-          if (usdtBalance && usdtBalance.amount >= levelFee) {
-            usdtBalance.amount = Math.max(0, usdtBalance.amount - levelFee);
-            trade.platformWalletFees.push(levelFee);
-            await user.save();
-            
-            console.log(`[ALGO TRADING STEP] 💰 Deducted platform wallet fee: \$${levelFee.toFixed(2)} (Level 1)`);
-            
-            // Add notification
-            if (!user.notifications) {
-              user.notifications = [];
-            }
-            user.notifications.push({
-              title: `Algo Trading Started - ${trade.symbol} 🚀`,
-              message: `Trade started with ${signal.direction} signal. Level 1 executed. Fee: \$${levelFee.toFixed(2)}`,
-              type: 'success',
-              read: false,
-              createdAt: new Date(),
-            });
-            await user.save();
-          } else {
-            console.error(`[ALGO TRADING STEP] ❌ Insufficient platform wallet for level fee: \$${levelFee.toFixed(2)}`);
-            await closeAllPositions(trade, 'insufficient_funds');
-            return;
-          }
-        }
-        
+        // Fee already taken upfront at start; no per-level deduction
+
         // Place first order
         try {
           await placeOrder(trade, signal.direction, currentPrice, trade.amountPerLevel);
@@ -872,42 +877,8 @@ async function executeAlgoTradingStep(trade) {
     if (currentPnL <= -trade.maxLossPerTrade && canAddLevel) {
       console.log(`[ALGO TRADING STEP] 📉 Loss threshold hit: ${currentPnL.toFixed(2)}% <= -${trade.maxLossPerTrade}%`);
       console.log(`[ALGO TRADING STEP] 🔄 Adding level in same direction: ${trade.tradeDirection} (no signal check)`);
-      
-      // Deduct platform wallet fee before placing order (3% for test, 0.3% for demo)
-      const feePercentage = trade.isTest ? 0.03 : 0.003;
-      const levelFee = trade.amountPerLevel * feePercentage;
-      const user = await User.findOne({ userId: trade.userId }).select('wallet notifications');
-      
-      if (user) {
-        const walletBalances = user.wallet?.balances || [];
-        const usdtBalance = walletBalances.find(b => b.currency === 'USDT');
-        
-        if (usdtBalance && usdtBalance.amount >= levelFee) {
-          usdtBalance.amount = Math.max(0, usdtBalance.amount - levelFee);
-          trade.platformWalletFees.push(levelFee);
-          await user.save();
-          
-          console.log(`[ALGO TRADING STEP] 💰 Deducted platform wallet fee: \$${levelFee.toFixed(2)} (Level ${trade.currentLevel + 1})`);
-          
-          // Add notification
-          if (!user.notifications) {
-            user.notifications = [];
-          }
-          user.notifications.push({
-            title: `Algo Trading - Level ${trade.currentLevel + 1} 📈`,
-            message: `Level ${trade.currentLevel + 1} executed for ${trade.symbol} (${trade.tradeDirection}). Fee: \$${levelFee.toFixed(2)}`,
-            type: 'info',
-            read: false,
-            createdAt: new Date(),
-          });
-          await user.save();
-        } else {
-          console.error(`[ALGO TRADING STEP] ❌ Insufficient platform wallet for level fee: \$${levelFee.toFixed(2)}`);
-          await closeAllPositions(trade, 'insufficient_funds');
-          return;
-        }
-      }
-      
+      // Fee already taken upfront at start; no per-level deduction
+
       // Place order in SAME direction as initial trade (no signal check)
       try {
         await placeOrder(trade, trade.tradeDirection, currentPrice, trade.amountPerLevel);
@@ -1339,6 +1310,23 @@ async function closeAllPositions(trade, reason) {
     trade.stoppedAt = new Date();
     trade.stopReason = reason;
 
+    // Refund upfront fee for remaining levels
+    const userForRefund = await User.findOne({ userId: trade.userId }).select('wallet');
+    if (userForRefund && trade.upfrontFee > 0) {
+      const remainingLevels = Math.max(0, (trade.numberOfLevels || 0) - (trade.currentLevel || 0));
+      const n = trade.numberOfLevels || 1;
+      const refundAmount = (remainingLevels / n) * trade.upfrontFee;
+      if (refundAmount > 0) {
+        const walletBalances = userForRefund.wallet?.balances || [];
+        const usdtBalance = walletBalances.find(b => (b.currency || '').toUpperCase() === 'USDT');
+        if (usdtBalance) {
+          usdtBalance.amount = (usdtBalance.amount || 0) + refundAmount;
+          await userForRefund.save();
+          console.log(`[ALGO TRADING CLOSE] 💰 Refunded \$${refundAmount.toFixed(2)} for ${remainingLevels} unused level(s)`);
+        }
+      }
+    }
+
     const profit = trade.totalInvested > 0
       ? (trade.totalInvested * ((trade.maxProfitBook || 3) / 100)) - (trade.platformWalletFees || []).reduce((a, b) => a + b, 0)
       : 0;
@@ -1715,6 +1703,20 @@ router.post('/:userId/start-admin', async (req, res, next) => {
             trade.isActive = false;
             trade.stoppedAt = new Date();
             trade.stopReason = 'insufficient_funds';
+            if (trade.upfrontFee > 0 && user) {
+              const remainingLevels = Math.max(0, (trade.numberOfLevels || 0) - (trade.currentLevel || 0));
+              const n = Math.max(1, trade.numberOfLevels || 1);
+              const refundAmount = (remainingLevels / n) * trade.upfrontFee;
+              if (refundAmount > 0) {
+                const walletBalances = user.wallet?.balances || [];
+                const usdtBalance = walletBalances.find(b => (b.currency || '').toUpperCase() === 'USDT');
+                if (usdtBalance) {
+                  usdtBalance.amount = (usdtBalance.amount || 0) + refundAmount;
+                  await user.save();
+                  console.log(`[ADMIN STRATEGY] 💰 Refunded \$${refundAmount.toFixed(2)} for ${remainingLevels} unused level(s)`);
+                }
+              }
+            }
             const profit = trade.totalInvested > 0
               ? (trade.totalInvested * ((trade.maxProfitBook || 3) / 100)) - (trade.platformWalletFees || []).reduce((a, b) => a + b, 0)
               : 0;
