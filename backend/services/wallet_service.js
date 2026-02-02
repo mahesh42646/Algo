@@ -442,6 +442,8 @@ const isValidUsdtTrc20Deposit = ({ chain, token, contractAddress }) => {
 module.exports = {
   ensureUserTronWallet,
   processDeposit,
+  updateLedgerBalance,
+  addWalletTransaction,
   normalizeWebhookPayload,
   isValidUsdtTrc20Deposit,
   getTatumMode,
