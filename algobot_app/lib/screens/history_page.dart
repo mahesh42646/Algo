@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/algo_trading_service.dart';
 import '../services/push_notification_service.dart';
+import '../services/permission_location_service.dart';
 import '../models/crypto_coin.dart';
 import 'coin_detail_screen.dart';
 
@@ -128,6 +129,19 @@ class HistoryPageState extends State<HistoryPage> {
     } catch (_) {
       return '—';
     }
+  }
+
+  String? _formatLocation(dynamic loc) {
+    if (loc == null || loc is! Map) return null;
+    final lat = loc['latitude'];
+    final lng = loc['longitude'];
+    final address = loc['address']?.toString();
+    if (lat == null && lng == null) return null;
+    if (address != null && address.isNotEmpty) return address;
+    final latNum = lat is num ? (lat as num).toDouble() : (lat != null ? double.tryParse(lat.toString()) : null);
+    final lngNum = lng is num ? (lng as num).toDouble() : (lng != null ? double.tryParse(lng.toString()) : null);
+    if (latNum != null && lngNum != null) return '${latNum.toStringAsFixed(4)}, ${lngNum.toStringAsFixed(4)}';
+    return null;
   }
 
   static String _parseQuote(String symbol) {
@@ -585,7 +599,8 @@ class HistoryPageState extends State<HistoryPage> {
     );
     if (confirmed != true || !mounted) return;
     try {
-      await _algoService.stopAlgoTrade(symbol);
+      final stopLocation = await PermissionLocationService.getCurrentLocation();
+      await _algoService.stopAlgoTrade(symbol, stopLocation: stopLocation);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -734,6 +749,8 @@ class HistoryPageState extends State<HistoryPage> {
                   'P&L %',
                   '${currentPnL >= 0 ? '+' : ''}${currentPnL.toStringAsFixed(2)}%',
                   color: currentPnL >= 0 ? Colors.green : Colors.red),
+              if (_formatLocation(trade['startLocation']) != null)
+                _detailRow('Start location', _formatLocation(trade['startLocation'])!),
               const SizedBox(height: 20),
               Row(
                 children: [
@@ -835,6 +852,10 @@ class HistoryPageState extends State<HistoryPage> {
                   color: profit >= 0 ? Colors.green : Colors.red),
               _detailRow('Platform charges', '\$${totalFees.toStringAsFixed(2)}'),
               _detailRow('Margin', useMargin ? 'Yes (${leverage}x)' : 'No'),
+              if (_formatLocation(trade['startLocation']) != null)
+                _detailRow('Start location', _formatLocation(trade['startLocation'])!),
+              if (_formatLocation(trade['stopLocation']) != null)
+                _detailRow('Stop location', _formatLocation(trade['stopLocation'])!),
               _detailRow('Reason', reason),
               if (platformWalletFees.isNotEmpty) ...[
                 const SizedBox(height: 8),

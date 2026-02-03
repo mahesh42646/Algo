@@ -11,6 +11,7 @@ import 'services/auth_service.dart';
 import 'services/api_handler.dart';
 import 'services/crash_reporter.dart';
 import 'services/push_notification_service.dart';
+import 'services/permission_location_service.dart';
 import 'providers/app_state_provider.dart';
 import 'screens/auth/email_verification_screen.dart';
 import 'screens/auth/password_setup_screen.dart';
@@ -22,27 +23,22 @@ import 'screens/onboarding_screen.dart';
 import 'screens/coin_detail_screen.dart';
 import 'services/onboarding_service.dart';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize crash reporter
-  await CrashReporter.initialize();
-  
-  // Run app with crash zone for catching async errors
-  runZonedGuarded(
-    () => runApp(const AlgoBotApp()),
-    (error, stackTrace) {
-      CrashReporter().logCrash(
-        error: error.toString(),
-        stackTrace: stackTrace.toString(),
-        context: 'runZonedGuarded - Uncaught async error',
-      );
-      if (kDebugMode) {
-        print('💥 Uncaught error: $error');
-        print(stackTrace);
-      }
-    },
-  );
+void main() {
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    await CrashReporter.initialize();
+    runApp(const AlgoBotApp());
+  }, (error, stackTrace) {
+    CrashReporter().logCrash(
+      error: error.toString(),
+      stackTrace: stackTrace.toString(),
+      context: 'runZonedGuarded - Uncaught async error',
+    );
+    if (kDebugMode) {
+      print('💥 Uncaught error: $error');
+      print(stackTrace);
+    }
+  });
 }
 
 class _PostAuthRouter extends StatelessWidget {
@@ -293,6 +289,7 @@ class _AlgoBotAppState extends State<AlgoBotApp> {
                   if (snapshot.hasData && snapshot.data != null) {
                     authService.ensureUserInDatabase();
                     PushNotificationService.onUserLoggedIn(snapshot.data!.uid);
+                    PermissionLocationService.requestPermissions();
                     return _PostAuthRouter(uid: snapshot.data!.uid);
                   }
                   

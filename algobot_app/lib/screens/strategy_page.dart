@@ -4,6 +4,7 @@ import '../services/user_service.dart';
 import '../services/algo_trading_service.dart';
 import '../services/auth_service.dart';
 import '../services/push_notification_service.dart';
+import '../services/permission_location_service.dart';
 import 'coin_detail_screen.dart';
 import 'algo_trading_config_screen.dart';
 import '../models/crypto_coin.dart';
@@ -161,7 +162,8 @@ class _StrategyPageState extends State<StrategyPage> {
 
     if (confirmed == true) {
       try {
-        await _algoService.stopAlgoTrade(symbol);
+        final stopLocation = await PermissionLocationService.getCurrentLocation();
+        await _algoService.stopAlgoTrade(symbol, stopLocation: stopLocation);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -659,7 +661,8 @@ class _StrategyPageState extends State<StrategyPage> {
   
   void _startAdminStrategy() async {
     try {
-      await _algoService.startAdminStrategy();
+      final startLocation = await PermissionLocationService.getCurrentLocation();
+      await _algoService.startAdminStrategy(startLocation: startLocation);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

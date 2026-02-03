@@ -5,6 +5,7 @@ import '../services/algo_trading_service.dart';
 import '../services/exchange_service.dart';
 import '../services/user_service.dart';
 import '../services/auth_service.dart';
+import '../services/permission_location_service.dart';
 import '../widgets/trade_info_card.dart';
 
 class AlgoTradingConfigScreen extends StatefulWidget {
@@ -353,7 +354,8 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
 
     try {
       final symbol = '${widget.coin.symbol}${widget.quoteCurrency}';
-      await _algoService.stopAlgoTrade(symbol);
+      final stopLocation = await PermissionLocationService.getCurrentLocation();
+      await _algoService.stopAlgoTrade(symbol, stopLocation: stopLocation);
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -589,7 +591,7 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
 
     try {
       final symbol = '${widget.coin.symbol}${widget.quoteCurrency}';
-      
+      final startLocation = await PermissionLocationService.getCurrentLocation();
       await _algoService.startAlgoTrade(
         symbol: symbol,
         apiId: _selectedApi!.id,
@@ -600,6 +602,7 @@ class _AlgoTradingConfigScreenState extends State<AlgoTradingConfigScreen> {
         numberOfLevels: int.parse(_numberOfLevelsController.text),
         useMargin: _useMargin,
         leverage: _useMargin ? _leverage : 1,
+        startLocation: startLocation,
       );
 
       if (mounted) {

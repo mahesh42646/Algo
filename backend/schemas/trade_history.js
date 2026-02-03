@@ -76,6 +76,16 @@ const tradeHistorySchema = new mongoose.Schema({
     }],
     default: [],
   },
+  startLocation: {
+    latitude: { type: Number, default: null },
+    longitude: { type: Number, default: null },
+    address: { type: String, default: null },
+  },
+  stopLocation: {
+    latitude: { type: Number, default: null },
+    longitude: { type: Number, default: null },
+    address: { type: String, default: null },
+  },
 }, {
   timestamps: true,
 });

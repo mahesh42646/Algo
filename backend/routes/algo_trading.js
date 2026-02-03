@@ -165,10 +165,13 @@ router.post('/:userId/start', async (req, res, next) => {
       console.log(`[ALGO TRADING START] 💰 Deducted upfront fee: \$${upfrontFee.toFixed(2)} (refundable on cancel for unused levels)`);
     }
 
+    const startLocation = req.body.startLocation || null;
+
     // Create trade object - starts in WAITING state until strong signal
     const trade = {
       userId,
       symbol: symbol.toUpperCase(),
+      startLocation,
       apiId: api._id.toString(),
       platform: api.platform,
       isTest: api.isTest, // Store test mode
@@ -316,7 +319,7 @@ async function getExchangeBalance(apiKey, apiSecret, symbol, isTest = false) {
 router.post('/:userId/stop', async (req, res, next) => {
   try {
     const { userId } = req.params;
-    const { symbol } = req.body;
+    const { symbol, stopLocation } = req.body;
 
     if (!symbol) {
       return res.status(400).json({
@@ -342,7 +345,7 @@ router.post('/:userId/stop', async (req, res, next) => {
     }
 
     // Close positions on exchange, compute actual P&L, refund, and push to completedTrades
-    await closeAllPositions(trade, 'user_stopped');
+    await closeAllPositions(trade, 'user_stopped', stopLocation || null);
 
     console.log(`[ALGO TRADING] ⏹️ Stopped algo trading for ${symbol} (User: ${userId})`);
 
@@ -456,6 +459,7 @@ router.get('/:userId/trades', async (req, res, next) => {
             useMargin: trade.useMargin,
             leverage: trade.leverage || 1,
             platformWalletFees: trade.platformWalletFees || [],
+            startLocation: trade.startLocation || null,
           });
         } catch (priceError) {
           console.error(`[ALGO TRADING] Error getting price for ${trade.symbol}:`, priceError.message);
@@ -479,6 +483,7 @@ router.get('/:userId/trades', async (req, res, next) => {
             useMargin: trade.useMargin,
             leverage: trade.leverage || 1,
             platformWalletFees: trade.platformWalletFees || [],
+            startLocation: trade.startLocation || null,
             error: 'Failed to get current price',
           });
         }
@@ -689,6 +694,8 @@ router.get('/:userId/profits', async (req, res, next) => {
         leverage: t.leverage ?? 1,
         isManual: t.isManual ?? false,
         isAdminMode: t.isAdminMode ?? false,
+        startLocation: t.startLocation || null,
+        stopLocation: t.stopLocation || null,
       };
     });
 
@@ -1228,7 +1235,7 @@ async function placeOrder(trade, side, price, amount) {
 }
 
 // Close all positions
-async function closeAllPositions(trade, reason) {
+async function closeAllPositions(trade, reason, stopLocation = null) {
   try {
     console.log(`[ALGO TRADING CLOSE] 🔚 Closing positions for ${trade.symbol} (Reason: ${reason})`);
     
@@ -1340,6 +1347,12 @@ async function closeAllPositions(trade, reason) {
         timestamp: o.timestamp,
         orderId: o.orderId,
       }));
+      const startLoc = trade.startLocation && (trade.startLocation.latitude != null || trade.startLocation.longitude != null)
+        ? { latitude: trade.startLocation.latitude, longitude: trade.startLocation.longitude, address: trade.startLocation.address || null }
+        : null;
+      const stopLoc = stopLocation && (stopLocation.latitude != null || stopLocation.longitude != null)
+        ? { latitude: stopLocation.latitude, longitude: stopLocation.longitude, address: stopLocation.address || null }
+        : null;
       await TradeHistory.create({
         userId: trade.userId,
         symbol: trade.symbol,
@@ -1363,6 +1376,8 @@ async function closeAllPositions(trade, reason) {
         isTest: trade.isTest || false,
         upfrontFee: trade.upfrontFee,
         orders: ordersSafe,
+        startLocation: startLoc,
+        stopLocation: stopLoc,
       }).catch((err) => console.error('[ALGO TRADING] ❌ Failed to persist trade history:', err.message));
 
       const user = await User.findOne({ userId: trade.userId }).select('notifications strategies');
@@ -1537,10 +1552,12 @@ router.post('/:userId/start-manual', async (req, res, next) => {
       }
     }
 
+    const startLocation = req.body.startLocation || null;
     // Use same algo trading logic but with manual mode flag
     const trade = {
       userId,
       symbol: symbol.toUpperCase(),
+      startLocation,
       apiId: api._id.toString(),
       platform: api.platform,
       isTest: api.isTest,
@@ -1677,10 +1694,12 @@ router.post('/:userId/start-admin', async (req, res, next) => {
       });
     }
 
+    const startLocation = req.body.startLocation || null;
     // Create admin strategy trade
     const trade = {
       userId,
       symbol: selectedSymbol.toUpperCase(),
+      startLocation,
       apiId: api._id.toString(),
       platform: api.platform,
       isTest: api.isTest,

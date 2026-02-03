@@ -19,25 +19,28 @@ class AlgoTradingService {
     required int numberOfLevels,
     bool useMargin = false,
     int leverage = 1,
+    Map<String, dynamic>? startLocation,
   }) async {
     if (_userId == null) {
       throw Exception('User not logged in');
     }
 
     try {
+      final data = <String, dynamic>{
+        'symbol': symbol,
+        'apiId': apiId,
+        'maxLossPerTrade': maxLossPerTrade,
+        'maxLossOverall': maxLossOverall,
+        'maxProfitBook': maxProfitBook,
+        'amountPerLevel': amountPerLevel,
+        'numberOfLevels': numberOfLevels,
+        'useMargin': useMargin,
+        'leverage': leverage,
+      };
+      if (startLocation != null) data['startLocation'] = startLocation;
       final response = await _apiHandler.post(
         '/algo-trading/$_userId/start',
-        data: {
-          'symbol': symbol,
-          'apiId': apiId,
-          'maxLossPerTrade': maxLossPerTrade,
-          'maxLossOverall': maxLossOverall,
-          'maxProfitBook': maxProfitBook,
-          'amountPerLevel': amountPerLevel,
-          'numberOfLevels': numberOfLevels,
-          'useMargin': useMargin,
-          'leverage': leverage,
-        },
+        data: data,
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -54,15 +57,17 @@ class AlgoTradingService {
   }
 
   // Stop algo trading
-  Future<void> stopAlgoTrade(String symbol) async {
+  Future<void> stopAlgoTrade(String symbol, {Map<String, dynamic>? stopLocation}) async {
     if (_userId == null) {
       throw Exception('User not logged in');
     }
 
     try {
+      final data = <String, dynamic>{'symbol': symbol};
+      if (stopLocation != null) data['stopLocation'] = stopLocation;
       final response = await _apiHandler.post(
         '/algo-trading/$_userId/stop',
-        data: {'symbol': symbol},
+        data: data,
       );
 
       if (response.statusCode != 200) {
@@ -230,20 +235,23 @@ class AlgoTradingService {
     required String apiId,
     required double amountPerLevel,
     required int numberOfLevels,
+    Map<String, dynamic>? startLocation,
   }) async {
     if (_userId == null) {
       throw Exception('User not logged in');
     }
 
     try {
+      final data = <String, dynamic>{
+        'symbol': symbol,
+        'apiId': apiId,
+        'amountPerLevel': amountPerLevel,
+        'numberOfLevels': numberOfLevels,
+      };
+      if (startLocation != null) data['startLocation'] = startLocation;
       final response = await _apiHandler.post(
         '/algo-trading/$_userId/start-manual',
-        data: {
-          'symbol': symbol,
-          'apiId': apiId,
-          'amountPerLevel': amountPerLevel,
-          'numberOfLevels': numberOfLevels,
-        },
+        data: data,
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -260,17 +268,18 @@ class AlgoTradingService {
   }
 
   // Start admin strategy
-  Future<Map<String, dynamic>> startAdminStrategy({String? symbol}) async {
+  Future<Map<String, dynamic>> startAdminStrategy({String? symbol, Map<String, dynamic>? startLocation}) async {
     if (_userId == null) {
       throw Exception('User not logged in');
     }
 
     try {
+      final data = <String, dynamic>{};
+      if (symbol != null) data['symbol'] = symbol;
+      if (startLocation != null) data['startLocation'] = startLocation;
       final response = await _apiHandler.post(
         '/algo-trading/$_userId/start-admin',
-        data: {
-          if (symbol != null) 'symbol': symbol,
-        },
+        data: data,
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {

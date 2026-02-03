@@ -13,6 +13,7 @@ import '../widgets/trade_info_card.dart';
 import 'algo_trading_config_screen.dart';
 import 'manual_trading_screen.dart';
 import '../services/algo_trading_service.dart';
+import '../services/permission_location_service.dart';
 
 class CoinDetailScreen extends StatefulWidget {
   final CryptoCoin coin;
@@ -1586,8 +1587,8 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
       final symbol = selectedPair['auto'] == 'true' 
           ? null 
           : '${selectedPair['symbol']}${selectedPair['quote']}';
-      
-      await _algoService.startAdminStrategy(symbol: symbol);
+      final startLocation = await PermissionLocationService.getCurrentLocation();
+      await _algoService.startAdminStrategy(symbol: symbol, startLocation: startLocation);
       
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1721,7 +1722,8 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
 
     try {
       final symbol = '${widget.coin.symbol}${widget.quoteCurrency}';
-      await _algoService.stopAlgoTrade(symbol);
+      final stopLocation = await PermissionLocationService.getCurrentLocation();
+      await _algoService.stopAlgoTrade(symbol, stopLocation: stopLocation);
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

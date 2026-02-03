@@ -4,6 +4,7 @@ import '../services/exchange_service.dart';
 import '../services/algo_trading_service.dart';
 import '../services/user_service.dart';
 import '../services/auth_service.dart';
+import '../services/permission_location_service.dart';
 
 class ManualTradingScreen extends StatefulWidget {
   final CryptoCoin coin;
@@ -159,13 +160,14 @@ class _ManualTradingScreenState extends State<ManualTradingScreen> {
       final symbol = '${widget.coin.symbol}${widget.quoteCurrency}';
       final amountPerLevel = double.parse(_amountPerLevelController.text);
       final numberOfLevels = int.parse(_numberOfLevelsController.text);
+      final startLocation = await PermissionLocationService.getCurrentLocation();
 
-      // Start manual trade (backend will handle it differently)
       await _algoService.startManualTrade(
         symbol: symbol,
         apiId: _selectedApi!.id,
         amountPerLevel: amountPerLevel,
         numberOfLevels: numberOfLevels,
+        startLocation: startLocation,
       );
 
       if (mounted) {
