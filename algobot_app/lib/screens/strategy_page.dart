@@ -3,6 +3,7 @@ import '../widgets/notification_bell.dart';
 import '../services/user_service.dart';
 import '../services/algo_trading_service.dart';
 import '../services/auth_service.dart';
+import '../services/push_notification_service.dart';
 import 'coin_detail_screen.dart';
 import 'algo_trading_config_screen.dart';
 import '../models/crypto_coin.dart';
@@ -105,6 +106,14 @@ class _StrategyPageState extends State<StrategyPage> {
             _activeTrades = activeTrades;
             _isLoading = false;
           });
+          final symbols = activeTrades
+              .map((t) => t['symbol']?.toString() ?? '')
+              .where((s) => s.isNotEmpty)
+              .toList();
+          PushNotificationService.updateTradeRunning(
+            activeCount: activeTrades.length,
+            symbols: symbols,
+          );
         }
       }
     } catch (e) {
@@ -112,6 +121,7 @@ class _StrategyPageState extends State<StrategyPage> {
         setState(() {
           _isLoading = false;
         });
+        PushNotificationService.updateTradeRunning(activeCount: 0);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error loading strategies: ${e.toString()}'),

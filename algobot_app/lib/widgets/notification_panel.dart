@@ -58,31 +58,43 @@ class _NotificationPanelState extends State<NotificationPanel> {
     }
   }
 
-  Future<void> _clearAll() async {
+  Future<void> _markAllAsRead() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        // Mark all as read before clearing
-        for (var notification in _notifications) {
-          if (notification['read'] != true) {
-            final notificationId = notification['_id']?.toString() ?? 
-                                   notification['id']?.toString() ?? '';
-            if (notificationId.isNotEmpty) {
-              try {
-                await _notificationService.markAsRead(user.uid, notificationId);
-              } catch (e) {
-                // Ignore individual mark as read errors
-              }
-            }
-          }
-        }
-        await _notificationService.clearAllNotifications(user.uid);
+        await _notificationService.markAllAsRead(user.uid);
         await _loadNotifications();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('All marked as read')),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error clearing notifications: $e')),
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _clearAll() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await _notificationService.clearAllNotifications(user.uid);
+        await _loadNotifications();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('All notifications cleared')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error clearing: $e')),
         );
       }
     }
@@ -158,102 +170,104 @@ class _NotificationPanelState extends State<NotificationPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final unreadOnly = _notifications.where((n) => n['read'] != true).toList();
     return Material(
       color: Colors.transparent,
-      child: Container(
-        width: 320,
+      child: ConstrainedBox(
         constraints: const BoxConstraints(maxHeight: 500),
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.15),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  topRight: Radius.circular(16),
-                ),
-                border: Border(
-                  bottom: BorderSide(
-                    color: Colors.grey[200]!,
-                    width: 1,
+        child: Container(
+          width: 320,
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.15),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    topRight: Radius.circular(16),
+                  ),
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Colors.grey[200]!,
+                      width: 1,
+                    ),
                   ),
                 ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Notifications',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (unreadOnly.isNotEmpty)
+                          TextButton(
+                            onPressed: _markAllAsRead,
+                            child: const Text('Mark all read', style: TextStyle(fontSize: 12)),
+                          ),
+                        if (_notifications.isNotEmpty)
+                          TextButton(
+                            onPressed: _clearAll,
+                            child: const Text('Clear All', style: TextStyle(fontSize: 12)),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
+              if (_isLoading)
+                const Padding(
+                  padding: EdgeInsets.all(32),
+                  child: CircularProgressIndicator(),
+                )
+              else if (unreadOnly.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
                     children: [
                       Icon(
-                        Icons.notifications,
-                        color: Theme.of(context).colorScheme.primary,
+                        Icons.notifications_none,
+                        size: 48,
+                        color: Colors.grey[400],
                       ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'Notifications',
+                      const SizedBox(height: 16),
+                      Text(
+                        _notifications.isEmpty
+                            ? 'No notifications'
+                            : 'No unread notifications',
                         style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[600],
+                          fontSize: 16,
                         ),
                       ),
                     ],
                   ),
-                  if (_notifications.isNotEmpty)
-                    TextButton(
-                      onPressed: _clearAll,
-                      child: const Text(
-                        'Clear All',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            if (_isLoading)
-              const Padding(
-                padding: EdgeInsets.all(32),
-                child: CircularProgressIndicator(),
-              )
-            else if (_notifications.isEmpty)
-              Padding(
-                padding: const EdgeInsets.all(32),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.notifications_none,
-                      size: 48,
-                      color: Colors.grey[400],
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No notifications',
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            else
-              Expanded(
-                child: ListView.builder(
-                  itemCount: _notifications.length,
-                  itemBuilder: (context, index) {
-                    final notification = _notifications[index];
+                )
+              else
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: unreadOnly.length,
+                    itemBuilder: (context, index) {
+                      final notification = unreadOnly[index];
                     final isRead = notification['read'] == true;
                     final type = notification['type'] ?? 'info';
                     DateTime createdAt = DateTime.now();
@@ -350,6 +364,7 @@ class _NotificationPanelState extends State<NotificationPanel> {
           ],
         ),
       ),
+    ),
     );
   }
 }

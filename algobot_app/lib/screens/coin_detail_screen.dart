@@ -36,8 +36,7 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
   Map<String, dynamic> _stats24h = {};
   String _selectedInterval = '5';
   bool _isFullScreen = false;
-  String _selectedTab = 'Market';
-  String _selectedTableTab = 'Moving Average';
+  bool _chartFocused = false;
   Map<int, Map<String, double>> _maValues = {}; // Store calculated MA values
   bool _isLoadingMA = false;
   Timer? _indicatorUpdateTimer;
@@ -302,16 +301,18 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
         ],
       ),
       body: SingleChildScrollView(
+        physics: _chartFocused
+            ? const NeverScrollableScrollPhysics()
+            : const AlwaysScrollableScrollPhysics(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildTabSelector(),
             _buildPriceSection(),
             _build24hStats(),
             // Show active trade info if exists
             if (_activeTrade != null) _buildActiveTradeCard(),
             // _buildIntervalSelector(),
-            _buildTradingViewChart(),
+            _buildTradingViewChartWithScrollLock(),
             _buildTechnicalIndicatorSection(),
             const SizedBox(height: 80),
           ],
@@ -401,45 +402,12 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
     );
   }
 
-  Widget _buildTabSelector() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          _buildTabButton('Market', true),
-          const SizedBox(width: 8),
-          _buildTabButton('Bots', false),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTabButton(String label, bool isSelected) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _selectedTab = label;
-          });
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: isSelected 
-                ? Theme.of(context).colorScheme.primary 
-                : Colors.grey[200],
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: isSelected ? Colors.white : Colors.grey[700],
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-            ),
-          ),
-        ),
-      ),
+  Widget _buildTradingViewChartWithScrollLock() {
+    return Listener(
+      onPointerDown: (_) => setState(() => _chartFocused = true),
+      onPointerUp: (_) => setState(() => _chartFocused = false),
+      onPointerCancel: (_) => setState(() => _chartFocused = false),
+      child: _buildTradingViewChart(),
     );
   }
 
@@ -1010,58 +978,8 @@ class _CoinDetailScreenState extends State<CoinDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                _buildTableTab('Moving Average', 'Moving Average'),
-                _buildTableTab('Technical Indicator', 'Technical Indicator'),
-                _buildTableTab('Pivot Point', 'Pivot Point'),
-              ],
-            ),
-          ),
           _buildMATableContent(),
         ],
-      ),
-    );
-  }
-
-  Widget _buildTableTab(String label, String value) {
-    final isActive = _selectedTableTab == value;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _selectedTableTab = value;
-          });
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          margin: const EdgeInsets.only(right: 8),
-          decoration: BoxDecoration(
-            color: isActive
-                ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isActive
-                  ? Theme.of(context).colorScheme.primary
-                  : Colors.transparent,
-              width: 1.5,
-            ),
-          ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: isActive
-                  ? Theme.of(context).colorScheme.primary
-                  : Colors.grey[600],
-              fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-              fontSize: 13,
-            ),
-          ),
-        ),
       ),
     );
   }

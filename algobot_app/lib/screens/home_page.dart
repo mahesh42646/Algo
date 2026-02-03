@@ -5,9 +5,8 @@ import '../services/user_service.dart';
 import '../services/auth_service.dart';
 import '../services/exchange_service.dart';
 import '../services/algo_trading_service.dart';
+import '../services/push_notification_service.dart';
 import 'api_binding_screen.dart';
-import 'profit_details_screen.dart';
-import 'invite_friends_screen.dart';
 import 'user_guide_screen.dart';
 import 'mine_page.dart';
 
@@ -40,16 +39,6 @@ class HomePageState extends State<HomePage> {
       'title': 'API Binding',
       'icon': Icons.link,
       'color': [Colors.lightBlue, Colors.purple],
-    },
-    {
-      'title': 'Profit Details',
-      'icon': Icons.attach_money,
-      'color': [Colors.red, Colors.orange],
-    },
-    {
-      'title': 'Invite Friends',
-      'icon': Icons.person_add,
-      'color': [Colors.yellow, Colors.orange],
     },
     {
       'title': 'User Guide',
@@ -139,6 +128,14 @@ class HomePageState extends State<HomePage> {
           _totalProfit = totalProfit;
           _isLoadingStats = false;
         });
+        final symbols = activeTrades
+            .map((t) => t['symbol']?.toString() ?? '')
+            .where((s) => s.isNotEmpty)
+            .toList();
+        PushNotificationService.updateTradeRunning(
+          activeCount: activeTrades.length,
+          symbols: symbols,
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -149,6 +146,7 @@ class HomePageState extends State<HomePage> {
           _totalProfit = 0.0;
           _isLoadingStats = false;
         });
+        PushNotificationService.updateTradeRunning(activeCount: 0);
       }
     }
   }
@@ -159,18 +157,6 @@ class HomePageState extends State<HomePage> {
         Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const ApiBindingScreen()),
-        );
-        break;
-      case 'Profit Details':
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const ProfitDetailsScreen()),
-        );
-        break;
-      case 'Invite Friends':
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const InviteFriendsScreen()),
         );
         break;
       case 'User Guide':

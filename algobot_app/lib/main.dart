@@ -3,12 +3,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'config/env.dart';
 import 'services/auth_service.dart';
 import 'services/api_handler.dart';
 import 'services/crash_reporter.dart';
+import 'services/push_notification_service.dart';
 import 'providers/app_state_provider.dart';
 import 'screens/auth/email_verification_screen.dart';
 import 'screens/auth/password_setup_screen.dart';
@@ -16,7 +18,9 @@ import 'screens/auth/login_screen.dart';
 import 'screens/auth/forgot_password_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/main_navigation_screen.dart';
+import 'screens/onboarding_screen.dart';
 import 'screens/coin_detail_screen.dart';
+import 'services/onboarding_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,6 +45,34 @@ Future<void> main() async {
   );
 }
 
+class _PostAuthRouter extends StatelessWidget {
+  final String uid;
+
+  const _PostAuthRouter({required this.uid});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: OnboardingService().hasSeenOnboarding(uid),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        return snapshot.data == true
+            ? const MainNavigationScreen()
+            : const OnboardingScreen();
+      },
+    );
+  }
+}
+
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+}
+
 class AlgoBotApp extends StatefulWidget {
   const AlgoBotApp({super.key});
 
@@ -63,6 +95,8 @@ class _AlgoBotAppState extends State<AlgoBotApp> {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+      await PushNotificationService.initialize();
       await dotenv.load(fileName: '.env');
       Env.validate();
       ApiHandler().initialize();
@@ -255,11 +289,11 @@ class _AlgoBotAppState extends State<AlgoBotApp> {
                     );
                   }
                   
-                  // If user is logged in, show main navigation
+                  // If user is logged in, check onboarding then show home or onboarding
                   if (snapshot.hasData && snapshot.data != null) {
-                    // Ensure user exists in database (runs once per user)
                     authService.ensureUserInDatabase();
-                    return const MainNavigationScreen();
+                    PushNotificationService.onUserLoggedIn(snapshot.data!.uid);
+                    return _PostAuthRouter(uid: snapshot.data!.uid);
                   }
                   
                   // Otherwise, show login screen

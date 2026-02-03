@@ -275,6 +275,21 @@ router.put('/:userId', async (req, res, next) => {
   }
 });
 
+router.put('/:userId/fcm-token', async (req, res, next) => {
+  try {
+    const { fcmToken } = req.body;
+    const user = await User.findOne({ userId: req.params.userId });
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+    user.fcmToken = fcmToken && String(fcmToken).trim() ? String(fcmToken).trim() : null;
+    await user.save();
+    res.json({ success: true, message: 'FCM token updated' });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/:userId/avatar', upload.single('avatar'), async (req, res, next) => {
   try {
     if (!req.file) {
@@ -506,6 +521,29 @@ router.delete('/:userId/notifications/:notificationId', async (req, res, next) =
     res.json({
       success: true,
       message: 'Notification deleted successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/:userId/notifications/mark-all-read', async (req, res, next) => {
+  try {
+    const user = await User.findOne({ userId: req.params.userId });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    (user.notifications || []).forEach((n) => { n.read = true; });
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'All notifications marked as read',
     });
   } catch (error) {
     next(error);

@@ -76,6 +76,67 @@ class AlgoTradingService {
     }
   }
 
+  // Close all active trades
+  Future<int> stopAllTrades() async {
+    final trades = await getActiveTrades();
+    int stopped = 0;
+    for (final t in trades) {
+      final sym = t['symbol']?.toString();
+      if (sym != null && sym.isNotEmpty) {
+        try {
+          await stopAlgoTrade(sym);
+          stopped++;
+        } catch (_) {}
+      }
+    }
+    return stopped;
+  }
+
+  // Close all active trades that are in profit (unrealized P&L > 0)
+  Future<int> stopAllProfitableTrades() async {
+    final trades = await getActiveTrades();
+    int stopped = 0;
+    for (final t in trades) {
+      final pnl = _toDouble(t['unrealizedPnL']);
+      if (pnl > 0) {
+        final sym = t['symbol']?.toString();
+        if (sym != null && sym.isNotEmpty) {
+          try {
+            await stopAlgoTrade(sym);
+            stopped++;
+          } catch (_) {}
+        }
+      }
+    }
+    return stopped;
+  }
+
+  // Close all active trades that are in loss (unrealized P&L < 0)
+  Future<int> stopAllLossTrades() async {
+    final trades = await getActiveTrades();
+    int stopped = 0;
+    for (final t in trades) {
+      final pnl = _toDouble(t['unrealizedPnL']);
+      if (pnl < 0) {
+        final sym = t['symbol']?.toString();
+        if (sym != null && sym.isNotEmpty) {
+          try {
+            await stopAlgoTrade(sym);
+            stopped++;
+          } catch (_) {}
+        }
+      }
+    }
+    return stopped;
+  }
+
+  static double _toDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is int) return (v as int).toDouble();
+    if (v is double) return v;
+    return double.tryParse(v.toString()) ?? 0.0;
+  }
+
   // Get trade status
   Future<Map<String, dynamic>> getTradeStatus(String symbol) async {
     if (_userId == null) {
@@ -125,16 +186,18 @@ class AlgoTradingService {
     }
   }
 
-  // Get profit details
-  Future<Map<String, dynamic>> getProfitDetails({String period = '7d'}) async {
+  // Get profit details with optional period and symbol filter
+  Future<Map<String, dynamic>> getProfitDetails({String period = '7d', String? symbol}) async {
     if (_userId == null) {
       throw Exception('User not logged in');
     }
 
     try {
-      final response = await _apiHandler.get(
-        '/algo-trading/$_userId/profits?period=$period',
-      );
+      var url = '/algo-trading/$_userId/profits?period=$period';
+      if (symbol != null && symbol.isNotEmpty) {
+        url += '&symbol=${Uri.encodeComponent(symbol)}';
+      }
+      final response = await _apiHandler.get(url);
 
       if (response.statusCode == 200) {
         return response.data['data'] ?? {

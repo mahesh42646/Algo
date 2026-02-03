@@ -66,6 +66,11 @@ const userSchema = new mongoose.Schema({
     default: 'en',
     enum: ['en', 'es', 'fr', 'de', 'zh', 'ja', 'ko', 'hi', 'ar'],
   },
+  fcmToken: {
+    type: String,
+    default: null,
+    sparse: true,
+  },
   referralCode: {
     type: String,
     unique: true,

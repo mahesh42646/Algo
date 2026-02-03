@@ -32,6 +32,14 @@ class NotificationService {
     }
   }
 
+  Future<void> markAllAsRead(String userId) async {
+    try {
+      await _apiHandler.put('/users/$userId/notifications/mark-all-read');
+    } catch (e) {
+      throw Exception('Failed to mark all as read: $e');
+    }
+  }
+
   Future<void> clearAllNotifications(String userId) async {
     try {
       await _apiHandler.post('/users/$userId/notifications/clear-all');

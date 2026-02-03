@@ -648,9 +648,21 @@ router.get('/:userId/trade-history/:symbol', async (req, res, next) => {
 router.get('/:userId/profits', async (req, res, next) => {
   try {
     const { userId } = req.params;
-    const { period = '7d' } = req.query; // 7d, 30d, all
+    const { period = '7d', symbol: symbolFilter } = req.query; // period: 7d, 30d, 90d, all; symbol: optional filter
 
-    const completed = await TradeHistory.find({ userId }).sort({ stoppedAt: -1 }).lean();
+    const query = { userId };
+    if (symbolFilter && String(symbolFilter).trim()) {
+      query.symbol = String(symbolFilter).toUpperCase();
+    }
+    if (period && period !== 'all') {
+      const days = parseInt(period.replace('d', ''), 10) || 7;
+      const from = new Date();
+      from.setDate(from.getDate() - days);
+      from.setHours(0, 0, 0, 0);
+      query.stoppedAt = { $gte: from };
+    }
+
+    const completed = await TradeHistory.find(query).sort({ stoppedAt: -1 }).lean();
     let totalProfit = 0;
     let todayProfit = 0;
     const today = new Date();
@@ -669,7 +681,14 @@ router.get('/:userId/profits', async (req, res, next) => {
         totalFees: t.totalFees ?? 0,
         platformWalletFees: t.platformWalletFees || [],
         numberOfLevels: t.numberOfLevels,
-        totalInvested: t.totalInvested,
+        totalInvested: t.totalInvested ?? 0,
+        startPrice: t.startPrice,
+        startedAt: t.startedAt,
+        tradeDirection: t.tradeDirection,
+        useMargin: t.useMargin ?? false,
+        leverage: t.leverage ?? 1,
+        isManual: t.isManual ?? false,
+        isAdminMode: t.isAdminMode ?? false,
       };
     });
 
