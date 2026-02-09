@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/crypto_list_widget.dart';
@@ -6,6 +7,7 @@ import '../services/auth_service.dart';
 import '../services/exchange_service.dart';
 import '../services/algo_trading_service.dart';
 import '../services/push_notification_service.dart';
+import '../services/socket_service.dart';
 import 'api_binding_screen.dart';
 import 'user_guide_screen.dart';
 import 'mine_page.dart';
@@ -47,10 +49,36 @@ class HomePageState extends State<HomePage> {
     },
   ];
 
+  StreamSubscription<Map<String, dynamic>>? _balanceSub;
+  StreamSubscription<void>? _statsSub;
+
   @override
   void initState() {
     super.initState();
     _loadData();
+    _balanceSub = SocketService().balanceUpdates.listen(_onBalanceUpdate);
+    _statsSub = SocketService().statsUpdates.listen((_) => _loadStats());
+  }
+
+  @override
+  void dispose() {
+    _balanceSub?.cancel();
+    _statsSub?.cancel();
+    super.dispose();
+  }
+
+  void _onBalanceUpdate(Map<String, dynamic> payload) {
+    if (!mounted) return;
+    final balances = payload['balances'] as List?;
+    if (balances == null) return;
+    final usdt = balances.cast<Map<String, dynamic>>().firstWhere(
+      (b) => (b['currency'] ?? '').toString().toUpperCase() == 'USDT',
+      orElse: () => {'amount': 0.0},
+    );
+    setState(() {
+      _platformBalance = _toDouble(usdt['amount']);
+      _isLoadingBalance = false;
+    });
   }
 
   Future<void> _loadData() async {

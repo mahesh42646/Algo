@@ -19,6 +19,17 @@ class Env {
     return baseUrl.replaceAll(RegExp(r'/+$'), '');
   }
 
+  /// WebSocket URL for Socket.IO (http -> ws, https -> wss). Same host as backend.
+  static String get backendWsUrl {
+    final base = backendBaseUrl;
+    if (base.startsWith('https://')) return base.replaceFirst('https://', 'wss://');
+    if (base.startsWith('http://')) return base.replaceFirst('http://', 'ws://');
+    return 'ws://$base';
+  }
+
+  /// Optional. If set (same as backend SOCKET_SECRET), socket auth is verified.
+  static String get socketSecret => dotenv.env['SOCKET_SECRET']?.trim() ?? '';
+
   // App Configuration
   static String get appName => dotenv.env['APP_NAME'] ?? 'AlgoBot';
   static String get appVersion => dotenv.env['APP_VERSION'] ?? '1.0.0';

@@ -1,6 +1,7 @@
 const User = require('../schemas/user');
 const Deposit = require('../schemas/deposit');
 const { encrypt, decrypt } = require('../utils/encryption');
+const { emitToUser } = require('../utils/socketEmitter');
 const {
   getTatumMode,
   getTronChainName,
@@ -96,6 +97,7 @@ const updateLedgerBalance = async ({ user, amount }) => {
 
   user.wallet.depositStatus = 'confirmed';
   await user.save();
+  emitToUser(user.userId, 'user:balance', { balances: user.wallet.balances });
 };
 
 const addWalletTransaction = async ({ user, amount, txHash, createdAt }) => {
@@ -127,7 +129,7 @@ const addWalletTransaction = async ({ user, amount, txHash, createdAt }) => {
   });
   user.wallet.lastDepositTx = txHash;
   await user.save();
-  
+  emitToUser(user.userId, 'user:balance', { balances: user.wallet.balances });
   console.log(`[TRANSACTION] ✅ Added transaction to history: ${amount} USDT (tx: ${txHash.substring(0, 16)}...)`);
 };
 

@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/crypto_coin.dart';
 import '../services/crypto_service.dart';
 import '../services/favorites_service.dart';
+import '../services/socket_service.dart';
 import '../widgets/notification_bell.dart';
 import 'coin_detail_screen.dart';
 
@@ -18,11 +20,22 @@ class _FavoritesPageState extends State<FavoritesPage> {
   List<CryptoCoin> _favoriteCoins = [];
   bool _isLoading = true;
   Set<String> _favorites = {};
+  StreamSubscription<List<dynamic>>? _favoritesSub;
 
   @override
   void initState() {
     super.initState();
     _loadFavorites();
+    _favoritesSub = SocketService().favoritesUpdates.listen((data) {
+      FavoritesService().updateFromSocket(data);
+      if (mounted) _loadFavorites();
+    });
+  }
+
+  @override
+  void dispose() {
+    _favoritesSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadFavorites() async {

@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/algo_trading_service.dart';
 import '../services/push_notification_service.dart';
 import '../services/permission_location_service.dart';
+import '../services/socket_service.dart';
 import '../models/crypto_coin.dart';
 import 'coin_detail_screen.dart';
 
@@ -26,17 +28,29 @@ class HistoryPageState extends State<HistoryPage> {
   String? _symbolFilter; // null = All pairs
   List<String> _allSymbols = [];
 
-  static double _toDouble(dynamic v) {
-    if (v == null) return 0.0;
-    if (v is int) return (v as int).toDouble();
-    if (v is double) return v;
-    return double.tryParse(v.toString()) ?? 0.0;
-  }
+  StreamSubscription<void>? _activeTradesSub;
+  StreamSubscription<void>? _tradeHistorySub;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _activeTradesSub = SocketService().activeTradesUpdates.listen((_) => _loadData());
+    _tradeHistorySub = SocketService().tradeHistoryUpdates.listen((_) => _loadData());
+  }
+
+  @override
+  void dispose() {
+    _activeTradesSub?.cancel();
+    _tradeHistorySub?.cancel();
+    super.dispose();
+  }
+
+  static double _toDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is int) return (v as int).toDouble();
+    if (v is double) return v;
+    return double.tryParse(v.toString()) ?? 0.0;
   }
 
   Future<void> _loadData() async {

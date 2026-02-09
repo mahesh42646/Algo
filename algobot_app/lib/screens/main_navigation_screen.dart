@@ -4,6 +4,7 @@ import 'strategy_page.dart';
 import 'history_page.dart';
 import 'favorites_page.dart';
 import 'mine_page.dart';
+import '../widgets/tab_navigator_scope.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -27,11 +28,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages,
-      ),
+    return TabNavigatorScope(
+      switchToTab: (index) {
+        if (_currentIndex != index) {
+          if (index == 0) _homeKey.currentState?.refresh();
+          if (index == 2) _historyKey.currentState?.refresh();
+        }
+        setState(() => _currentIndex = index);
+      },
+      child: Scaffold(
+        body: IndexedStack(
+          index: _currentIndex,
+          children: _pages,
+        ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Theme.of(context).bottomNavigationBarTheme.backgroundColor ?? 
@@ -88,6 +97,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             ),
           ),
         ),
+      ),
       ),
     );
   }

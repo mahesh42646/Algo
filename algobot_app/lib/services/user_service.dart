@@ -325,4 +325,35 @@ class UserService {
       throw Exception('Network error: ${e.message}');
     }
   }
+
+  Future<List<String>> getFavorites(String userId) async {
+    try {
+      final response = await _apiHandler.get('/users/$userId/favorites');
+      if (response.statusCode == 200) {
+        final data = response.data['data'];
+        if (data is List) return data.map((e) => e.toString()).toList();
+        return [];
+      }
+      return [];
+    } on DioException catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<String>> putFavorites(String userId, List<String> symbols) async {
+    try {
+      final response = await _apiHandler.put(
+        '/users/$userId/favorites',
+        data: {'symbols': symbols},
+      );
+      if (response.statusCode == 200) {
+        final data = response.data['data'];
+        if (data is List) return data.map((e) => e.toString()).toList();
+        return symbols;
+      }
+      return symbols;
+    } on DioException catch (_) {
+      rethrow;
+    }
+  }
 }

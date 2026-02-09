@@ -1,3 +1,4 @@
+const http = require('http');
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -5,6 +6,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
 const logger = require('./middleware/logger');
+const { attachSocket } = require('./socket');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 // Validate encryption key on startup
@@ -127,8 +129,11 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server - listen on all interfaces (0.0.0.0) to allow network access
-const server = app.listen(PORT, '0.0.0.0', () => {
+// HTTP server for Express + Socket.IO
+const server = http.createServer(app);
+attachSocket(server);
+
+server.listen(PORT, '0.0.0.0', () => {
   const os = require('os');
   const networkInterfaces = os.networkInterfaces();
   let localIP = 'localhost';

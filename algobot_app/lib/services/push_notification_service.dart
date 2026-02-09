@@ -63,11 +63,13 @@ class PushNotificationService {
       );
     }
 
-    await FirebaseMessaging.instance.requestPermission(
+    // Do not await: on iOS requestPermission() can hang and block app startup.
+    // Request in background so UI can load; permission dialog may appear after app is visible.
+    FirebaseMessaging.instance.requestPermission(
       alert: true,
       badge: true,
       sound: true,
-    );
+    ).then((_) {}).catchError((_) {});
 
     FirebaseMessaging.onMessage.listen(_onForegroundMessage);
     FirebaseMessaging.onMessageOpenedApp.listen(_onMessageOpenedApp);

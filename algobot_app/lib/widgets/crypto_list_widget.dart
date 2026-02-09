@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../config/env.dart';
 import '../models/crypto_coin.dart';
 import '../services/crypto_service.dart';
 import '../services/favorites_service.dart';
+import '../services/socket_service.dart';
 import 'skeleton.dart';
 
 enum SortType { currency, price, change }
@@ -30,6 +32,8 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
   final TextEditingController _searchController = TextEditingController();
   List<String> _searchSuggestions = [];
   bool _showSuggestions = false;
+  Timer? _tickerTimer;
+  StreamSubscription<List<dynamic>>? _favoritesSub;
 
   final List<String> _quoteCurrencies = ['USDT', 'BTC', 'ETH', 'USDC'];
 
@@ -37,15 +41,23 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
-    // Load data after the first frame to ensure widget is fully built
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadFavorites();
       _loadCryptoData();
+      _tickerTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) _loadCryptoData(silent: true);
+      });
+      _favoritesSub = SocketService().favoritesUpdates.listen((data) {
+        FavoritesService().updateFromSocket(data);
+        if (mounted) _loadFavorites();
+      });
     });
   }
 
   @override
   void dispose() {
+    _tickerTimer?.cancel();
+    _favoritesSub?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -86,27 +98,20 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
     await _loadFavorites();
   }
 
-  Future<void> _loadCryptoData({bool retry = false}) async {
-    // Prevent duplicate simultaneous calls
-    if (_isLoadingData && !retry) {
-      return;
-    }
-    
+  Future<void> _loadCryptoData({bool retry = false, bool silent = false}) async {
+    if (_isLoadingData && !retry) return;
     _isLoadingData = true;
-    if (!retry) {
-      setState(() => _isLoading = true);
-    }
-    
+    if (!retry && !silent) setState(() => _isLoading = true);
     try {
-      if (Env.enableApiLogs) {
+      if (Env.enableApiLogs && !silent) {
         print('[CRYPTO WIDGET] Loading data for quote: $_selectedQuote');
       }
-      final coins = await _cryptoService.getCoinsByQuoteCurrency(_selectedQuote);
+      final coins = await _cryptoService.getCoinsByQuoteCurrency(_selectedQuote, forceRefresh: silent);
       if (mounted) {
         setState(() {
           _allCoins = coins;
           _filteredCoins = coins;
-          _isLoading = false;
+          if (!silent) _isLoading = false;
           _isLoadingData = false;
         });
         _applySort();
@@ -120,11 +125,10 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
       }
       if (mounted) {
         setState(() {
-          _isLoading = false;
+          if (!silent) _isLoading = false;
           _isLoadingData = false;
         });
-        // Only show error on initial load, not on retry
-        if (!retry) {
+        if (!retry && !silent) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Error loading data: $e'),

@@ -3,6 +3,7 @@ const router = express.Router();
 const crypto = require('crypto');
 const User = require('../schemas/user');
 const { encrypt, decrypt, maskSensitiveData } = require('../utils/encryption');
+const { emitToUser } = require('../utils/socketEmitter');
 
 // Helper function to get Binance API URL based on test mode
 function getBinanceApiUrl(isTest = false) {
@@ -123,6 +124,9 @@ router.post('/:userId', async (req, res, next) => {
     });
 
     await user.save();
+    emitToUser(userId, 'user:stats', { updated: true });
+    const sortedNotif = (user.notifications || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    emitToUser(userId, 'user:notifications', sortedNotif);
 
     const savedApi = user.exchangeApis[user.exchangeApis.length - 1];
 
@@ -277,6 +281,9 @@ router.delete('/:userId/:apiId', async (req, res, next) => {
     });
 
     await user.save();
+    emitToUser(userId, 'user:stats', { updated: true });
+    const sortedNotif = (user.notifications || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    emitToUser(userId, 'user:notifications', sortedNotif);
 
     res.json({
       success: true,

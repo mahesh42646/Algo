@@ -22,12 +22,12 @@ class CryptoService {
     ));
   }
 
-  Future<List<CryptoCoin>> getCoinsByQuoteCurrency(String quoteCurrency) async {
+  Future<List<CryptoCoin>> getCoinsByQuoteCurrency(String quoteCurrency, {bool forceRefresh = false}) async {
     final cacheKey = quoteCurrency.toUpperCase();
     final now = DateTime.now();
 
-    // Check cache
-    if (_cache.containsKey(cacheKey) &&
+    if (!forceRefresh &&
+        _cache.containsKey(cacheKey) &&
         _cacheTimestamps.containsKey(cacheKey)) {
       final cacheTime = _cacheTimestamps[cacheKey]!;
       if (now.difference(cacheTime) < cacheDuration) {

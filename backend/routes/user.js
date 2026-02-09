@@ -6,6 +6,7 @@ const fs = require('fs');
 const sharp = require('sharp');
 const User = require('../schemas/user');
 const { ensureUserTronWallet, getTatumMode } = require('../services/wallet_service');
+const { emitToUser } = require('../utils/socketEmitter');
 
 const uploadsDir = path.join(__dirname, '../uploads');
 if (!fs.existsSync(uploadsDir)) {
@@ -460,6 +461,9 @@ router.post('/:userId/notifications', async (req, res, next) => {
     user.notifications.push(notification);
     await user.save();
 
+    const sorted = (user.notifications || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    emitToUser(req.params.userId, 'user:notifications', sorted);
+
     console.log(`[NOTIFICATION CREATE] ✅ Notification created: ${title}`);
 
     res.status(201).json({
@@ -495,6 +499,9 @@ router.put('/:userId/notifications/:notificationId/read', async (req, res, next)
     notification.read = true;
     await user.save();
 
+    const sorted = (user.notifications || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    emitToUser(req.params.userId, 'user:notifications', sorted);
+
     res.json({
       success: true,
       message: 'Notification marked as read',
@@ -517,6 +524,9 @@ router.delete('/:userId/notifications/:notificationId', async (req, res, next) =
 
     user.notifications.pull(req.params.notificationId);
     await user.save();
+
+    const sorted = (user.notifications || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    emitToUser(req.params.userId, 'user:notifications', sorted);
 
     res.json({
       success: true,
@@ -541,6 +551,9 @@ router.put('/:userId/notifications/mark-all-read', async (req, res, next) => {
     (user.notifications || []).forEach((n) => { n.read = true; });
     await user.save();
 
+    const sorted = (user.notifications || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    emitToUser(req.params.userId, 'user:notifications', sorted);
+
     res.json({
       success: true,
       message: 'All notifications marked as read',
@@ -563,6 +576,8 @@ router.post('/:userId/notifications/clear-all', async (req, res, next) => {
 
     user.notifications = [];
     await user.save();
+
+    emitToUser(req.params.userId, 'user:notifications', []);
 
     res.json({
       success: true,
@@ -706,6 +721,57 @@ router.get('/:userId/kyc', async (req, res, next) => {
     res.json({
       success: true,
       data: user.kyc,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/:userId/favorites', async (req, res, next) => {
+  try {
+    const user = await User.findOne({ userId: req.params.userId })
+      .select('favorites');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: user.favorites || [],
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/:userId/favorites', async (req, res, next) => {
+  try {
+    const { symbols } = req.body;
+    const userId = req.params.userId;
+
+    const user = await User.findOne({ userId });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    const list = Array.isArray(symbols)
+      ? symbols.filter((s) => typeof s === 'string' && s.trim().length > 0 && s.length <= 20).map((s) => s.trim().toUpperCase())
+      : [];
+    user.favorites = [...new Set(list)];
+    await user.save();
+
+    emitToUser(userId, 'user:favorites', user.favorites);
+
+    res.json({
+      success: true,
+      data: user.favorites,
     });
   } catch (error) {
     next(error);

@@ -5,6 +5,14 @@ const TradeHistory = require('../schemas/trade_history');
 const { decrypt } = require('../utils/encryption');
 const crypto = require('crypto');
 const axios = require('axios');
+const { emitToUser } = require('../utils/socketEmitter');
+
+function emitRealtimeTrades(userId) {
+  if (!userId) return;
+  emitToUser(userId, 'user:activeTrades', { updated: true });
+  emitToUser(userId, 'user:tradeHistory', { updated: true });
+  emitToUser(userId, 'user:stats', { updated: true });
+}
 
 // Store active algo trades in memory (in production, use Redis or database)
 const activeTrades = new Map();
@@ -162,6 +170,7 @@ router.post('/:userId/start', async (req, res, next) => {
     if (usdtBalance) {
       usdtBalance.amount = Math.max(0, (usdtBalance.amount || 0) - upfrontFee);
       await user.save();
+      emitToUser(userId, 'user:balance', { balances: user.wallet.balances });
       console.log(`[ALGO TRADING START] 💰 Deducted upfront fee: \$${upfrontFee.toFixed(2)} (refundable on cancel for unused levels)`);
     }
 
@@ -216,6 +225,7 @@ router.post('/:userId/start', async (req, res, next) => {
 
     trade.intervalId = intervalId;
     activeTrades.set(tradeKey, trade);
+    emitRealtimeTrades(userId);
 
     // Add notification - trade is waiting for signal
     user.notifications.push({
@@ -1331,6 +1341,7 @@ async function closeAllPositions(trade, reason, stopLocation = null) {
           if (usdtBalance) {
             usdtBalance.amount = (usdtBalance.amount || 0) + refundAmount;
             await userForRefund.save();
+            emitToUser(trade.userId, 'user:balance', { balances: userForRefund.wallet.balances });
             console.log(`[ALGO TRADING CLOSE] 💰 Refunded \$${refundAmount.toFixed(2)} for ${remainingLevels} unused level(s)`);
           }
         }
@@ -1380,6 +1391,8 @@ async function closeAllPositions(trade, reason, stopLocation = null) {
         stopLocation: stopLoc,
       }).catch((err) => console.error('[ALGO TRADING] ❌ Failed to persist trade history:', err.message));
 
+      emitRealtimeTrades(trade.userId);
+
       const user = await User.findOne({ userId: trade.userId }).select('notifications strategies');
       if (user) {
         const reasonMessages = {
@@ -1410,6 +1423,8 @@ async function closeAllPositions(trade, reason, stopLocation = null) {
         }
 
         await user.save();
+        const sortedNotif = (user.notifications || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        emitToUser(trade.userId, 'user:notifications', sortedNotif);
         console.log(`[ALGO TRADING CLOSE] 📬 Notification sent to user ${trade.userId}`);
       }
 
@@ -1587,6 +1602,7 @@ router.post('/:userId/start-manual', async (req, res, next) => {
 
     // Start manual trading (user places orders manually - no automatic execution)
     activeTrades.set(tradeKey, trade);
+    emitRealtimeTrades(userId);
 
     res.json({
       success: true,
@@ -1760,6 +1776,7 @@ router.post('/:userId/start-admin', async (req, res, next) => {
 
     trade.intervalId = intervalId;
     activeTrades.set(tradeKey, trade);
+    emitRealtimeTrades(userId);
 
     res.json({
       success: true,

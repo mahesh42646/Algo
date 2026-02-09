@@ -378,6 +378,16 @@ const userSchema = new mongoose.Schema({
   lastLogin: {
     type: Date,
   },
+  favorites: {
+    type: [String],
+    default: [],
+    validate: {
+      validator: function (v) {
+        return v.every((s) => typeof s === 'string' && s.length <= 20);
+      },
+      message: 'Favorites must be symbol strings (e.g. BTCUSDT)',
+    },
+  },
 }, {
   timestamps: true,
 });

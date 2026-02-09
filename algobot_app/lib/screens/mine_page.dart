@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -5,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
+import '../services/socket_service.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/settings_modal.dart';
 import '../widgets/skeleton.dart';
@@ -32,6 +34,7 @@ class _MinePageState extends State<MinePage> {
   String? _selectedLanguage = 'en';
   File? _selectedImage;
   bool _isUploading = false;
+  StreamSubscription<Map<String, dynamic>>? _balanceSub;
 
   final List<String> _languages = [
     'en', 'es', 'fr', 'de', 'zh', 'ja', 'ko', 'hi', 'ar'
@@ -53,12 +56,25 @@ class _MinePageState extends State<MinePage> {
   void initState() {
     super.initState();
     _loadUserData();
+    _balanceSub = SocketService().balanceUpdates.listen(_onBalanceUpdate);
   }
 
   @override
   void dispose() {
+    _balanceSub?.cancel();
     _nicknameController.dispose();
     super.dispose();
+  }
+
+  void _onBalanceUpdate(Map<String, dynamic> payload) {
+    if (!mounted || _userData == null) return;
+    final balances = payload['balances'] as List?;
+    if (balances == null) return;
+    setState(() {
+      final wallet = Map<String, dynamic>.from(_userData!['wallet'] as Map? ?? {});
+      wallet['balances'] = balances;
+      _userData = {..._userData!, 'wallet': wallet};
+    });
   }
 
   Future<void> _loadUserData({bool retryAfterCreate = false}) async {

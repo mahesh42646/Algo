@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
@@ -22,6 +23,7 @@ import 'screens/main_navigation_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/coin_detail_screen.dart';
 import 'services/onboarding_service.dart';
+import 'services/socket_service.dart';
 
 void main() {
   runZonedGuarded(() async {
@@ -64,6 +66,82 @@ class _PostAuthRouter extends StatelessWidget {
   }
 }
 
+/// Uses currentUser for initial state (so we never block on stream) and
+/// authStateChanges only for subsequent login/logout updates.
+class _AuthStateGate extends StatefulWidget {
+  final AuthService authService;
+
+  const _AuthStateGate({required this.authService});
+
+  @override
+  State<_AuthStateGate> createState() => _AuthStateGateState();
+}
+
+class _AuthStateGateState extends State<_AuthStateGate> {
+  /// Brief delay so Firebase Auth can restore session from persistence (iOS).
+  static const Duration _initialAuthDelay = Duration(milliseconds: 200);
+
+  User? _user;
+  bool _initialStateSet = false;
+  StreamSubscription<User?>? _authSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _setInitialAuthState();
+    _authSub = widget.authService.authStateChanges.listen(_onAuthStateChanged);
+  }
+
+  /// Set initial screen from currentUser so we never wait on stream.
+  void _setInitialAuthState() {
+    Future.delayed(_initialAuthDelay, () {
+      if (!mounted) return;
+      setState(() {
+        _user = widget.authService.currentUser;
+        _initialStateSet = true;
+      });
+      _runPostAuthIfNeeded(_user);
+    });
+  }
+
+  void _onAuthStateChanged(User? user) {
+    if (!mounted) return;
+    if (user == null) SocketService().disconnect();
+    setState(() => _user = user);
+    _runPostAuthIfNeeded(user);
+  }
+
+  void _runPostAuthIfNeeded(User? user) {
+    if (user == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      widget.authService.ensureUserInDatabase();
+      PushNotificationService.onUserLoggedIn(user.uid);
+      PermissionLocationService.requestPermissions();
+      SocketService().connect();
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_initialStateSet) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_user != null) {
+      return _PostAuthRouter(uid: _user!.uid);
+    }
+    return const LoginScreen();
+  }
+}
+
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -86,13 +164,22 @@ class _AlgoBotAppState extends State<AlgoBotApp> {
     _initializeApp();
   }
 
+  static const Duration _pushInitTimeout = Duration(seconds: 5);
+
   Future<void> _initializeApp() async {
     try {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-      await PushNotificationService.initialize();
+      try {
+        await PushNotificationService.initialize().timeout(
+          _pushInitTimeout,
+          onTimeout: () {},
+        );
+      } catch (_) {
+        // Skip push init on timeout or error so app can start
+      }
       await dotenv.load(fileName: '.env');
       Env.validate();
       ApiHandler().initialize();
@@ -275,28 +362,7 @@ class _AlgoBotAppState extends State<AlgoBotApp> {
             themeMode: appState.themeMode,
             // Show splash screen on every launch
             home: SplashScreen(
-              child: StreamBuilder(
-                stream: authService.authStateChanges,
-                builder: (context, snapshot) {
-                  // Show loading while checking auth state
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Scaffold(
-                      body: Center(child: CircularProgressIndicator()),
-                    );
-                  }
-                  
-                  // If user is logged in, check onboarding then show home or onboarding
-                  if (snapshot.hasData && snapshot.data != null) {
-                    authService.ensureUserInDatabase();
-                    PushNotificationService.onUserLoggedIn(snapshot.data!.uid);
-                    PermissionLocationService.requestPermissions();
-                    return _PostAuthRouter(uid: snapshot.data!.uid);
-                  }
-                  
-                  // Otherwise, show login screen
-                  return const LoginScreen();
-                },
-              ),
+              child: _AuthStateGate(authService: authService),
             ),
             routes: {
               '/login': (context) => const LoginScreen(),
