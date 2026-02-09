@@ -25,6 +25,7 @@ const appSettingsSchema = new mongoose.Schema({
   adminStrategies: [strategyItemSchema],
   popularStrategies: [strategyItemSchema],
   updatedAt: { type: Date, default: Date.now },
+  updateNotes: { type: String, default: '', trim: true },
 }, { timestamps: false, collection: 'appsettings' });
 
 appSettingsSchema.index({ updatedAt: 1 });

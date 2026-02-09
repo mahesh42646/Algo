@@ -27,6 +27,7 @@ class HistoryPageState extends State<HistoryPage> {
   String _periodFilter = 'all'; // 7d, 30d, 90d, all
   String? _symbolFilter; // null = All pairs
   List<String> _allSymbols = [];
+  bool _includeAllHistory = false; // default off: show all history from other app/Postman when on
 
   StreamSubscription<void>? _activeTradesSub;
   StreamSubscription<void>? _tradeHistorySub;
@@ -60,6 +61,7 @@ class HistoryPageState extends State<HistoryPage> {
       final profitDetails = await _algoService.getProfitDetails(
         period: _periodFilter,
         symbol: _symbolFilter,
+        includeAllHistory: _includeAllHistory,
       );
       final totalProfit = _toDouble(profitDetails['totalProfit']);
       final tradeHistory = profitDetails['tradeHistory'] as List? ?? [];
@@ -419,10 +421,13 @@ class HistoryPageState extends State<HistoryPage> {
   Widget _buildFilters(ThemeData theme) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: DropdownButtonFormField<String>(
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
               value: _periodFilter,
               decoration: InputDecoration(
                 labelText: 'Time',
@@ -484,6 +489,27 @@ class HistoryPageState extends State<HistoryPage> {
                 });
               },
             ),
+          ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            value: _includeAllHistory,
+            onChanged: (v) {
+              setState(() {
+                _includeAllHistory = v;
+                _loadData();
+              });
+            },
+            title: Text(
+              'Include all history',
+              style: theme.textTheme.bodyMedium,
+            ),
+            subtitle: Text(
+              'From other devices / Postman (default off)',
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+            ),
+            contentPadding: EdgeInsets.zero,
           ),
         ],
       ),

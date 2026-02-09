@@ -223,8 +223,13 @@ class AlgoTradingService {
     }
   }
 
-  // Get profit details with optional period and symbol filter
-  Future<Map<String, dynamic>> getProfitDetails({String period = '7d', String? symbol}) async {
+  // Get profit details with optional period, symbol filter, and includeAllHistory (default off).
+  // includeAllHistory=true returns full history from all sources (other app, Postman, etc.).
+  Future<Map<String, dynamic>> getProfitDetails({
+    String period = '7d',
+    String? symbol,
+    bool includeAllHistory = false,
+  }) async {
     if (_userId == null) {
       throw Exception('User not logged in');
     }
@@ -233,6 +238,9 @@ class AlgoTradingService {
       var url = '/algo-trading/$_userId/profits?period=$period';
       if (symbol != null && symbol.isNotEmpty) {
         url += '&symbol=${Uri.encodeComponent(symbol)}';
+      }
+      if (includeAllHistory) {
+        url += '&includeAllHistory=true';
       }
       final response = await _apiHandler.get(url);
 

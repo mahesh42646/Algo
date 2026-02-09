@@ -67,6 +67,77 @@ class _PostAuthRouter extends StatelessWidget {
   }
 }
 
+/// Listens to AppConfigService and shows "Update available" dialog when backend config is newer.
+class _UpdateChecker extends StatefulWidget {
+  final Widget child;
+
+  const _UpdateChecker({required this.child});
+
+  @override
+  State<_UpdateChecker> createState() => _UpdateCheckerState();
+}
+
+class _UpdateCheckerState extends State<_UpdateChecker> {
+  bool _dialogShown = false;
+
+  @override
+  void initState() {
+    super.initState();
+    AppConfigService().addListener(_onConfigChanged);
+  }
+
+  @override
+  void dispose() {
+    AppConfigService().removeListener(_onConfigChanged);
+    super.dispose();
+  }
+
+  void _onConfigChanged() {
+    final svc = AppConfigService();
+    if (svc.updateAvailable && !_dialogShown && mounted) {
+      _dialogShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _showUpdateDialog();
+      });
+    }
+  }
+
+  Future<void> _showUpdateDialog() async {
+    final svc = AppConfigService();
+    final notes = svc.pendingUpdateNotes;
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Update available'),
+        content: SingleChildScrollView(
+          child: Text(
+            notes.trim().isEmpty
+                ? 'A new app configuration is available (theme, name, icon, language, charges). Apply to update.'
+                : notes,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Later'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Update'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await svc.applyUpdate();
+    if (mounted) _dialogShown = false;
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
 /// Uses currentUser for initial state (so we never block on stream) and
 /// authStateChanges only for subsequent login/logout updates.
 class _AuthStateGate extends StatefulWidget {
@@ -237,6 +308,7 @@ class _AlgoBotAppState extends State<AlgoBotApp> {
             builder: (context, _) {
               final appConfig = AppConfigService();
               return MaterialApp(
+                key: ValueKey(appConfig.restartKey),
                 title: appConfig.loaded ? appConfig.appName : Env.appName,
             debugShowCheckedModeBanner: false,
             navigatorObservers: [CrashReportingNavigatorObserver()],
@@ -366,9 +438,10 @@ class _AlgoBotAppState extends State<AlgoBotApp> {
               useMaterial3: true,
             ),
             themeMode: appConfig.loaded ? appConfig.themeMode : appState.themeMode,
-            // Show splash screen on every launch
-            home: SplashScreen(
-              child: _AuthStateGate(authService: authService),
+            home: _UpdateChecker(
+              child: SplashScreen(
+                child: _AuthStateGate(authService: authService),
+              ),
             ),
             routes: {
               '/login': (context) => const LoginScreen(),

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const User = require('../schemas/user');
 const TradeHistory = require('../schemas/trade_history');
+const ActiveAlgoTrade = require('../schemas/active_algo_trade');
 const AppSettings = require('../schemas/app_settings');
 const { decrypt } = require('../utils/encryption');
 const crypto = require('crypto');
@@ -148,10 +149,66 @@ router.get('/strategies/popular', async (req, res) => {
   }
 });
 
-// Store active algo trades in memory (in production, use Redis or database)
+// Store active algo trades in memory; also persisted to ActiveAlgoTrade for restore on restart
 const activeTrades = new Map();
-// Stopped trades per user for history and profits (manual, algo, admin)
 const completedTrades = new Map(); // userId -> array of { ...trade, profit }
+
+async function persistTradeState(trade) {
+  if (!trade || !trade.userId || !trade.symbol) return;
+  try {
+    await ActiveAlgoTrade.updateOne(
+      { userId: trade.userId, symbol: trade.symbol },
+      {
+        $set: {
+          userId: trade.userId,
+          symbol: trade.symbol,
+          platform: trade.platform,
+          apiId: trade.apiId,
+          isTest: trade.isTest || false,
+          isDemo: trade.isDemo !== false,
+          maxLossPerTrade: trade.maxLossPerTrade,
+          maxLossOverall: trade.maxLossOverall,
+          maxProfitBook: trade.maxProfitBook,
+          amountPerLevel: trade.amountPerLevel,
+          numberOfLevels: trade.numberOfLevels,
+          useMargin: trade.useMargin || false,
+          leverage: trade.leverage || 1,
+          isStarted: trade.isStarted || false,
+          currentLevel: trade.currentLevel || 0,
+          startPrice: trade.startPrice || 0,
+          tradeDirection: trade.tradeDirection || null,
+          totalInvested: trade.totalInvested || 0,
+          realizedPnL: trade.realizedPnL || 0,
+          platformWalletFees: trade.platformWalletFees || [],
+          upfrontFee: trade.upfrontFee || 0,
+          startedAt: trade.startedAt || new Date(),
+          lastSignal: trade.lastSignal || null,
+          isManual: trade.isManual || false,
+          isAdminMode: trade.isAdminMode || false,
+          startLocation: trade.startLocation || null,
+          orders: (trade.orders || []).map((o) => ({
+            side: o.side,
+            price: o.price,
+            quantity: o.quantity,
+            timestamp: o.timestamp,
+            orderId: o.orderId,
+          })),
+        },
+      },
+      { upsert: true }
+    );
+  } catch (err) {
+    console.error('[ALGO TRADING] persistTradeState error:', err.message);
+  }
+}
+
+async function deleteTradeState(userId, symbol) {
+  try {
+    await ActiveAlgoTrade.deleteOne({ userId, symbol: (symbol || '').toUpperCase() });
+  } catch (err) {
+    console.error('[ALGO TRADING] deleteTradeState error:', err.message);
+  }
+}
 
 // Helper function to get Binance API URL based on test mode
 function getBinanceApiUrl(isTest = false) {
@@ -359,6 +416,8 @@ router.post('/:userId/start', async (req, res, next) => {
 
     trade.intervalId = intervalId;
     activeTrades.set(tradeKey, trade);
+    await persistTradeState(trade);
+
     emitRealtimeTrades(userId);
 
     // Add notification - trade is waiting for signal
@@ -473,26 +532,27 @@ router.post('/:userId/stop', async (req, res, next) => {
       });
     }
 
-    const tradeKey = `${userId}:${symbol.toUpperCase()}`;
-    const trade = activeTrades.get(tradeKey);
+    const symbolUpper = symbol.toUpperCase();
+    const tradeKey = `${userId}:${symbolUpper}`;
+    let trade = activeTrades.get(tradeKey);
 
-    if (!trade) {
-      return res.status(404).json({
-        success: false,
-        error: 'No active trade found for this symbol',
-      });
+    if (trade && trade.isActive) {
+      if (trade.intervalId) {
+        clearInterval(trade.intervalId);
+        trade.intervalId = null;
+      }
+      await closeAllPositions(trade, 'user_stopped', stopLocation || null);
+    } else {
+      const stopped = await stopTradeFromDb(userId, symbolUpper, 'user_stopped');
+      if (!stopped) {
+        return res.status(404).json({
+          success: false,
+          error: 'No active trade found for this symbol',
+        });
+      }
     }
 
-    // Stop the interval first so no more steps run
-    if (trade.intervalId) {
-      clearInterval(trade.intervalId);
-      trade.intervalId = null;
-    }
-
-    // Close positions on exchange, compute actual P&L, refund, and push to completedTrades
-    await closeAllPositions(trade, 'user_stopped', stopLocation || null);
-
-    console.log(`[ALGO TRADING] ⏹️ Stopped algo trading for ${symbol} (User: ${userId})`);
+    console.log(`[ALGO TRADING] ⏹️ Stopped algo trading for ${symbolUpper} (User: ${userId})`);
 
     res.json({
       success: true,
@@ -548,11 +608,45 @@ router.get('/:userId/status', async (req, res, next) => {
   }
 });
 
-// Get all active trades with real-time P&L
+// Get all active trades with real-time P&L (includes persisted-only trades not yet in memory after restart)
 router.get('/:userId/trades', async (req, res, next) => {
   try {
     const { userId } = req.params;
-    const userTrades = await buildUserTradesPayload(userId);
+    let userTrades = await buildUserTradesPayload(userId);
+    const inMemoryKeys = new Set(userTrades.map((t) => `${userId}:${t.symbol}`));
+    const fromDb = await ActiveAlgoTrade.find({ userId }).lean();
+    for (const doc of fromDb) {
+      const key = `${doc.userId}:${doc.symbol}`;
+      if (inMemoryKeys.has(key)) continue;
+      userTrades.push({
+        symbol: doc.symbol,
+        currentLevel: doc.currentLevel || 0,
+        numberOfLevels: doc.numberOfLevels || 0,
+        isStarted: doc.isStarted || false,
+        tradeDirection: doc.tradeDirection || null,
+        startedAt: doc.startedAt,
+        startPrice: doc.startPrice || 0,
+        currentPrice: doc.startPrice || 0,
+        totalInvested: doc.totalInvested || 0,
+        currentPnL: 0,
+        unrealizedPnL: 0,
+        realizedPnL: doc.realizedPnL || 0,
+        totalBalance: doc.totalInvested || 0,
+        orders: doc.orders || [],
+        lastSignal: doc.lastSignal || null,
+        useMargin: doc.useMargin || false,
+        leverage: doc.leverage || 1,
+        maxLossPerTrade: doc.maxLossPerTrade,
+        maxLossOverall: doc.maxLossOverall,
+        maxProfitBook: doc.maxProfitBook,
+        amountPerLevel: doc.amountPerLevel,
+        platformWalletFees: doc.platformWalletFees || [],
+        startLocation: doc.startLocation || null,
+        isAdminMode: doc.isAdminMode || false,
+        isManual: doc.isManual || false,
+        fromDb: true,
+      });
+    }
     res.json({
       success: true,
       data: userTrades,
@@ -713,17 +807,19 @@ router.get('/:userId/trade-history/:symbol', async (req, res, next) => {
 });
 
 // Get profit details for algo trades (manual, algo, admin) - from database, persists across restarts
+// includeAllHistory=true: return full history (all sources; default off for backward compat)
 router.get('/:userId/profits', async (req, res, next) => {
   try {
     const { userId } = req.params;
-    const { period = '7d', symbol: symbolFilter } = req.query; // period: 7d, 30d, 90d, all; symbol: optional filter
+    const { period = '7d', symbol: symbolFilter, includeAllHistory } = req.query; // period: 7d, 30d, 90d, all; symbol: optional filter
 
     const query = { userId };
     if (symbolFilter && String(symbolFilter).trim()) {
       query.symbol = String(symbolFilter).toUpperCase();
     }
-    if (period && period !== 'all') {
-      const days = parseInt(period.replace('d', ''), 10) || 7;
+    const effectivePeriod = (includeAllHistory === 'true' || includeAllHistory === true) ? 'all' : period;
+    if (effectivePeriod && effectivePeriod !== 'all') {
+      const days = parseInt(String(effectivePeriod).replace('d', ''), 10) || 7;
       const from = new Date();
       from.setDate(from.getDate() - days);
       from.setHours(0, 0, 0, 0);
@@ -940,6 +1036,7 @@ async function executeAlgoTradingStep(trade) {
       }
     }
 
+    setImmediate(() => persistTradeState(trade).catch(() => {}));
   } catch (error) {
     console.error(`[ALGO TRADING STEP] ❌ Error in trading step for ${trade.symbol}:`, error.message);
     console.error(`[ALGO TRADING STEP] ❌ Stack:`, error.stack);
@@ -1380,6 +1477,7 @@ async function closeAllPositions(trade, reason, stopLocation = null) {
     trade.stopReason = reason;
     const tradeKey = `${trade.userId}:${trade.symbol}`;
     activeTrades.delete(tradeKey);
+    await deleteTradeState(trade.userId, trade.symbol);
 
     // Refund, persist, notify - best effort; trade is already stopped and removed from activeTrades
     try {
@@ -1654,8 +1752,9 @@ router.post('/:userId/start-manual', async (req, res, next) => {
       platformWalletFees: [],
     };
 
-    // Start manual trading (user places orders manually - no automatic execution)
+    trade.upfrontFee = 0;
     activeTrades.set(tradeKey, trade);
+    persistTradeState(trade).catch(() => {});
     emitRealtimeTrades(userId);
 
     res.json({
@@ -1829,7 +1928,9 @@ router.post('/:userId/start-admin', async (req, res, next) => {
     }, 30000);
 
     trade.intervalId = intervalId;
+    trade.upfrontFee = 0;
     activeTrades.set(tradeKey, trade);
+    persistTradeState(trade).catch(() => {});
     emitRealtimeTrades(userId);
 
     res.json({
@@ -1889,5 +1990,159 @@ async function selectPairWithStrongSignal(symbols, isTest = false) {
 
 // Export activeTrades map for admin access
 router.getActiveTrades = () => activeTrades;
+
+/** Restore active trades from DB after server restart (e.g. PM2). Does not deduct fee again. */
+async function restoreActiveTrades() {
+  try {
+    const docs = await ActiveAlgoTrade.find({}).lean();
+    if (docs.length === 0) return;
+    console.log(`[ALGO TRADING RESTORE] 📂 Found ${docs.length} persisted trade(s) to restore`);
+    for (const doc of docs) {
+      const tradeKey = `${doc.userId}:${doc.symbol}`;
+      if (activeTrades.has(tradeKey)) continue;
+      let user;
+      try {
+        user = await User.findOne({ userId: doc.userId }).select('exchangeApis');
+      } catch (e) {
+        console.error(`[ALGO TRADING RESTORE] ⚠️ User ${doc.userId} not found, skipping ${doc.symbol}`);
+        continue;
+      }
+      if (!user || !user.exchangeApis || user.exchangeApis.length === 0) {
+        console.error(`[ALGO TRADING RESTORE] ⚠️ No exchange APIs for ${doc.userId}, skipping ${doc.symbol}`);
+        continue;
+      }
+      const api = user.exchangeApis.find((a) => a._id.toString() === doc.apiId);
+      if (!api || !api.isActive) {
+        console.error(`[ALGO TRADING RESTORE] ⚠️ API ${doc.apiId} not found or inactive for ${doc.userId}, skipping ${doc.symbol}`);
+        continue;
+      }
+      let apiKey, apiSecret;
+      try {
+        apiKey = decrypt(api.apiKey);
+        apiSecret = decrypt(api.apiSecret);
+      } catch (e) {
+        console.error(`[ALGO TRADING RESTORE] ⚠️ Decrypt failed for ${doc.userId} ${doc.symbol}:`, e.message);
+        continue;
+      }
+      const trade = {
+        userId: doc.userId,
+        symbol: doc.symbol,
+        platform: doc.platform,
+        apiId: doc.apiId,
+        isTest: doc.isTest || false,
+        isDemo: doc.isDemo !== false,
+        maxLossPerTrade: doc.maxLossPerTrade,
+        maxLossOverall: doc.maxLossOverall,
+        maxProfitBook: doc.maxProfitBook,
+        amountPerLevel: doc.amountPerLevel,
+        numberOfLevels: doc.numberOfLevels,
+        useMargin: doc.useMargin || false,
+        leverage: doc.leverage || 1,
+        apiKey,
+        apiSecret,
+        startPrice: doc.startPrice || 0,
+        currentLevel: doc.currentLevel || 0,
+        totalInvested: doc.totalInvested || 0,
+        realizedPnL: doc.realizedPnL || 0,
+        orders: doc.orders || [],
+        isActive: true,
+        isStarted: doc.isStarted || false,
+        tradeDirection: doc.tradeDirection || null,
+        startedAt: doc.startedAt ? new Date(doc.startedAt) : new Date(),
+        lastSignal: doc.lastSignal || null,
+        intervalId: null,
+        platformWalletFees: doc.platformWalletFees || [],
+        upfrontFee: doc.upfrontFee || 0,
+        isManual: doc.isManual || false,
+        isAdminMode: doc.isAdminMode || false,
+        startLocation: doc.startLocation || null,
+      };
+      const intervalId = setInterval(async () => {
+        try {
+          await executeAlgoTradingStep(trade);
+        } catch (err) {
+          console.error(`[ALGO TRADING STEP] ❌ Restored trade ${tradeKey}:`, err.message);
+        }
+      }, 30000);
+      trade.intervalId = intervalId;
+      activeTrades.set(tradeKey, trade);
+      emitRealtimeTrades(trade.userId);
+      console.log(`[ALGO TRADING RESTORE] ✅ Restored ${tradeKey} (${trade.isStarted ? 'active' : 'waiting_for_signal'})`);
+    }
+  } catch (err) {
+    console.error('[ALGO TRADING RESTORE] ❌ Error:', err.message);
+  }
+}
+
+router.restoreActiveTrades = restoreActiveTrades;
+
+/** Full stop: clear interval, close positions, refund, persist to TradeHistory. For admin use. */
+async function stopTradeByKey(tradeKey, reason, stopLocation) {
+  const trade = activeTrades.get(tradeKey);
+  if (!trade || !trade.isActive) return false;
+  if (trade.intervalId) {
+    clearInterval(trade.intervalId);
+    trade.intervalId = null;
+  }
+  await closeAllPositions(trade, reason || 'admin_stopped', stopLocation || null);
+  return true;
+}
+
+/** Stop a trade that exists only in DB (e.g. not yet restored or restore failed). Refund + persist. */
+async function stopTradeFromDb(userId, symbol, reason) {
+  const doc = await ActiveAlgoTrade.findOne({ userId, symbol: (symbol || '').toUpperCase() }).lean();
+  if (!doc) return false;
+  const user = await User.findOne({ userId: doc.userId }).select('exchangeApis');
+  if (!user || !user.exchangeApis) return false;
+  const api = user.exchangeApis.find((a) => a._id.toString() === doc.apiId);
+  if (!api) return false;
+  let apiKey, apiSecret;
+  try {
+    apiKey = decrypt(api.apiKey);
+    apiSecret = decrypt(api.apiSecret);
+  } catch (e) {
+    return false;
+  }
+  const trade = {
+    userId: doc.userId,
+    symbol: doc.symbol,
+    platform: doc.platform,
+    apiId: doc.apiId,
+    isTest: doc.isTest || false,
+    isDemo: doc.isDemo !== false,
+    maxLossPerTrade: doc.maxLossPerTrade,
+    maxLossOverall: doc.maxLossOverall,
+    maxProfitBook: doc.maxProfitBook,
+    amountPerLevel: doc.amountPerLevel,
+    numberOfLevels: doc.numberOfLevels,
+    useMargin: doc.useMargin || false,
+    leverage: doc.leverage || 1,
+    apiKey,
+    apiSecret,
+    startPrice: doc.startPrice || 0,
+    currentLevel: doc.currentLevel || 0,
+    totalInvested: doc.totalInvested || 0,
+    realizedPnL: doc.realizedPnL || 0,
+    orders: doc.orders || [],
+    isActive: true,
+    isStarted: doc.isStarted || false,
+    tradeDirection: doc.tradeDirection || null,
+    startedAt: doc.startedAt ? new Date(doc.startedAt) : new Date(),
+    lastSignal: doc.lastSignal || null,
+    intervalId: null,
+    platformWalletFees: doc.platformWalletFees || [],
+    upfrontFee: doc.upfrontFee || 0,
+    isManual: doc.isManual || false,
+    isAdminMode: doc.isAdminMode || false,
+    startLocation: doc.startLocation || null,
+  };
+  const tradeKey = `${trade.userId}:${trade.symbol}`;
+  activeTrades.set(tradeKey, trade);
+  await closeAllPositions(trade, reason || 'admin_stopped', null);
+  return true;
+}
+
+router.stopTradeByKey = stopTradeByKey;
+router.stopTradeFromDb = stopTradeFromDb;
 
 module.exports = router;

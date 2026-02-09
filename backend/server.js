@@ -102,6 +102,7 @@ app.get('/api/app-config', async (req, res) => {
         platformChargeValue: 0.3,
       });
     }
+    const updatedAt = doc.updatedAt ? new Date(doc.updatedAt).toISOString() : null;
     res.json({
       success: true,
       data: {
@@ -111,6 +112,8 @@ app.get('/api/app-config', async (req, res) => {
         language: doc.language || 'en',
         platformChargeType: doc.platformChargeType || 'percent',
         platformChargeValue: doc.platformChargeValue ?? 0.3,
+        updatedAt,
+        updateNotes: doc.updateNotes || '',
       },
     });
   } catch (err) {
@@ -124,6 +127,8 @@ app.get('/api/app-config', async (req, res) => {
         language: 'en',
         platformChargeType: 'percent',
         platformChargeValue: 0.3,
+        updatedAt: null,
+        updateNotes: '',
       },
     });
   }
@@ -138,7 +143,13 @@ app.use('/api/users', require('./routes/user'));
 app.use('/api/exchange', require('./routes/exchange'));
 app.use('/api/webhooks', require('./routes/webhooks'));
 app.use('/api/admin', require('./routes/admin'));
-app.use('/api/algo-trading', require('./routes/algo_trading'));
+const algoTradingRoutes = require('./routes/algo_trading');
+app.use('/api/algo-trading', algoTradingRoutes);
+algoTradingRoutes.restoreActiveTrades().then(() => {
+  console.log('✅ Algo trades restore completed');
+}).catch((err) => {
+  console.error('❌ Algo trades restore:', err.message);
+});
 
 // 404 handler (must be last)
 app.use((req, res) => {

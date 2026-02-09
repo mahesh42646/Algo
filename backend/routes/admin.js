@@ -6,6 +6,7 @@ const multer = require('multer');
 const User = require('../schemas/user');
 const Admin = require('../schemas/admin');
 const AppSettings = require('../schemas/app_settings');
+const ActiveAlgoTrade = require('../schemas/active_algo_trade');
 const { subscribeToAddressMonitoring, listSubscriptions, deleteSubscription } = require('../services/webhook_subscription');
 const { getTatumMode } = require('../services/wallet_service');
 const { checkAddressForDeposits, checkAllUserDeposits } = require('../services/testnet_monitor');
@@ -343,6 +344,7 @@ router.get('/app-settings', authenticateAdmin, async (req, res, next) => {
         adminStrategies: doc.adminStrategies || [],
         popularStrategies: doc.popularStrategies || [],
         updatedAt: doc.updatedAt,
+        updateNotes: doc.updateNotes || '',
       },
     });
   } catch (err) {
@@ -354,7 +356,7 @@ router.get('/app-settings', authenticateAdmin, async (req, res, next) => {
 router.put('/app-settings', authenticateAdmin, async (req, res, next) => {
   try {
     const doc = await getOrCreateAppSettings();
-    const { appName, appIconUrl, theme, language, platformChargeType, platformChargeValue, adminStrategies, popularStrategies } = req.body;
+    const { appName, appIconUrl, theme, language, platformChargeType, platformChargeValue, adminStrategies, popularStrategies, updateNotes } = req.body;
     if (appName !== undefined) doc.appName = String(appName).trim().slice(0, 100) || doc.appName;
     if (appIconUrl !== undefined) doc.appIconUrl = String(appIconUrl).trim();
     if (theme !== undefined && ['light', 'dark', 'system'].includes(theme)) doc.theme = theme;
@@ -363,6 +365,7 @@ router.put('/app-settings', authenticateAdmin, async (req, res, next) => {
     if (typeof platformChargeValue === 'number' && platformChargeValue >= 0) doc.platformChargeValue = platformChargeValue;
     if (Array.isArray(adminStrategies) && adminStrategies.length > 0) doc.adminStrategies = adminStrategies.slice(0, 10);
     if (Array.isArray(popularStrategies) && popularStrategies.length > 0) doc.popularStrategies = popularStrategies.slice(0, 10);
+    if (updateNotes !== undefined) doc.updateNotes = String(updateNotes).trim().slice(0, 500);
     doc.updatedAt = new Date();
     await doc.save();
     res.json({
@@ -378,6 +381,7 @@ router.put('/app-settings', authenticateAdmin, async (req, res, next) => {
         adminStrategies: doc.adminStrategies,
         popularStrategies: doc.popularStrategies,
         updatedAt: doc.updatedAt,
+        updateNotes: doc.updateNotes,
       },
     });
   } catch (err) {
@@ -591,24 +595,20 @@ router.get('/monitor-status', async (req, res, next) => {
 
 const algoTradingRoutes = require('./algo_trading');
 
-// Get all active algo trades
+// Get all active algo trades (in-memory + persisted in DB only, e.g. not yet restored after restart)
 router.get('/algo-trades', authenticateAdmin, async (req, res, next) => {
   try {
     const activeTrades = algoTradingRoutes.getActiveTrades();
     const trades = [];
-    
+
     for (const [key, trade] of activeTrades.entries()) {
       if (trade.isActive) {
-        // Calculate current P&L
         let currentPnL = 0;
         let unrealizedPnL = 0;
         if (trade.isStarted && trade.orders && trade.orders.length > 0) {
-          // This would need current price - simplified for now
           const totalQuantity = trade.orders.reduce((sum, o) => sum + parseFloat(o.quantity || 0), 0);
           const avgEntryPrice = totalQuantity > 0 ? trade.totalInvested / totalQuantity : trade.startPrice;
-          // Note: Would need current price API call for accurate P&L
         }
-        
         trades.push({
           tradeKey: key,
           userId: trade.userId,
@@ -622,15 +622,41 @@ router.get('/algo-trades', authenticateAdmin, async (req, res, next) => {
           startedAt: trade.startedAt,
           lastSignal: trade.lastSignal,
           totalInvested: trade.totalInvested,
-          platformWalletFees: trade.platformWalletFees.reduce((a, b) => a + b, 0),
+          platformWalletFees: (trade.platformWalletFees || []).reduce((a, b) => a + b, 0),
           currentPnL,
           unrealizedPnL,
+          fromDb: false,
         });
       }
     }
-    
+
+    const inMemoryKeys = new Set(trades.map((t) => t.tradeKey));
+    const dbOnly = await ActiveAlgoTrade.find({}).lean();
+    for (const doc of dbOnly) {
+      const key = `${doc.userId}:${doc.symbol}`;
+      if (inMemoryKeys.has(key)) continue;
+      trades.push({
+        tradeKey: key,
+        userId: doc.userId,
+        symbol: doc.symbol,
+        platform: doc.platform,
+        tradeType: doc.isAdminMode ? 'admin' : doc.isManual ? 'manual' : 'algo',
+        currentLevel: doc.currentLevel || 0,
+        numberOfLevels: doc.numberOfLevels || 0,
+        isStarted: doc.isStarted || false,
+        tradeDirection: doc.tradeDirection || null,
+        startedAt: doc.startedAt,
+        lastSignal: doc.lastSignal || null,
+        totalInvested: doc.totalInvested || 0,
+        platformWalletFees: (doc.platformWalletFees || []).reduce((a, b) => a + b, 0),
+        currentPnL: 0,
+        unrealizedPnL: 0,
+        fromDb: true,
+      });
+    }
+
     console.log(`[ADMIN ALGO TRADES] 📊 Admin ${req.admin.username} viewed all active trades: ${trades.length}`);
-    
+
     res.json({
       success: true,
       count: trades.length,
@@ -1126,66 +1152,53 @@ router.post('/deposits/recover/:txHash', authenticateAdmin, async (req, res, nex
   }
 });
 
-// Stop a specific algo trade
+// Stop a specific algo trade (in memory or persisted in DB only, e.g. after restart)
 router.post('/algo-trades/stop', authenticateAdmin, async (req, res, next) => {
   try {
     const { userId, symbol } = req.body;
-    
+
     if (!userId || !symbol) {
       return res.status(400).json({
         success: false,
         error: 'userId and symbol are required',
       });
     }
-    
+
+    const symbolUpper = symbol.toUpperCase();
+    const tradeKey = `${userId}:${symbolUpper}`;
     const activeTrades = algoTradingRoutes.getActiveTrades();
-    const tradeKey = `${userId}:${symbol.toUpperCase()}`;
-    const trade = activeTrades.get(tradeKey);
-    
-    if (!trade || !trade.isActive) {
-      return res.status(404).json({
-        success: false,
-        error: 'No active trade found for this user and symbol',
-      });
+    const inMemory = activeTrades.get(tradeKey);
+
+    if (inMemory && inMemory.isActive) {
+      await algoTradingRoutes.stopTradeByKey(tradeKey, 'admin_stopped', null);
+    } else {
+      const stopped = await algoTradingRoutes.stopTradeFromDb(userId, symbolUpper, 'admin_stopped');
+      if (!stopped) {
+        return res.status(404).json({
+          success: false,
+          error: 'No active trade found for this user and symbol',
+        });
+      }
     }
-    
-    // Stop the interval
-    if (trade.intervalId) {
-      clearInterval(trade.intervalId);
-    }
-    
-    // Mark as inactive
-    trade.isActive = false;
-    trade.stoppedAt = new Date();
-    trade.stopReason = 'admin_stopped';
-    trade.stoppedBy = req.admin.username;
-    
-    activeTrades.delete(tradeKey);
-    
-    // Add notification to user
+
     const user = await User.findOne({ userId }).select('notifications');
     if (user) {
       user.notifications.push({
-        title: `Algo Trading Stopped by Admin 🛑`,
-        message: `Your algo trade for ${trade.symbol} has been stopped by an administrator.`,
+        title: 'Algo Trading Stopped by Admin 🛑',
+        message: `Your algo trade for ${symbolUpper} has been stopped by an administrator.`,
         type: 'warning',
         read: false,
         createdAt: new Date(),
       });
       await user.save();
     }
-    
+
     console.log(`[ADMIN ALGO TRADES] 🛑 Admin ${req.admin.username} stopped trade: ${tradeKey}`);
-    
+
     res.json({
       success: true,
       message: 'Trade stopped successfully',
-      trade: {
-        symbol: trade.symbol,
-        userId: trade.userId,
-        stoppedAt: trade.stoppedAt,
-        stoppedBy: trade.stoppedBy,
-      },
+      trade: { symbol: symbolUpper, userId },
     });
   } catch (error) {
     console.error('[ADMIN] Error stopping algo trade:', error);
@@ -1193,40 +1206,28 @@ router.post('/algo-trades/stop', authenticateAdmin, async (req, res, next) => {
   }
 });
 
-// Stop all trades for a specific user
+// Stop all trades for a specific user (full close: refund + persist)
 router.post('/algo-trades/stop-user/:userId', authenticateAdmin, async (req, res, next) => {
   try {
     const { userId } = req.params;
     const activeTrades = algoTradingRoutes.getActiveTrades();
-    
     const stoppedTrades = [];
     for (const [key, trade] of activeTrades.entries()) {
       if (trade.userId === userId && trade.isActive) {
-        // Stop the interval
-        if (trade.intervalId) {
-          clearInterval(trade.intervalId);
-        }
-        
-        trade.isActive = false;
-        trade.stoppedAt = new Date();
-        trade.stopReason = 'admin_stopped_all';
-        trade.stoppedBy = req.admin.username;
-        
-        stoppedTrades.push({
-          symbol: trade.symbol,
-          tradeKey: key,
-        });
-        
-        activeTrades.delete(key);
+        await algoTradingRoutes.stopTradeByKey(key, 'admin_stopped', null);
+        stoppedTrades.push({ symbol: trade.symbol, tradeKey: key });
       }
     }
-    
-    // Add notification to user
+    const fromDb = await ActiveAlgoTrade.find({ userId }).lean();
+    for (const doc of fromDb) {
+      const stopped = await algoTradingRoutes.stopTradeFromDb(userId, doc.symbol, 'admin_stopped');
+      if (stopped) stoppedTrades.push({ symbol: doc.symbol, tradeKey: `${userId}:${doc.symbol}` });
+    }
     if (stoppedTrades.length > 0) {
       const user = await User.findOne({ userId }).select('notifications');
       if (user) {
         user.notifications.push({
-          title: `All Algo Trades Stopped by Admin 🛑`,
+          title: 'All Algo Trades Stopped by Admin 🛑',
           message: `All your algo trades (${stoppedTrades.length}) have been stopped by an administrator.`,
           type: 'warning',
           read: false,
@@ -1235,9 +1236,7 @@ router.post('/algo-trades/stop-user/:userId', authenticateAdmin, async (req, res
         await user.save();
       }
     }
-    
     console.log(`[ADMIN ALGO TRADES] 🛑 Admin ${req.admin.username} stopped ${stoppedTrades.length} trades for user ${userId}`);
-    
     res.json({
       success: true,
       message: `Stopped ${stoppedTrades.length} trade(s)`,
@@ -1250,44 +1249,34 @@ router.post('/algo-trades/stop-user/:userId', authenticateAdmin, async (req, res
   }
 });
 
-// Stop all active trades system-wide
+// Stop all active trades system-wide (full close: refund + persist)
 router.post('/algo-trades/stop-all', authenticateAdmin, async (req, res, next) => {
   try {
     const activeTrades = algoTradingRoutes.getActiveTrades();
     const stoppedTrades = [];
     const userIds = new Set();
-    
     for (const [key, trade] of activeTrades.entries()) {
       if (trade.isActive) {
-        // Stop the interval
-        if (trade.intervalId) {
-          clearInterval(trade.intervalId);
-        }
-        
-        trade.isActive = false;
-        trade.stoppedAt = new Date();
-        trade.stopReason = 'admin_stopped_all_system';
-        trade.stoppedBy = req.admin.username;
-        
-        stoppedTrades.push({
-          userId: trade.userId,
-          symbol: trade.symbol,
-          tradeKey: key,
-        });
-        
+        await algoTradingRoutes.stopTradeByKey(key, 'admin_stopped', null);
+        stoppedTrades.push({ userId: trade.userId, symbol: trade.symbol, tradeKey: key });
         userIds.add(trade.userId);
-        activeTrades.delete(key);
       }
     }
-    
-    // Add notifications to all affected users
+    const fromDb = await ActiveAlgoTrade.find({}).lean();
+    for (const doc of fromDb) {
+      const stopped = await algoTradingRoutes.stopTradeFromDb(doc.userId, doc.symbol, 'admin_stopped');
+      if (stopped) {
+        stoppedTrades.push({ userId: doc.userId, symbol: doc.symbol, tradeKey: `${doc.userId}:${doc.symbol}` });
+        userIds.add(doc.userId);
+      }
+    }
     if (userIds.size > 0) {
       const users = await User.find({ userId: { $in: Array.from(userIds) } }).select('userId notifications');
       for (const user of users) {
         const userTrades = stoppedTrades.filter(t => t.userId === user.userId);
         if (userTrades.length > 0) {
           user.notifications.push({
-            title: `All Algo Trades Stopped by Admin 🛑`,
+            title: 'All Algo Trades Stopped by Admin 🛑',
             message: `All your algo trades (${userTrades.length}) have been stopped by an administrator.`,
             type: 'warning',
             read: false,
@@ -1297,9 +1286,7 @@ router.post('/algo-trades/stop-all', authenticateAdmin, async (req, res, next) =
         }
       }
     }
-    
     console.log(`[ADMIN ALGO TRADES] 🛑 Admin ${req.admin.username} stopped ALL ${stoppedTrades.length} active trades system-wide`);
-    
     res.json({
       success: true,
       message: `Stopped ${stoppedTrades.length} trade(s) system-wide`,

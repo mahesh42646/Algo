@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { adminAPI } from '@/utils/api';
 import { getAuthToken } from '@/utils/auth';
+import { env } from '@/config/env';
 
 const emptyStrategy = (type, order) => ({
   name: '',
@@ -33,9 +34,11 @@ export default function AppSettingsPage() {
     language: 'en',
     platformChargeType: 'percent',
     platformChargeValue: 0.3,
+    updateNotes: '',
     adminStrategies: Array.from({ length: 5 }, (_, i) => emptyStrategy('admin', i)),
     popularStrategies: Array.from({ length: 5 }, (_, i) => emptyStrategy('popular', i)),
   });
+  const [iconPreviewError, setIconPreviewError] = useState(false);
 
   useEffect(() => {
     load();
@@ -62,6 +65,7 @@ export default function AppSettingsPage() {
           language: d.language ?? 'en',
           platformChargeType: d.platformChargeType ?? 'percent',
           platformChargeValue: d.platformChargeValue ?? 0.3,
+          updateNotes: d.updateNotes ?? '',
           adminStrategies: Array.isArray(d.adminStrategies) && d.adminStrategies.length > 0
             ? [...d.adminStrategies.slice(0, 5), ...Array(Math.max(0, 5 - d.adminStrategies.length)).fill(null)].slice(0, 5).map((s, i) => s ? { ...s, order: i } : emptyStrategy('admin', i))
             : prev.adminStrategies,
@@ -109,6 +113,7 @@ export default function AppSettingsPage() {
         language: form.language,
         platformChargeType: form.platformChargeType,
         platformChargeValue: Number(form.platformChargeValue),
+        updateNotes: form.updateNotes,
         adminStrategies: form.adminStrategies.map((s, i) => ({ ...s, order: i })),
         popularStrategies: form.popularStrategies.map((s, i) => ({ ...s, order: i })),
       });
@@ -136,6 +141,7 @@ export default function AppSettingsPage() {
       const res = await adminAPI.uploadAppIcon(token, file);
       if (res.success && res.data?.appIconUrl) {
         update('appIconUrl', res.data.appIconUrl);
+        setIconPreviewError(false);
         setSuccess('App icon uploaded. Click Save to apply.');
         setTimeout(() => setSuccess(null), 3000);
       }
@@ -257,9 +263,18 @@ export default function AppSettingsPage() {
             <div className="col-12 col-md-6">
               <label className="form-label fw-semibold">App icon</label>
               <div className="d-flex align-items-center gap-3 flex-wrap">
-                {form.appIconUrl && (
-                  <img src={form.appIconUrl} alt="App icon" style={{ width: 64, height: 64, objectFit: 'contain', borderRadius: 12, border: '1px solid #dee2e6' }} />
-                )}
+                <div className="d-flex align-items-center justify-content-center bg-light rounded" style={{ width: 64, height: 64, borderRadius: 12, border: '1px solid #dee2e6', overflow: 'hidden', flexShrink: 0 }}>
+                  {form.appIconUrl && !iconPreviewError ? (
+                    <img
+                      src={form.appIconUrl.startsWith('http') ? form.appIconUrl : `${(env.BACKEND_URL || '').replace(/\/api\/?$/, '')}${form.appIconUrl.startsWith('/') ? '' : '/'}${form.appIconUrl}`}
+                      alt="App icon"
+                      style={{ width: 64, height: 64, objectFit: 'contain' }}
+                      onError={() => setIconPreviewError(true)}
+                    />
+                  ) : (
+                    <span className="small text-muted text-center px-1">No icon</span>
+                  )}
+                </div>
                 <div>
                   <input
                     ref={fileInputRef}
@@ -273,6 +288,19 @@ export default function AppSettingsPage() {
                 </div>
               </div>
               <small className="text-muted d-block mt-1">Used for iOS, Android and app branding. PNG, JPG, ICO recommended.</small>
+            </div>
+            <div className="col-12">
+              <label className="form-label fw-semibold">Update notes (shown to app users when config changes)</label>
+              <textarea
+                className="form-control"
+                value={form.updateNotes}
+                onChange={(e) => update('updateNotes', e.target.value)}
+                placeholder="e.g. New app icon, theme options, bug fixes..."
+                rows={2}
+                maxLength={500}
+                style={{ borderRadius: '8px' }}
+              />
+              <small className="text-muted">{form.updateNotes?.length ?? 0}/500</small>
             </div>
           </div>
         </div>
