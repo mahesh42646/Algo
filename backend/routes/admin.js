@@ -1,12 +1,55 @@
 const express = require('express');
 const router = express.Router();
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 const User = require('../schemas/user');
 const Admin = require('../schemas/admin');
+const AppSettings = require('../schemas/app_settings');
 const { subscribeToAddressMonitoring, listSubscriptions, deleteSubscription } = require('../services/webhook_subscription');
 const { getTatumMode } = require('../services/wallet_service');
 const { checkAddressForDeposits, checkAllUserDeposits } = require('../services/testnet_monitor');
 const autoMonitor = require('../services/auto_monitor');
 const { authenticateAdmin, generateAdminToken } = require('../middleware/auth');
+
+const uploadsDir = path.join(__dirname, '../uploads');
+const appIconDir = path.join(uploadsDir, 'app-icon');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+if (!fs.existsSync(appIconDir)) fs.mkdirSync(appIconDir, { recursive: true });
+
+const appIconStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, appIconDir),
+  filename: (req, file, cb) => {
+    const ext = (path.extname(file.originalname) || '.png').toLowerCase();
+    cb(null, `icon-${Date.now()}${ext}`);
+  },
+});
+const uploadAppIcon = multer({
+  storage: appIconStorage,
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|gif|webp|ico/;
+    const ext = path.extname(file.originalname).toLowerCase().slice(1);
+    const mimetype = (file.mimetype || '').toLowerCase();
+    if (allowed.test(ext) || mimetype.includes('image')) return cb(null, true);
+    cb(new Error('Only image files allowed (jpeg, png, gif, webp, ico)'));
+  },
+});
+
+const DEFAULT_ADMIN_STRATEGIES = [
+  { name: 'Admin Strategy', type: 'admin', description: 'Fixed settings: 3% loss/profit, $100 per level, no level limits', maxLossPerTrade: 3, maxProfitBook: 3, amountPerLevel: 100, numberOfLevels: 999, isDefault: true, order: 0 },
+  { name: 'Admin Conservative', type: 'admin', description: '2% loss/profit, $50 per level', maxLossPerTrade: 2, maxLossOverall: 2, maxProfitBook: 2, amountPerLevel: 50, numberOfLevels: 20, isDefault: true, order: 1 },
+  { name: 'Admin Balanced', type: 'admin', description: '3% loss/profit, $75 per level, 15 levels', maxLossPerTrade: 3, maxLossOverall: 3, maxProfitBook: 3, amountPerLevel: 75, numberOfLevels: 15, isDefault: true, order: 2 },
+  { name: 'Admin Growth', type: 'admin', description: '4% loss/profit, $100 per level, 10 levels', maxLossPerTrade: 4, maxLossOverall: 4, maxProfitBook: 4, amountPerLevel: 100, numberOfLevels: 10, isDefault: true, order: 3 },
+  { name: 'Admin Aggressive', type: 'admin', description: '5% loss/profit, $150 per level, 8 levels', maxLossPerTrade: 5, maxLossOverall: 5, maxProfitBook: 5, amountPerLevel: 150, numberOfLevels: 8, isDefault: true, order: 4 },
+];
+const DEFAULT_POPULAR_STRATEGIES = [
+  { name: 'Popular 3% Strategy', type: 'popular', description: 'Most popular: 3% loss/profit, 10 levels, $10 per level', maxLossPerTrade: 3, maxLossOverall: 3, maxProfitBook: 3, amountPerLevel: 10, numberOfLevels: 10, isPopular: true, order: 0 },
+  { name: 'Conservative Strategy', type: 'popular', description: 'Conservative: 2% loss/profit, 5 levels, $20 per level', maxLossPerTrade: 2, maxLossOverall: 2, maxProfitBook: 2, amountPerLevel: 20, numberOfLevels: 5, isPopular: true, order: 1 },
+  { name: 'Aggressive Strategy', type: 'popular', description: 'Aggressive: 5% loss/profit, 15 levels, $5 per level', maxLossPerTrade: 5, maxLossOverall: 5, maxProfitBook: 5, amountPerLevel: 5, numberOfLevels: 15, isPopular: true, order: 2 },
+  { name: 'Starter Pack', type: 'popular', description: 'Low risk: 1.5% loss/profit, 5 levels, $15 per level', maxLossPerTrade: 1.5, maxLossOverall: 1.5, maxProfitBook: 1.5, amountPerLevel: 15, numberOfLevels: 5, isPopular: true, order: 3 },
+  { name: 'Volume Strategy', type: 'popular', description: '10 levels, $25 per level, 4% targets', maxLossPerTrade: 4, maxLossOverall: 4, maxProfitBook: 4, amountPerLevel: 25, numberOfLevels: 10, isPopular: true, order: 4 },
+];
 
 // ============================================
 // ADMIN AUTHENTICATION ROUTES
@@ -255,6 +298,110 @@ router.put('/profile', authenticateAdmin, async (req, res, next) => {
     }
 
     next(error);
+  }
+});
+
+// ============================================
+// APP SETTINGS (Admin only)
+// ============================================
+
+async function getOrCreateAppSettings() {
+  let doc = await AppSettings.findOne();
+  if (!doc) {
+    doc = await AppSettings.create({
+      appName: 'AlgoBot',
+      appIconUrl: '',
+      theme: 'system',
+      language: 'en',
+      platformChargeType: 'percent',
+      platformChargeValue: 0.3,
+      adminStrategies: DEFAULT_ADMIN_STRATEGIES,
+      popularStrategies: DEFAULT_POPULAR_STRATEGIES,
+    });
+  }
+  if (!doc.adminStrategies || doc.adminStrategies.length === 0) {
+    doc.adminStrategies = DEFAULT_ADMIN_STRATEGIES;
+    doc.popularStrategies = doc.popularStrategies?.length ? doc.popularStrategies : DEFAULT_POPULAR_STRATEGIES;
+    doc.updatedAt = new Date();
+    await doc.save();
+  }
+  return doc;
+}
+
+router.get('/app-settings', authenticateAdmin, async (req, res, next) => {
+  try {
+    const doc = await getOrCreateAppSettings();
+    res.json({
+      success: true,
+      data: {
+        appName: doc.appName,
+        appIconUrl: doc.appIconUrl || '',
+        theme: doc.theme,
+        language: doc.language,
+        platformChargeType: doc.platformChargeType,
+        platformChargeValue: doc.platformChargeValue,
+        adminStrategies: doc.adminStrategies || [],
+        popularStrategies: doc.popularStrategies || [],
+        updatedAt: doc.updatedAt,
+      },
+    });
+  } catch (err) {
+    console.error('[ADMIN APP-SETTINGS GET]', err);
+    next(err);
+  }
+});
+
+router.put('/app-settings', authenticateAdmin, async (req, res, next) => {
+  try {
+    const doc = await getOrCreateAppSettings();
+    const { appName, appIconUrl, theme, language, platformChargeType, platformChargeValue, adminStrategies, popularStrategies } = req.body;
+    if (appName !== undefined) doc.appName = String(appName).trim().slice(0, 100) || doc.appName;
+    if (appIconUrl !== undefined) doc.appIconUrl = String(appIconUrl).trim();
+    if (theme !== undefined && ['light', 'dark', 'system'].includes(theme)) doc.theme = theme;
+    if (language !== undefined) doc.language = String(language).trim().slice(0, 10) || 'en';
+    if (platformChargeType !== undefined && ['percent', 'flat'].includes(platformChargeType)) doc.platformChargeType = platformChargeType;
+    if (typeof platformChargeValue === 'number' && platformChargeValue >= 0) doc.platformChargeValue = platformChargeValue;
+    if (Array.isArray(adminStrategies) && adminStrategies.length > 0) doc.adminStrategies = adminStrategies.slice(0, 10);
+    if (Array.isArray(popularStrategies) && popularStrategies.length > 0) doc.popularStrategies = popularStrategies.slice(0, 10);
+    doc.updatedAt = new Date();
+    await doc.save();
+    res.json({
+      success: true,
+      message: 'App settings updated',
+      data: {
+        appName: doc.appName,
+        appIconUrl: doc.appIconUrl,
+        theme: doc.theme,
+        language: doc.language,
+        platformChargeType: doc.platformChargeType,
+        platformChargeValue: doc.platformChargeValue,
+        adminStrategies: doc.adminStrategies,
+        popularStrategies: doc.popularStrategies,
+        updatedAt: doc.updatedAt,
+      },
+    });
+  } catch (err) {
+    console.error('[ADMIN APP-SETTINGS PUT]', err);
+    next(err);
+  }
+});
+
+router.post('/app-settings/icon', authenticateAdmin, uploadAppIcon.single('icon'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
+    const baseUrl = process.env.BACKEND_URL ? process.env.BACKEND_URL.replace(/\/api\/?$/, '') : `http://localhost:${process.env.BACKEND_PORT || 4006}`;
+    const appIconUrl = `${baseUrl}/uploads/app-icon/${req.file.filename}`;
+    const doc = await getOrCreateAppSettings();
+    doc.appIconUrl = appIconUrl;
+    doc.updatedAt = new Date();
+    await doc.save();
+    res.json({
+      success: true,
+      data: { appIconUrl, filename: req.file.filename },
+    });
+  } catch (err) {
+    console.error('[ADMIN APP-SETTINGS ICON]', err);
+    next(err);
   }
 });
 

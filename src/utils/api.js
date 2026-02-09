@@ -411,6 +411,48 @@ export const adminAPI = {
       body: JSON.stringify(updates),
     });
   },
+
+  async getAppSettings(token) {
+    if (!token) throw new Error('Authentication token is required');
+    return fetchAPI('/admin/app-settings', {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+  },
+
+  async updateAppSettings(token, data) {
+    if (!token) throw new Error('Authentication token is required');
+    return fetchAPI('/admin/app-settings', {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(data),
+    });
+  },
+
+  async getTradingHistory(token, params = {}) {
+    if (!token) throw new Error('Authentication token is required');
+    const q = new URLSearchParams(params).toString();
+    return fetchAPI(`/admin/trading-history${q ? `?${q}` : ''}`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+  },
+
+  async uploadAppIcon(token, file) {
+    if (!token) throw new Error('Authentication token is required');
+    const formData = new FormData();
+    formData.append('icon', file);
+    const response = await fetch(`${API_BASE_URL}/admin/app-settings/icon`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData,
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(err.error || 'Upload failed');
+    }
+    return response.json();
+  },
 };
 
 /**

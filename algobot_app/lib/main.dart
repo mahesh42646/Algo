@@ -10,6 +10,7 @@ import 'firebase_options.dart';
 import 'config/env.dart';
 import 'services/auth_service.dart';
 import 'services/api_handler.dart';
+import 'services/app_config_service.dart';
 import 'services/crash_reporter.dart';
 import 'services/push_notification_service.dart';
 import 'services/permission_location_service.dart';
@@ -183,6 +184,7 @@ class _AlgoBotAppState extends State<AlgoBotApp> {
       await dotenv.load(fileName: '.env');
       Env.validate();
       ApiHandler().initialize();
+      AppConfigService().fetch();
       if (mounted) {
         setState(() => _initialized = true);
       }
@@ -230,8 +232,12 @@ class _AlgoBotAppState extends State<AlgoBotApp> {
       create: (_) => AppStateProvider(),
       child: Consumer<AppStateProvider>(
         builder: (context, appState, _) {
-          return MaterialApp(
-            title: Env.appName,
+          return ListenableBuilder(
+            listenable: AppConfigService(),
+            builder: (context, _) {
+              final appConfig = AppConfigService();
+              return MaterialApp(
+                title: appConfig.loaded ? appConfig.appName : Env.appName,
             debugShowCheckedModeBanner: false,
             navigatorObservers: [CrashReportingNavigatorObserver()],
             theme: ThemeData(
@@ -359,7 +365,7 @@ class _AlgoBotAppState extends State<AlgoBotApp> {
               ),
               useMaterial3: true,
             ),
-            themeMode: appState.themeMode,
+            themeMode: appConfig.loaded ? appConfig.themeMode : appState.themeMode,
             // Show splash screen on every launch
             home: SplashScreen(
               child: _AuthStateGate(authService: authService),
@@ -380,6 +386,8 @@ class _AlgoBotAppState extends State<AlgoBotApp> {
                   quoteCurrency: args['quoteCurrency'],
                 );
               },
+            },
+          );
             },
           );
         },

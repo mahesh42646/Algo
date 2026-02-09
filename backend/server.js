@@ -88,6 +88,47 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Public app config (for mobile app - theme, name, icon, language, charges)
+app.get('/api/app-config', async (req, res) => {
+  try {
+    const AppSettings = require('./schemas/app_settings');
+    let doc = await AppSettings.findOne();
+    if (!doc) {
+      doc = await AppSettings.create({
+        appName: 'AlgoBot',
+        theme: 'system',
+        language: 'en',
+        platformChargeType: 'percent',
+        platformChargeValue: 0.3,
+      });
+    }
+    res.json({
+      success: true,
+      data: {
+        appName: doc.appName || 'AlgoBot',
+        appIconUrl: doc.appIconUrl || '',
+        theme: doc.theme || 'system',
+        language: doc.language || 'en',
+        platformChargeType: doc.platformChargeType || 'percent',
+        platformChargeValue: doc.platformChargeValue ?? 0.3,
+      },
+    });
+  } catch (err) {
+    console.error('[APP-CONFIG]', err.message);
+    res.json({
+      success: true,
+      data: {
+        appName: 'AlgoBot',
+        appIconUrl: '',
+        theme: 'system',
+        language: 'en',
+        platformChargeType: 'percent',
+        platformChargeValue: 0.3,
+      },
+    });
+  }
+});
+
 // Serve static files for uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 

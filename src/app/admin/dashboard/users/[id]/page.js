@@ -381,6 +381,27 @@ export default function UserProfile() {
                   <span className="d-none d-sm-inline">Overview</span>
                 </button>
                 <button
+                  className={`nav-link ${activeTab === "api-bindings" ? "active" : ""} d-flex align-items-center border-0 rounded-pill px-3 px-md-4 py-2 py-md-3`}
+                  type="button"
+                  role="tab"
+                  onClick={() => setActiveTab("api-bindings")}
+                  style={{
+                    fontSize: "clamp(0.85rem, 2vw, 0.95rem)",
+                    fontWeight: "600",
+                    transition: "all 0.3s ease",
+                    background: activeTab === "api-bindings" ? "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)" : "transparent",
+                    color: activeTab === "api-bindings" ? "white" : "var(--text-muted)",
+                    boxShadow: activeTab === "api-bindings" ? "0 4px 15px rgba(59, 130, 246, 0.4)" : "none",
+                    minWidth: "100px",
+                    justifyContent: "center",
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" className="me-2">
+                    <path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2zm15 2h-4v3h4V4zm0 4h-4v3h4V8zm0 4h-4v3h3a1 1 0 0 0 1-1v-2zm-5 3v-3H6v3h4z" />
+                  </svg>
+                  <span className="d-none d-sm-inline">API Bindings</span>
+                </button>
+                <button
                   className={`nav-link ${activeTab === "reference" ? "active" : ""} d-flex align-items-center border-0 rounded-pill px-3 px-md-4 py-2 py-md-3`}
                   id="reference-tab"
                   type="button"
@@ -1066,6 +1087,53 @@ export default function UserProfile() {
                         </p>
                       </div>
                     </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "api-bindings" && (
+          <div className="row g-3 g-md-4">
+            <div className="col-12">
+              <div className="card" style={{ borderRadius: "16px", border: "1px solid rgba(59, 130, 246, 0.2)", boxShadow: "0 4px 20px rgba(0,0,0,0.06)" }}>
+                <div className="card-header py-3" style={{ background: "rgba(59, 130, 246, 0.08)" }}>
+                  <h5 className="mb-0 fw-bold">API binding details</h5>
+                  <small className="text-muted">Exchange APIs connected by this user (no keys shown)</small>
+                </div>
+                <div className="card-body p-0">
+                  <div className="table-responsive">
+                    <table className="table table-hover mb-0">
+                      <thead>
+                        <tr style={{ background: "rgba(59, 130, 246, 0.05)" }}>
+                          <th className="px-3 py-3 fw-semibold text-muted" style={{ fontSize: "0.875rem" }}>Platform</th>
+                          <th className="px-3 py-3 fw-semibold text-muted" style={{ fontSize: "0.875rem" }}>Label</th>
+                          <th className="px-3 py-3 fw-semibold text-muted" style={{ fontSize: "0.875rem" }}>Active</th>
+                          <th className="px-3 py-3 fw-semibold text-muted" style={{ fontSize: "0.875rem" }}>Permissions</th>
+                          <th className="px-3 py-3 fw-semibold text-muted" style={{ fontSize: "0.875rem" }}>Test mode</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(!user?.exchangeApis || user.exchangeApis.length === 0) ? (
+                          <tr><td colSpan={5} className="text-center py-4 text-muted">No API bindings</td></tr>
+                        ) : (
+                          user.exchangeApis.map((api, idx) => (
+                            <tr key={idx} style={{ borderBottom: "1px solid rgba(0,0,0,0.05)" }}>
+                              <td className="px-3 py-3 fw-semibold">{api.platform || "—"}</td>
+                              <td className="px-3 py-3">{api.label || "—"}</td>
+                              <td className="px-3 py-3">
+                                <span className={`badge ${api.isActive !== false ? "bg-success" : "bg-secondary"}`}>
+                                  {api.isActive !== false ? "Active" : "Inactive"}
+                                </span>
+                              </td>
+                              <td className="px-3 py-3 small">{(Array.isArray(api.permissions) ? api.permissions : []).join(", ") || "—"}</td>
+                              <td className="px-3 py-3">{api.isTest ? "Yes" : "No"}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
@@ -2530,6 +2598,45 @@ export default function UserProfile() {
                   </div>
                 </div>
                 <div className="card-body p-3 p-md-4">
+                  {/* Completed algo strategies (comprehensive) */}
+                  {Array.isArray(strategies) && strategies.filter((s) => s.type === "algo_trading" && (s.status === "inactive" || s.status === "completed")).length > 0 && (
+                    <div className="mb-4">
+                      <h6 className="fw-bold mb-2">Completed algo trades</h6>
+                      <div className="table-responsive">
+                        <table className="table table-sm table-bordered">
+                          <thead>
+                            <tr style={{ background: "rgba(34, 197, 94, 0.08)" }}>
+                              <th className="fw-semibold">Symbol</th>
+                              <th className="fw-semibold">Platform</th>
+                              <th className="fw-semibold">Max loss %</th>
+                              <th className="fw-semibold">Target %</th>
+                              <th className="fw-semibold">Amount/level</th>
+                              <th className="fw-semibold">Levels</th>
+                              <th className="fw-semibold">Created</th>
+                              <th className="fw-semibold">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {strategies
+                              .filter((s) => s.type === "algo_trading" && (s.status === "inactive" || s.status === "completed"))
+                              .map((s, i) => (
+                                <tr key={i}>
+                                  <td>{s.symbol || "—"}</td>
+                                  <td>{(s.platform || "").toUpperCase()}</td>
+                                  <td>{s.config?.maxLossPerTrade ?? "—"}%</td>
+                                  <td>{s.config?.maxProfitBook ?? "—"}%</td>
+                                  <td>${s.config?.amountPerLevel ?? "—"}</td>
+                                  <td>{s.config?.numberOfLevels ?? "—"}</td>
+                                  <td>{s.createdAt ? new Date(s.createdAt).toLocaleString() : "—"}</td>
+                                  <td><span className="badge bg-secondary">{s.status || "inactive"}</span></td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Trading Statistics */}
                   <div className="row g-3 mb-4">
                     <div className="col-12 col-md-3">

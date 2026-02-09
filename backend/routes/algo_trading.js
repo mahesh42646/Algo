@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const User = require('../schemas/user');
 const TradeHistory = require('../schemas/trade_history');
+const AppSettings = require('../schemas/app_settings');
 const { decrypt } = require('../utils/encryption');
 const crypto = require('crypto');
 const axios = require('axios');
@@ -121,12 +122,30 @@ const POPULAR_STRATEGIES = [
   { name: 'Volume Strategy', type: 'popular', description: '10 levels, $25 per level, 4% targets', maxLossPerTrade: 4, maxLossOverall: 4, maxProfitBook: 4, amountPerLevel: 25, numberOfLevels: 10, isPopular: true },
 ];
 
-router.get('/strategies/admin', (req, res) => {
-  res.json({ success: true, data: ADMIN_STRATEGIES });
+router.get('/strategies/admin', async (req, res) => {
+  try {
+    const doc = await AppSettings.findOne().lean();
+    const raw = doc?.adminStrategies;
+    const list = (Array.isArray(raw) && raw.length > 0)
+      ? raw
+      : ADMIN_STRATEGIES;
+    res.json({ success: true, data: list });
+  } catch (err) {
+    res.json({ success: true, data: ADMIN_STRATEGIES });
+  }
 });
 
-router.get('/strategies/popular', (req, res) => {
-  res.json({ success: true, data: POPULAR_STRATEGIES });
+router.get('/strategies/popular', async (req, res) => {
+  try {
+    const doc = await AppSettings.findOne().lean();
+    const raw = doc?.popularStrategies;
+    const list = (Array.isArray(raw) && raw.length > 0)
+      ? raw
+      : POPULAR_STRATEGIES;
+    res.json({ success: true, data: list });
+  } catch (err) {
+    res.json({ success: true, data: POPULAR_STRATEGIES });
+  }
 });
 
 // Store active algo trades in memory (in production, use Redis or database)
