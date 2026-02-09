@@ -6,6 +6,7 @@ import '../services/crypto_service.dart';
 import '../services/favorites_service.dart';
 import '../services/socket_service.dart';
 import 'skeleton.dart';
+import 'coin_search_popup.dart';
 
 enum SortType { currency, price, change }
 enum SortOrder { ascending, descending }
@@ -27,11 +28,7 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
   String _selectedQuote = 'USDT';
   SortType _sortType = SortType.currency;
   SortOrder _sortOrder = SortOrder.ascending;
-  String _searchQuery = '';
   Set<String> _favorites = {};
-  final TextEditingController _searchController = TextEditingController();
-  List<String> _searchSuggestions = [];
-  bool _showSuggestions = false;
   Timer? _tickerTimer;
   StreamSubscription<List<dynamic>>? _favoritesSub;
 
@@ -40,7 +37,6 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
   @override
   void initState() {
     super.initState();
-    _searchController.addListener(_onSearchChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadFavorites();
       _loadCryptoData();
@@ -58,32 +54,9 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
   void dispose() {
     _tickerTimer?.cancel();
     _favoritesSub?.cancel();
-    _searchController.dispose();
     super.dispose();
   }
 
-  void _onSearchChanged() {
-    final query = _searchController.text;
-    setState(() {
-      _searchQuery = query;
-      if (query.isNotEmpty && _allCoins.isNotEmpty) {
-        // Generate suggestions from matching coins
-        _searchSuggestions = _allCoins
-            .where((coin) =>
-                coin.symbol.toLowerCase().startsWith(query.toLowerCase()) ||
-                coin.name.toLowerCase().startsWith(query.toLowerCase()))
-            .take(5)
-            .map((coin) => coin.symbol)
-            .toList();
-        _showSuggestions = _searchSuggestions.isNotEmpty;
-      } else {
-        _showSuggestions = false;
-        _searchSuggestions = [];
-      }
-    });
-    _applySort();
-  }
-  
   Future<void> _loadFavorites() async {
     final favorites = await _favoritesService.getFavorites();
     if (mounted) {
@@ -163,14 +136,6 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
   void _applySort() {
     setState(() {
       _filteredCoins = List.from(_allCoins);
-      
-      if (_searchQuery.isNotEmpty) {
-        _filteredCoins = _filteredCoins.where((coin) {
-          return coin.symbol.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-              coin.name.toLowerCase().contains(_searchQuery.toLowerCase());
-        }).toList();
-      }
-
       _filteredCoins.sort((a, b) {
         int comparison = 0;
         switch (_sortType) {
@@ -337,56 +302,16 @@ class _CryptoListWidgetState extends State<CryptoListWidget> {
               color: theme.textTheme.bodyMedium?.color,
             ),
             onPressed: () {
-              final screenWidth = MediaQuery.sizeOf(context).width;
-              final maxDialogWidth = screenWidth > 400 ? 380.0 : (screenWidth - 32);
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
-                  title: const Text('Search'),
-                  content: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: maxDialogWidth),
-                    child: TextField(
-                      controller: _searchController,
-                      autofocus: true,
-                      decoration: const InputDecoration(
-                        hintText: 'Search by symbol or name',
-                        prefixIcon: Icon(Icons.search),
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      onChanged: (value) {
-                        if (!mounted) return;
-                        setState(() {
-                          _searchQuery = value;
-                        });
-                        _applySort();
-                      },
-                      onSubmitted: (value) {
-                        Navigator.of(context).pop();
-                      },
-                    ),
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => CoinSearchPopup(
+                    initialQuote: _selectedQuote,
+                    initialCoins: _allCoins,
+                    favorites: _favorites,
+                    onClosed: () {},
                   ),
-                  actions: [
-                    TextButton(
-                      onPressed: () {
-                        if (!mounted) return;
-                        _searchController.clear();
-                        setState(() {
-                          _searchQuery = '';
-                        });
-                        _applySort();
-                        Navigator.of(context).pop();
-                      },
-                      child: const Text('Clear'),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Done'),
-                    ),
-                  ],
                 ),
-              );
+              ).then((_) => _loadFavorites());
             },
           ),
         ],

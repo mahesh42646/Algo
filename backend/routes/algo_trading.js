@@ -7,12 +7,127 @@ const crypto = require('crypto');
 const axios = require('axios');
 const { emitToUser } = require('../utils/socketEmitter');
 
+// Build active trades payload for socket/API (same shape as GET /trades)
+async function buildUserTradesPayload(userId) {
+  const userTrades = [];
+  for (const [key, trade] of activeTrades.entries()) {
+    if (trade.userId === userId && trade.isActive) {
+      try {
+        const currentPrice = await getCurrentPrice(trade.symbol, trade.isTest);
+        let currentPnL = 0;
+        let unrealizedPnL = 0;
+        if (trade.isStarted && trade.startPrice > 0) {
+          const priceMovement = ((currentPrice - trade.startPrice) / trade.startPrice) * 100;
+          currentPnL = trade.useMargin && trade.leverage > 1 ? priceMovement * trade.leverage : priceMovement;
+          if (trade.orders && trade.orders.length > 0) {
+            const totalQuantity = trade.orders.reduce((sum, o) => sum + parseFloat(o.quantity || 0), 0);
+            const avgEntryPrice = trade.totalInvested / totalQuantity;
+            unrealizedPnL = trade.tradeDirection === 'BUY'
+              ? (currentPrice - avgEntryPrice) * totalQuantity
+              : (avgEntryPrice - currentPrice) * totalQuantity;
+          }
+        }
+        const totalBalance = trade.totalInvested + unrealizedPnL;
+        userTrades.push({
+          symbol: trade.symbol,
+          currentLevel: trade.currentLevel,
+          numberOfLevels: trade.numberOfLevels,
+          isStarted: trade.isStarted,
+          tradeDirection: trade.tradeDirection,
+          startedAt: trade.startedAt,
+          startPrice: trade.startPrice,
+          currentPrice: currentPrice,
+          totalInvested: trade.totalInvested,
+          currentPnL: currentPnL,
+          unrealizedPnL: unrealizedPnL,
+          realizedPnL: trade.realizedPnL || 0,
+          totalBalance: totalBalance,
+          orders: trade.orders || [],
+          lastSignal: trade.lastSignal,
+          useMargin: trade.useMargin,
+          leverage: trade.leverage || 1,
+          maxLossPerTrade: trade.maxLossPerTrade,
+          maxLossOverall: trade.maxLossOverall,
+          maxProfitBook: trade.maxProfitBook,
+          amountPerLevel: trade.amountPerLevel,
+          platformWalletFees: trade.platformWalletFees || [],
+          startLocation: trade.startLocation || null,
+          isAdminMode: trade.isAdminMode || false,
+          isManual: trade.isManual || false,
+        });
+      } catch (priceError) {
+        userTrades.push({
+          symbol: trade.symbol,
+          currentLevel: trade.currentLevel,
+          numberOfLevels: trade.numberOfLevels,
+          isStarted: trade.isStarted,
+          tradeDirection: trade.tradeDirection || null,
+          startedAt: trade.startedAt,
+          startPrice: trade.startPrice || 0,
+          currentPrice: trade.startPrice || 0,
+          totalInvested: trade.totalInvested,
+          currentPnL: 0,
+          unrealizedPnL: 0,
+          realizedPnL: 0,
+          totalBalance: trade.totalInvested,
+          orders: trade.orders || [],
+          lastSignal: trade.lastSignal,
+          useMargin: trade.useMargin,
+          leverage: trade.leverage || 1,
+          maxLossPerTrade: trade.maxLossPerTrade,
+          maxLossOverall: trade.maxLossOverall,
+          maxProfitBook: trade.maxProfitBook,
+          amountPerLevel: trade.amountPerLevel,
+          platformWalletFees: trade.platformWalletFees || [],
+          startLocation: trade.startLocation || null,
+          isAdminMode: trade.isAdminMode || false,
+          isManual: trade.isManual || false,
+          error: 'Failed to get current price',
+        });
+      }
+    }
+  }
+  return userTrades;
+}
+
 function emitRealtimeTrades(userId) {
   if (!userId) return;
-  emitToUser(userId, 'user:activeTrades', { updated: true });
+  setImmediate(() => {
+    buildUserTradesPayload(userId).then((trades) => {
+      emitToUser(userId, 'user:activeTrades', { trades });
+    }).catch((err) => {
+      console.error('[ALGO TRADING] emit trades payload error:', err.message);
+      emitToUser(userId, 'user:activeTrades', { updated: true });
+    });
+  });
   emitToUser(userId, 'user:tradeHistory', { updated: true });
   emitToUser(userId, 'user:stats', { updated: true });
 }
+
+// Admin strategies (5) - default/server-configured
+const ADMIN_STRATEGIES = [
+  { name: 'Admin Strategy', type: 'admin', description: 'Fixed settings: 3% loss/profit, $100 per level, no level limits', maxLossPerTrade: 3, maxProfitBook: 3, amountPerLevel: 100, numberOfLevels: 999, isDefault: true },
+  { name: 'Admin Conservative', type: 'admin', description: '2% loss/profit, $50 per level', maxLossPerTrade: 2, maxLossOverall: 2, maxProfitBook: 2, amountPerLevel: 50, numberOfLevels: 20, isDefault: true },
+  { name: 'Admin Balanced', type: 'admin', description: '3% loss/profit, $75 per level, 15 levels', maxLossPerTrade: 3, maxLossOverall: 3, maxProfitBook: 3, amountPerLevel: 75, numberOfLevels: 15, isDefault: true },
+  { name: 'Admin Growth', type: 'admin', description: '4% loss/profit, $100 per level, 10 levels', maxLossPerTrade: 4, maxLossOverall: 4, maxProfitBook: 4, amountPerLevel: 100, numberOfLevels: 10, isDefault: true },
+  { name: 'Admin Aggressive', type: 'admin', description: '5% loss/profit, $150 per level, 8 levels', maxLossPerTrade: 5, maxLossOverall: 5, maxProfitBook: 5, amountPerLevel: 150, numberOfLevels: 8, isDefault: true },
+];
+
+const POPULAR_STRATEGIES = [
+  { name: 'Popular 3% Strategy', type: 'popular', description: 'Most popular: 3% loss/profit, 10 levels, $10 per level', maxLossPerTrade: 3, maxLossOverall: 3, maxProfitBook: 3, amountPerLevel: 10, numberOfLevels: 10, isPopular: true },
+  { name: 'Conservative Strategy', type: 'popular', description: 'Conservative: 2% loss/profit, 5 levels, $20 per level', maxLossPerTrade: 2, maxLossOverall: 2, maxProfitBook: 2, amountPerLevel: 20, numberOfLevels: 5, isPopular: true },
+  { name: 'Aggressive Strategy', type: 'popular', description: 'Aggressive: 5% loss/profit, 15 levels, $5 per level', maxLossPerTrade: 5, maxLossOverall: 5, maxProfitBook: 5, amountPerLevel: 5, numberOfLevels: 15, isPopular: true },
+  { name: 'Starter Pack', type: 'popular', description: 'Low risk: 1.5% loss/profit, 5 levels, $15 per level', maxLossPerTrade: 1.5, maxLossOverall: 1.5, maxProfitBook: 1.5, amountPerLevel: 15, numberOfLevels: 5, isPopular: true },
+  { name: 'Volume Strategy', type: 'popular', description: '10 levels, $25 per level, 4% targets', maxLossPerTrade: 4, maxLossOverall: 4, maxProfitBook: 4, amountPerLevel: 25, numberOfLevels: 10, isPopular: true },
+];
+
+router.get('/strategies/admin', (req, res) => {
+  res.json({ success: true, data: ADMIN_STRATEGIES });
+});
+
+router.get('/strategies/popular', (req, res) => {
+  res.json({ success: true, data: POPULAR_STRATEGIES });
+});
 
 // Store active algo trades in memory (in production, use Redis or database)
 const activeTrades = new Map();
@@ -263,6 +378,7 @@ router.post('/:userId/start', async (req, res, next) => {
     await user.save();
 
     console.log(`[ALGO TRADING START] 📝 Saved as strategy: ${strategyName}`);
+    emitToUser(userId, 'user:strategies', user.strategies || []);
 
     const duration = Date.now() - startTime;
     console.log(`[ALGO TRADING START] ✅ Started algo trading for ${symbol} (User: ${userId}, Duration: ${duration}ms)`);
@@ -417,89 +533,7 @@ router.get('/:userId/status', async (req, res, next) => {
 router.get('/:userId/trades', async (req, res, next) => {
   try {
     const { userId } = req.params;
-
-    const userTrades = [];
-    for (const [key, trade] of activeTrades.entries()) {
-      if (trade.userId === userId && trade.isActive) {
-        try {
-          // Get current price for real-time P&L calculation
-          const currentPrice = await getCurrentPrice(trade.symbol, trade.isTest);
-          
-          // Calculate real-time P&L
-          let currentPnL = 0;
-          let unrealizedPnL = 0;
-          let realizedPnL = 0;
-          
-          if (trade.isStarted && trade.startPrice > 0) {
-            const priceMovement = ((currentPrice - trade.startPrice) / trade.startPrice) * 100;
-            currentPnL = trade.useMargin && trade.leverage > 1
-              ? priceMovement * trade.leverage
-              : priceMovement;
-            
-            // Calculate unrealized P&L (current position value - invested)
-            if (trade.orders && trade.orders.length > 0) {
-              const totalQuantity = trade.orders.reduce((sum, o) => sum + parseFloat(o.quantity || 0), 0);
-              const avgEntryPrice = trade.totalInvested / totalQuantity;
-              const currentValue = totalQuantity * currentPrice;
-              unrealizedPnL = trade.tradeDirection === 'BUY'
-                ? (currentPrice - avgEntryPrice) * totalQuantity
-                : (avgEntryPrice - currentPrice) * totalQuantity;
-            }
-          }
-          
-          // Calculate total balance (invested + unrealized P&L)
-          const totalBalance = trade.totalInvested + unrealizedPnL;
-          
-          userTrades.push({
-            symbol: trade.symbol,
-            currentLevel: trade.currentLevel,
-            numberOfLevels: trade.numberOfLevels,
-            isStarted: trade.isStarted,
-            tradeDirection: trade.tradeDirection,
-            startedAt: trade.startedAt,
-            startPrice: trade.startPrice,
-            currentPrice: currentPrice,
-            totalInvested: trade.totalInvested,
-            currentPnL: currentPnL,
-            unrealizedPnL: unrealizedPnL,
-            realizedPnL: realizedPnL,
-            totalBalance: totalBalance,
-            orders: trade.orders || [],
-            lastSignal: trade.lastSignal,
-            useMargin: trade.useMargin,
-            leverage: trade.leverage || 1,
-            platformWalletFees: trade.platformWalletFees || [],
-            startLocation: trade.startLocation || null,
-          });
-        } catch (priceError) {
-          console.error(`[ALGO TRADING] Error getting price for ${trade.symbol}:`, priceError.message);
-          // Still return trade data so user can cancel (e.g. symbol delisted)
-          userTrades.push({
-            symbol: trade.symbol,
-            currentLevel: trade.currentLevel,
-            numberOfLevels: trade.numberOfLevels,
-            isStarted: trade.isStarted,
-            tradeDirection: trade.tradeDirection || null,
-            startedAt: trade.startedAt,
-            startPrice: trade.startPrice || 0,
-            currentPrice: trade.startPrice || 0,
-            totalInvested: trade.totalInvested,
-            currentPnL: 0,
-            unrealizedPnL: 0,
-            realizedPnL: 0,
-            totalBalance: trade.totalInvested,
-            orders: trade.orders || [],
-            lastSignal: trade.lastSignal,
-            useMargin: trade.useMargin,
-            leverage: trade.leverage || 1,
-            platformWalletFees: trade.platformWalletFees || [],
-            startLocation: trade.startLocation || null,
-            error: 'Failed to get current price',
-          });
-        }
-      }
-    }
-
+    const userTrades = await buildUserTradesPayload(userId);
     res.json({
       success: true,
       data: userTrades,
@@ -1423,6 +1457,7 @@ async function closeAllPositions(trade, reason, stopLocation = null) {
         }
 
         await user.save();
+        emitToUser(trade.userId, 'user:strategies', user.strategies || []);
         const sortedNotif = (user.notifications || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         emitToUser(trade.userId, 'user:notifications', sortedNotif);
         console.log(`[ALGO TRADING CLOSE] 📬 Notification sent to user ${trade.userId}`);

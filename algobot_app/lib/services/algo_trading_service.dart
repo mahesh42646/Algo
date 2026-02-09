@@ -166,6 +166,38 @@ class AlgoTradingService {
     }
   }
 
+  // Get admin strategies (5)
+  Future<List<Map<String, dynamic>>> getAdminStrategies() async {
+    try {
+      final response = await _apiHandler.get('/algo-trading/strategies/admin');
+      if (response.statusCode == 200 && response.data['data'] is List) {
+        return List<Map<String, dynamic>>.from(
+          (response.data['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)),
+        );
+      }
+      return [];
+    } catch (e) {
+      if (Env.enableApiLogs) print('Error loading admin strategies: $e');
+      return [];
+    }
+  }
+
+  // Get popular strategies (5)
+  Future<List<Map<String, dynamic>>> getPopularStrategies() async {
+    try {
+      final response = await _apiHandler.get('/algo-trading/strategies/popular');
+      if (response.statusCode == 200 && response.data['data'] is List) {
+        return List<Map<String, dynamic>>.from(
+          (response.data['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)),
+        );
+      }
+      return [];
+    } catch (e) {
+      if (Env.enableApiLogs) print('Error loading popular strategies: $e');
+      return [];
+    }
+  }
+
   // Get all active trades
   Future<List<Map<String, dynamic>>> getActiveTrades() async {
     if (_userId == null) {

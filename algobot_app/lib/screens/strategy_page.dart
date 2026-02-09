@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../widgets/notification_bell.dart';
 import '../services/user_service.dart';
@@ -5,8 +6,10 @@ import '../services/algo_trading_service.dart';
 import '../services/auth_service.dart';
 import '../services/push_notification_service.dart';
 import '../services/permission_location_service.dart';
+import '../services/socket_service.dart';
 import 'coin_detail_screen.dart';
 import 'algo_trading_config_screen.dart';
+import 'strategy_detail_screen.dart';
 import '../models/crypto_coin.dart';
 
 class StrategyPage extends StatefulWidget {
@@ -23,111 +26,81 @@ class _StrategyPageState extends State<StrategyPage> {
 
   List<Map<String, dynamic>> _strategies = [];
   List<Map<String, dynamic>> _activeTrades = [];
+  List<Map<String, dynamic>> _adminStrategies = [];
+  List<Map<String, dynamic>> _popularStrategies = [];
   bool _isLoading = true;
-  int _selectedTab = 0; // 0: Default, 1: Popular, 2: User Generated
-  
-  // Filters for user strategies
+  int _selectedTab = 0; // 0: Default, 1: Popular, 2: My Strategies
   String _filterCoinPair = 'all';
-  String _filterStatus = 'all'; // all, active, inactive
-
-  // Default strategies (admin strategy)
-  final List<Map<String, dynamic>> _defaultStrategies = [
-    {
-      'name': 'Admin Strategy',
-      'type': 'admin',
-      'description': 'Fixed settings: 3% loss/profit, \$100 per level, no level limits',
-      'maxLossPerTrade': 3.0,
-      'maxProfitBook': 3.0,
-      'amountPerLevel': 100.0,
-      'numberOfLevels': 999,
-      'isDefault': true,
-    },
-  ];
-
-  // Popular strategies
-  final List<Map<String, dynamic>> _popularStrategies = [
-    {
-      'name': 'Popular 3% Strategy',
-      'type': 'popular',
-      'description': 'Most popular: 3% loss/profit, 10 levels, \$10 per level',
-      'maxLossPerTrade': 3.0,
-      'maxLossOverall': 3.0,
-      'maxProfitBook': 3.0,
-      'amountPerLevel': 10.0,
-      'numberOfLevels': 10,
-      'isPopular': true,
-    },
-    {
-      'name': 'Conservative Strategy',
-      'type': 'popular',
-      'description': 'Conservative: 2% loss/profit, 5 levels, \$20 per level',
-      'maxLossPerTrade': 2.0,
-      'maxLossOverall': 2.0,
-      'maxProfitBook': 2.0,
-      'amountPerLevel': 20.0,
-      'numberOfLevels': 5,
-      'isPopular': true,
-    },
-    {
-      'name': 'Aggressive Strategy',
-      'type': 'popular',
-      'description': 'Aggressive: 5% loss/profit, 15 levels, \$5 per level',
-      'maxLossPerTrade': 5.0,
-      'maxLossOverall': 5.0,
-      'maxProfitBook': 5.0,
-      'amountPerLevel': 5.0,
-      'numberOfLevels': 15,
-      'isPopular': true,
-    },
-  ];
+  String _filterStatus = 'all';
+  StreamSubscription<List<dynamic>>? _activeTradesSub;
+  StreamSubscription<List<dynamic>>? _strategiesSub;
 
   @override
   void initState() {
     super.initState();
     _loadStrategies();
+    _activeTradesSub = SocketService().activeTradesUpdates.listen((trades) {
+      if (!mounted) return;
+      setState(() {
+        _activeTrades = trades
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      });
+      PushNotificationService.updateTradeRunning(
+        activeCount: _activeTrades.length,
+        symbols: _activeTrades.map((t) => t['symbol']?.toString() ?? '').where((s) => s.isNotEmpty).toList(),
+      );
+    });
+    _strategiesSub = SocketService().strategiesUpdates.listen((list) {
+      if (!mounted) return;
+      setState(() {
+        _strategies = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _activeTradesSub?.cancel();
+    _strategiesSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadStrategies() async {
-    setState(() {
-      _isLoading = true;
-    });
-
+    setState(() => _isLoading = true);
     try {
       final userId = _authService.currentUser?.uid;
+      final adminList = await _algoService.getAdminStrategies();
+      final popularList = await _algoService.getPopularStrategies();
       if (userId != null) {
-        // Load strategies from user profile
         final strategies = await _userService.getStrategies(userId);
-        
-        // Load active trades
         final activeTrades = await _algoService.getActiveTrades();
-        
         if (mounted) {
           setState(() {
+            _adminStrategies = adminList;
+            _popularStrategies = popularList;
             _strategies = List<Map<String, dynamic>>.from(strategies);
             _activeTrades = activeTrades;
             _isLoading = false;
           });
-          final symbols = activeTrades
-              .map((t) => t['symbol']?.toString() ?? '')
-              .where((s) => s.isNotEmpty)
-              .toList();
           PushNotificationService.updateTradeRunning(
             activeCount: activeTrades.length,
-            symbols: symbols,
+            symbols: activeTrades.map((t) => t['symbol']?.toString() ?? '').where((s) => s.isNotEmpty).toList(),
           );
         }
+      } else if (mounted) {
+        setState(() {
+          _adminStrategies = adminList;
+          _popularStrategies = popularList;
+          _isLoading = false;
+        });
       }
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
         PushNotificationService.updateTradeRunning(activeCount: 0);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error loading strategies: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error loading: ${e.toString()}'), backgroundColor: Colors.red),
         );
       }
     }
@@ -284,14 +257,14 @@ class _StrategyPageState extends State<StrategyPage> {
             const SizedBox(height: 24),
           ],
           const Text(
-            'Default Strategies',
+            'Admin Strategies (5)',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 16),
-          ..._defaultStrategies.map((strategy) => _buildDefaultStrategyCard(strategy)),
+          ..._adminStrategies.take(5).map((strategy) => _buildDefaultStrategyCard(strategy)),
         ],
       );
     } else if (_selectedTab == 1) {
@@ -300,14 +273,14 @@ class _StrategyPageState extends State<StrategyPage> {
         padding: const EdgeInsets.all(16),
         children: [
           const Text(
-            'Popular Strategies',
+            'Popular Strategies (5)',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 16),
-          ..._popularStrategies.map((strategy) => _buildPopularStrategyCard(strategy)),
+          ..._popularStrategies.take(5).map((strategy) => _buildPopularStrategyCard(strategy)),
         ],
       );
     } else {
@@ -420,7 +393,7 @@ class _StrategyPageState extends State<StrategyPage> {
 
   Widget _buildDefaultStrategyCard(Map<String, dynamic> strategy) {
     return GestureDetector(
-      onTap: () => _showStrategyActionDialog(strategy, isDefault: true),
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => StrategyDetailScreen(strategy: strategy, isAdmin: true, isPopular: false))),
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(16),
@@ -482,7 +455,7 @@ class _StrategyPageState extends State<StrategyPage> {
 
   Widget _buildPopularStrategyCard(Map<String, dynamic> strategy) {
     return GestureDetector(
-      onTap: () => _showStrategyActionDialog(strategy, isPopular: true),
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => StrategyDetailScreen(strategy: strategy, isAdmin: false, isPopular: true))),
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(16),
@@ -543,147 +516,6 @@ class _StrategyPageState extends State<StrategyPage> {
     );
   }
   
-  void _showStrategyActionDialog(Map<String, dynamic> strategy, {bool isDefault = false, bool isPopular = false}) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(strategy['name']),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Select an action:'),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: const Icon(Icons.search),
-              title: const Text('Select Coin Pair'),
-              subtitle: const Text('Choose a coin to apply this strategy'),
-              onTap: () {
-                Navigator.pop(context);
-                _selectCoinForStrategy(strategy);
-              },
-            ),
-            if (isDefault)
-              ListTile(
-                leading: const Icon(Icons.admin_panel_settings),
-                title: const Text('Start Admin Strategy'),
-                subtitle: const Text('Start with default pair selection'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _startAdminStrategy();
-                },
-              ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    );
-  }
-  
-  void _selectCoinForStrategy(Map<String, dynamic> strategy) {
-    // Show dialog to enter symbol or navigate to home
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Apply ${strategy['name']}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Enter coin symbol (e.g., BTC, ETH) or select from home'),
-            const SizedBox(height: 16),
-            TextField(
-              decoration: const InputDecoration(
-                labelText: 'Coin Symbol',
-                hintText: 'BTC',
-              ),
-              onSubmitted: (value) {
-                if (value.isNotEmpty) {
-                  Navigator.pop(context);
-                  _applyStrategyToCoin(strategy, value.toUpperCase());
-                }
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.of(context).pushNamed('/home');
-            },
-            child: const Text('Select from List'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    );
-  }
-  
-  void _applyStrategyToCoin(Map<String, dynamic> strategy, String baseSymbol) {
-    // Navigate to coin detail with strategy settings
-    final coin = CryptoCoin(
-      id: baseSymbol.toLowerCase(),
-      symbol: baseSymbol,
-      name: baseSymbol,
-      currentPrice: 0.0,
-      priceChange24h: 0.0,
-      priceChangePercentage24h: 0.0,
-      volume24h: 0.0,
-    );
-    
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AlgoTradingConfigScreen(
-          coin: coin,
-          quoteCurrency: 'USDT',
-          strategySettings: {
-            'maxLossPerTrade': strategy['maxLossPerTrade'] ?? 3.0,
-            'maxLossOverall': strategy['maxLossOverall'] ?? 3.0,
-            'maxProfitBook': strategy['maxProfitBook'] ?? 3.0,
-            'amountPerLevel': strategy['amountPerLevel'] ?? 10.0,
-            'numberOfLevels': strategy['numberOfLevels'] ?? 10,
-            'useMargin': strategy['useMargin'] ?? false,
-            'leverage': strategy['leverage'] ?? 1,
-          },
-        ),
-      ),
-    );
-  }
-  
-  void _startAdminStrategy() async {
-    try {
-      final startLocation = await PermissionLocationService.getCurrentLocation();
-      await _algoService.startAdminStrategy(startLocation: startLocation);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Admin strategy started successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        _loadStrategies();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error starting admin strategy: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -722,34 +554,51 @@ class _StrategyPageState extends State<StrategyPage> {
     final currentLevel = trade['currentLevel'] ?? 0;
     final numberOfLevels = trade['numberOfLevels'] ?? 0;
     final isStarted = trade['isStarted'] ?? false;
-    final tradeDirection = trade['tradeDirection'] ?? 'WAITING';
-    final lastSignal = trade['lastSignal'] ?? {};
+    final tradeDirection = (trade['tradeDirection'] ?? 'WAITING').toString();
+    final lastSignal = trade['lastSignal'] is Map ? Map<String, dynamic>.from(trade['lastSignal'] as Map) : <String, dynamic>{};
+    final startPrice = _toDouble(trade['startPrice']);
+    final currentPrice = _toDouble(trade['currentPrice']);
+    final maxLossPerTrade = _toDouble(trade['maxLossPerTrade']) ?? 3.0;
+    final maxLossOverall = _toDouble(trade['maxLossOverall']) ?? 3.0;
+    final maxProfitBook = _toDouble(trade['maxProfitBook']) ?? 3.0;
+    final amountPerLevel = _toDouble(trade['amountPerLevel']) ?? 10.0;
+    final totalInvested = _toDouble(trade['totalInvested']);
+    final currentPnL = _toDouble(trade['currentPnL']);
+    final unrealizedPnL = _toDouble(trade['unrealizedPnL']);
+    final isBuy = tradeDirection == 'BUY';
 
-    // Extract base and quote from symbol (e.g., BTCUSDT -> BTC, USDT)
+    double stopLossPrice = 0;
+    double targetPrice = 0;
+    if (startPrice > 0) {
+      stopLossPrice = isBuy
+          ? startPrice * (1 - maxLossPerTrade / 100)
+          : startPrice * (1 + maxLossPerTrade / 100);
+      targetPrice = isBuy
+          ? startPrice * (1 + maxProfitBook / 100)
+          : startPrice * (1 - maxProfitBook / 100);
+    }
+
     String baseSymbol = '';
     String quoteCurrency = 'USDT';
     if (symbol.length > 4) {
-      // Try common quote currencies
-      final quotes = ['USDT', 'BTC', 'ETH', 'USDC', 'BNB'];
-      for (final quote in quotes) {
-        if (symbol.endsWith(quote)) {
-          baseSymbol = symbol.substring(0, symbol.length - quote.length);
-          quoteCurrency = quote;
+      for (final q in ['USDT', 'BTC', 'ETH', 'USDC', 'BNB']) {
+        if (symbol.endsWith(q)) {
+          baseSymbol = symbol.substring(0, symbol.length - q.length);
+          quoteCurrency = q;
           break;
         }
       }
-      if (baseSymbol.isEmpty) {
-        baseSymbol = symbol.substring(0, symbol.length - 4);
-      }
+      if (baseSymbol.isEmpty) baseSymbol = symbol.substring(0, symbol.length - 4);
     } else {
       baseSymbol = symbol;
     }
 
+    final theme = Theme.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isStarted ? Colors.green : Colors.orange,
@@ -772,7 +621,6 @@ class _StrategyPageState extends State<StrategyPage> {
               Expanded(
                 child: GestureDetector(
                   onTap: () {
-                    // Navigate to coin detail screen
                     final coin = CryptoCoin(
                       id: baseSymbol.toLowerCase(),
                       symbol: baseSymbol,
@@ -785,10 +633,7 @@ class _StrategyPageState extends State<StrategyPage> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => CoinDetailScreen(
-                          coin: coin,
-                          quoteCurrency: quoteCurrency,
-                        ),
+                        builder: (_) => CoinDetailScreen(coin: coin, quoteCurrency: quoteCurrency),
                       ),
                     );
                   },
@@ -797,19 +642,9 @@ class _StrategyPageState extends State<StrategyPage> {
                     children: [
                       Row(
                         children: [
-                          Text(
-                            symbol,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          Text(symbol, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                           const SizedBox(width: 8),
-                          Icon(
-                            Icons.arrow_forward_ios,
-                            size: 14,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
+                          Icon(Icons.arrow_forward_ios, size: 14, color: theme.colorScheme.primary),
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -821,11 +656,7 @@ class _StrategyPageState extends State<StrategyPage> {
                         ),
                         child: Text(
                           isStarted ? 'ACTIVE' : 'WAITING FOR SIGNAL',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: isStarted ? Colors.green : Colors.orange,
-                          ),
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isStarted ? Colors.green : Colors.orange),
                         ),
                       ),
                     ],
@@ -839,30 +670,79 @@ class _StrategyPageState extends State<StrategyPage> {
               ),
             ],
           ),
+          const Divider(height: 16),
+          Row(
+            children: [
+              Expanded(child: _buildStatItem('Level', '$currentLevel / $numberOfLevels')),
+              Expanded(child: _buildStatItem('Direction', tradeDirection)),
+              Expanded(child: _buildStatItem('Per level', '\$${amountPerLevel.toStringAsFixed(0)}')),
+            ],
+          ),
           const SizedBox(height: 12),
+          Text('Strategy', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey[700])),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 12,
+            runSpacing: 6,
+            children: [
+              _buildStatItem('Stop loss', '${maxLossPerTrade.toStringAsFixed(1)}%'),
+              _buildStatItem('Target', '+${maxProfitBook.toStringAsFixed(1)}%'),
+              _buildStatItem('Max loss overall', '${maxLossOverall.toStringAsFixed(1)}%'),
+            ],
+          ),
+          if (startPrice > 0) ...[
+            const SizedBox(height: 8),
+            Text('Price levels', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey[700])),
+            const SizedBox(height: 4),
+            Text('Start: \$${_formatPrice(startPrice)}  ·  Current: \$${_formatPrice(currentPrice)}', style: theme.textTheme.bodySmall),
+            Text('Stop loss: \$${_formatPrice(stopLossPrice)}  ·  Target: \$${_formatPrice(targetPrice)}', style: theme.textTheme.bodySmall),
+          ],
+          const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
-                child: _buildStatItem('Level', '$currentLevel / $numberOfLevels'),
+                child: _buildStatItem('Invested', '\$${totalInvested.toStringAsFixed(2)}'),
               ),
               Expanded(
-                child: _buildStatItem('Direction', tradeDirection.toString()),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('P&L %', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                    Text(
+                      '${currentPnL >= 0 ? '+' : ''}${currentPnL.toStringAsFixed(2)}%',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: currentPnL >= 0 ? Colors.green : Colors.red),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: _buildStatItem('Unrealized', '\$${unrealizedPnL.toStringAsFixed(2)}'),
               ),
             ],
           ),
           if (lastSignal.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
-              'Last Signal: ${lastSignal['direction'] ?? 'N/A'} (${lastSignal['strength'] ?? 'N/A'})',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
-              ),
+              'Last signal: ${lastSignal['direction'] ?? 'N/A'} (${lastSignal['strength'] ?? 'N/A'})',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
             ),
           ],
         ],
       ),
     );
+  }
+
+  double _toDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is int) return (v as int).toDouble();
+    if (v is double) return v;
+    return double.tryParse(v.toString()) ?? 0.0;
+  }
+
+  String _formatPrice(double p) {
+    if (p >= 1000) return p.toStringAsFixed(2);
+    if (p >= 1) return p.toStringAsFixed(2);
+    return p.toStringAsFixed(6);
   }
 
   Widget _buildStrategyCard(Map<String, dynamic> strategy) {

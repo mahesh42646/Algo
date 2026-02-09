@@ -75,19 +75,22 @@ class _NotificationBellState extends State<NotificationBell> {
       builder: (dialogContext) => Stack(
         clipBehavior: Clip.none,
         children: [
-          Positioned(
-            right: 16,
-            top: buttonPosition.dy + buttonSize.height + 8,
-            child: NotificationPanel(
-              key: ValueKey(DateTime.now().millisecondsSinceEpoch),
-              onNavigateToTab: (index) => Navigator.of(dialogContext).pop(index),
-            ),
-          ),
           Positioned.fill(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () => Navigator.of(dialogContext).pop(),
               child: const SizedBox.expand(),
+            ),
+          ),
+          Positioned(
+            right: 16,
+            top: buttonPosition.dy + buttonSize.height + 8,
+            child: Material(
+              type: MaterialType.transparency,
+              child: NotificationPanel(
+                key: ValueKey(DateTime.now().millisecondsSinceEpoch),
+                onNavigateToTab: (index) => Navigator.of(dialogContext).pop(index),
+              ),
             ),
           ),
         ],

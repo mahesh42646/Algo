@@ -20,16 +20,18 @@ class SocketService {
   final StreamController<Map<String, dynamic>> _balanceController = StreamController<Map<String, dynamic>>.broadcast();
   final StreamController<List<dynamic>> _notificationsController = StreamController<List<dynamic>>.broadcast();
   final StreamController<void> _statsController = StreamController<void>.broadcast();
-  final StreamController<void> _activeTradesController = StreamController<void>.broadcast();
+  final StreamController<List<dynamic>> _activeTradesController = StreamController<List<dynamic>>.broadcast();
   final StreamController<void> _tradeHistoryController = StreamController<void>.broadcast();
   final StreamController<List<dynamic>> _favoritesController = StreamController<List<dynamic>>.broadcast();
+  final StreamController<List<dynamic>> _strategiesController = StreamController<List<dynamic>>.broadcast();
 
   Stream<Map<String, dynamic>> get balanceUpdates => _balanceController.stream;
   Stream<List<dynamic>> get notificationsUpdates => _notificationsController.stream;
   Stream<void> get statsUpdates => _statsController.stream;
-  Stream<void> get activeTradesUpdates => _activeTradesController.stream;
+  Stream<List<dynamic>> get activeTradesUpdates => _activeTradesController.stream;
   Stream<void> get tradeHistoryUpdates => _tradeHistoryController.stream;
   Stream<List<dynamic>> get favoritesUpdates => _favoritesController.stream;
+  Stream<List<dynamic>> get strategiesUpdates => _strategiesController.stream;
 
   bool get isConnected => _socket?.connected ?? false;
 
@@ -92,11 +94,20 @@ class SocketService {
         }
       })
       ..on('user:stats', (_) => _statsController.add(null))
-      ..on('user:activeTrades', (_) => _activeTradesController.add(null))
+      ..on('user:activeTrades', (data) {
+        if (data is Map && data['trades'] is List) {
+          _activeTradesController.add(List<dynamic>.from(data['trades'] as List));
+        }
+      })
       ..on('user:tradeHistory', (_) => _tradeHistoryController.add(null))
       ..on('user:favorites', (data) {
         if (data is List) {
           _favoritesController.add(List<dynamic>.from(data));
+        }
+      })
+      ..on('user:strategies', (data) {
+        if (data is List) {
+          _strategiesController.add(List<dynamic>.from(data));
         }
       });
   }
@@ -116,5 +127,6 @@ class SocketService {
     _activeTradesController.close();
     _tradeHistoryController.close();
     _favoritesController.close();
+    _strategiesController.close();
   }
 }

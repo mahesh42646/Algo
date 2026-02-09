@@ -174,7 +174,7 @@ class _NotificationPanelState extends State<NotificationPanel> {
       shadowColor: theme.shadowColor.withOpacity(0.2),
       child: Container(
         width: 320,
-        constraints: const BoxConstraints(maxHeight: 520),
+        height: 520,
         decoration: BoxDecoration(
           color: theme.scaffoldBackgroundColor,
           borderRadius: BorderRadius.circular(16),
@@ -188,11 +188,10 @@ class _NotificationPanelState extends State<NotificationPanel> {
             if (_isLoading)
               const Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator())
             else if (list.isEmpty)
-              _buildEmpty(theme)
+              Expanded(child: _buildEmpty(theme))
             else
               Expanded(
                 child: ListView.builder(
-                  shrinkWrap: true,
                   padding: EdgeInsets.zero,
                   itemCount: list.length,
                   itemBuilder: (context, index) => _buildItem(theme, list[index]),
@@ -277,31 +276,31 @@ class _NotificationPanelState extends State<NotificationPanel> {
       }
     } catch (_) {}
     final id = _notificationId(notification);
-
     final typeColor = _typeColor(type);
+
     return Material(
       color: isRead ? theme.scaffoldBackgroundColor : theme.colorScheme.primaryContainer.withOpacity(0.15),
-      child: InkWell(
-        onTap: () {
-          _openDetail(notification, () => _loadNotifications());
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: typeColor.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(_typeIcon(type), color: typeColor, size: 20),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: typeColor.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
               ),
-              const SizedBox(width: 12),
-              Expanded(
+              child: Icon(_typeIcon(type), color: typeColor, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: InkWell(
+                onTap: () => _openDetail(notification, _loadNotifications),
+                borderRadius: BorderRadius.circular(8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       notification['title']?.toString() ?? '',
@@ -319,23 +318,41 @@ class _NotificationPanelState extends State<NotificationPanel> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      _notificationService.formatTimeAgo(createdAt),
-                      style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.outline),
+                    Row(
+                      children: [
+                        Text(
+                          _notificationService.formatTimeAgo(createdAt),
+                          style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.outline),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Read more',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(Icons.arrow_forward_ios, size: 10, color: theme.colorScheme.primary),
+                      ],
                     ),
                   ],
                 ),
               ),
-              IconButton(
-                icon: Icon(Icons.close, size: 18, color: theme.colorScheme.onSurfaceVariant),
-                onPressed: () async {
-                  await _deleteOne(id);
-                },
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            ),
+            const SizedBox(width: 4),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _deleteOne(id),
+                borderRadius: BorderRadius.circular(20),
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Icon(Icons.close, size: 20, color: theme.colorScheme.onSurfaceVariant),
+                ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
